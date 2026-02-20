@@ -322,6 +322,9 @@ fn App() -> Element {
     let mut active_tab = use_signal(|| Tab::Model);
     let mut logs = use_signal(Vec::<String>::new);
     let mut error_msg = use_signal(|| None::<String>);
+    let mut available_models = use_signal(Vec::<String>::new);
+    let mut selected_model = use_signal(String::new);
+    let mut loading_models = use_signal(|| false);
 
     // Server process + shared log buffer
     let mut server_child: Signal<Option<Arc<Mutex<Child>>>> = use_signal(|| None);
@@ -345,6 +348,49 @@ fn App() -> Element {
                     logs.write().extend(new);
                 }
             }
+        }
+    });
+
+    // ── Models fetcher ──────────────────────────────────────────────
+    // Parse available models from server logs
+    let _models_fetcher = use_resource(move || {
+        let log_data = logs.read().clone();
+        async move {
+            if !is_running {
+                available_models.set(Vec::new());
+                selected_model.set(String::new());
+                return;
+            }
+            
+            // Parse models from log output
+            // Look for lines like: "srv   load_models:     model-name"
+            let mut models = Vec::new();
+            let mut in_models_section = false;
+            
+            for line in &log_data {
+                // Check if we're entering the models section
+                if line.contains("Available models") {
+                    in_models_section = true;
+                    continue;
+                }
+                
+                // Stop at the router server line
+                if in_models_section && line.contains("starting router server") {
+                    break;
+                }
+                
+                // Extract model names from the models list
+                if in_models_section && line.contains("srv   load_models:") && !line.contains("Available models") {
+                    if let Some(model_name) = line.split("srv   load_models:").nth(1).map(|s| s.trim()) {
+                        if !model_name.is_empty() && !model_name.contains("Loaded") {
+                            models.push(model_name.to_string());
+                        }
+                    }
+                }
+            }
+            
+            available_models.set(models);
+            loading_models.set(false);
         }
     });
 
@@ -533,6 +579,54 @@ fn App() -> Element {
                         div { class: "card-title", "Command Preview" }
                         div { class: "cmd-preview", {config.read().command_preview()} }
                     }
+
+                    // Available models
+                    if is_running && !available_models.read().is_empty() {
+                        div { class: "card",
+                            div { class: "card-title", "Available Models" }
+                            if loading_models() {
+                                div { class: "form-hint", "Loading models\u{2026}" }
+                            } else {
+                                div { class: "form-group",
+                                    label { class: "form-label", "Select a model to load" }
+                                    select {
+                                        class: "form-input",
+                                        value: selected_model(),
+                                        onchange: move |e: Event<FormData>| {
+                                            selected_model.set(e.value());
+                                        },
+                                        option { value: "", "Choose a model\u{2026}" }
+                                        for model in available_models.read().iter() {
+                                            option { value: model.clone(), {model.clone()} }
+                                        }
+                                    }
+                                }
+                                if !selected_model().is_empty() {
+                                    button {
+                                        class: "btn btn-start",
+                                        onclick: {
+                                            let model = selected_model();
+                                            let port = config.read().port;
+                                            move |_| {
+                                                let model = model.clone();
+                                                let port = port;
+                                                spawn(async move {
+                                                    let url = format!("http://127.0.0.1:{}/api/models/load", port);
+                                                    let payload = serde_json::json!({ "model": model });
+                                                    let _ = reqwest::Client::new()
+                                                        .post(&url)
+                                                        .json(&payload)
+                                                        .send()
+                                                        .await;
+                                                });
+                                            }
+                                        },
+                                        "Load Model"
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -675,7 +769,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Model Directory" }
             div { class: "form-group",
-                label { class: "form-label", "Model Dir (-md)" }
+                label { class: "form-label", "Model Directory (--models-dir)" }
                 div { class: "input-group",
                     input {
                         class: "form-input",

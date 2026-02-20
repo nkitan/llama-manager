@@ -334,7 +334,7 @@ impl ServerConfig {
             a.extend(["-m".into(), self.model_path.clone()]);
         }
         if !self.model_dir.is_empty() {
-            a.extend(["-md".into(), self.model_dir.clone()]);
+            a.extend(["--models-dir".into(), self.model_dir.clone()]);
         }
         if !self.model_alias.is_empty() {
             a.extend(["-a".into(), self.model_alias.clone()]);
