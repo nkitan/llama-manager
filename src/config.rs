@@ -139,6 +139,7 @@ pub struct ServerConfig {
 
     // ─ Model
     pub model_path: String,
+    pub model_dir: String,
     pub model_alias: String,
     pub model_url: String,
     pub hf_repo: String,
@@ -233,6 +234,7 @@ impl Default for ServerConfig {
 
             // Model
             model_path: String::new(),
+            model_dir: String::new(),
             model_alias: String::new(),
             model_url: String::new(),
             hf_repo: String::new(),
@@ -331,6 +333,9 @@ impl ServerConfig {
         if !self.model_path.is_empty() {
             a.extend(["-m".into(), self.model_path.clone()]);
         }
+        if !self.model_dir.is_empty() {
+            a.extend(["-md".into(), self.model_dir.clone()]);
+        }
         if !self.model_alias.is_empty() {
             a.extend(["-a".into(), self.model_alias.clone()]);
         }
@@ -416,9 +421,8 @@ impl ServerConfig {
         if self.threads_batch > 0 {
             a.extend(["-tb".into(), self.threads_batch.to_string()]);
         }
-        if self.flash_attn {
-            a.push("-fa".into());
-        }
+        // -fa requires a value: on, off, or auto
+        a.extend(["-fa".into(), if self.flash_attn { "on" } else { "off" }.into()]);
         if self.no_warmup {
             a.push("--no-warmup".into());
         }

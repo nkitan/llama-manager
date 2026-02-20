@@ -362,9 +362,9 @@ fn App() -> Element {
         } else {
             // Validate
             let cfg = config.read();
-            if cfg.model_path.is_empty() && cfg.hf_repo.is_empty() && cfg.model_url.is_empty() {
+            if cfg.model_path.is_empty() && cfg.hf_repo.is_empty() && cfg.model_url.is_empty() && cfg.model_dir.is_empty() {
                 error_msg.set(Some(
-                    "Please provide a model path, HuggingFace repo, or model URL.".into(),
+                    "Please provide a model path, HuggingFace repo, model directory, or model URL.".into(),
                 ));
                 return;
             }
@@ -423,28 +423,38 @@ fn App() -> Element {
 
     // ── Save / Load config ──────────────────────────────────────────
     let save_config = move |_| {
-        if let Some(path) = rfd::FileDialog::new()
-            .set_file_name("llama-config.json")
-            .add_filter("JSON", &["json"])
-            .save_file()
-        {
-            let cfg = config.read();
-            if let Err(e) = cfg.save_to_file(&path.to_string_lossy()) {
-                error_msg.set(Some(format!("Save failed: {e}")));
+        spawn(async move {
+            let config_data = config.read().clone();
+            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new()
+                    .set_file_name("llama-config.json")
+                    .add_filter("JSON", &["json"])
+                    .save_file()
+            })
+            .await
+            {
+                if let Err(e) = config_data.save_to_file(&path.to_string_lossy()) {
+                    error_msg.set(Some(format!("Save failed: {e}")));
+                }
             }
-        }
+        });
     };
 
     let load_config = move |_| {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("JSON", &["json"])
-            .pick_file()
-        {
-            match ServerConfig::load_from_file(&path.to_string_lossy()) {
-                Ok(cfg) => config.set(cfg),
-                Err(e) => error_msg.set(Some(format!("Load failed: {e}"))),
+        spawn(async move {
+            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new()
+                    .add_filter("JSON", &["json"])
+                    .pick_file()
+            })
+            .await
+            {
+                match ServerConfig::load_from_file(&path.to_string_lossy()) {
+                    Ok(loaded_cfg) => config.set(loaded_cfg),
+                    Err(e) => error_msg.set(Some(format!("Load failed: {e}"))),
+                }
             }
-        }
+        });
     };
 
     // ── Render ──────────────────────────────────────────────────────
@@ -571,23 +581,46 @@ fn App() -> Element {
 #[component]
 fn TabModel(config: Signal<ServerConfig>) -> Element {
     let pick_model = move |_| {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("GGUF Model", &["gguf"])
-            .add_filter("All Files", &["*"])
-            .pick_file()
-        {
-            config.write().model_path = path.to_string_lossy().to_string();
-        }
+        spawn(async move {
+            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new()
+                    .add_filter("GGUF Model", &["gguf"])
+                    .add_filter("All Files", &["*"])
+                    .pick_file()
+            })
+            .await
+            {
+                config.write().model_path = path.to_string_lossy().to_string();
+            }
+        });
     };
 
     let pick_exe = move |_| {
-        if let Some(path) = rfd::FileDialog::new()
-            .add_filter("Executable", &["exe", ""])
-            .add_filter("All Files", &["*"])
-            .pick_file()
-        {
-            config.write().exe_path = path.to_string_lossy().to_string();
-        }
+        spawn(async move {
+            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new()
+                    .add_filter("Executable", &["exe", ""])
+                    .add_filter("All Files", &["*"])
+                    .pick_file()
+            })
+            .await
+            {
+                config.write().exe_path = path.to_string_lossy().to_string();
+            }
+        });
+    };
+
+    let pick_model_dir = move |_| {
+        spawn(async move {
+            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new()
+                    .pick_folder()
+            })
+            .await
+            {
+                config.write().model_dir = path.to_string_lossy().to_string();
+            }
+        });
     };
 
     rsx! {
@@ -635,6 +668,24 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                     placeholder: "Optional friendly name",
                     oninput: move |e: Event<FormData>| config.write().model_alias = e.value(),
                 }
+            }
+        }
+
+        // Model directory
+        div { class: "card",
+            div { class: "card-title", "Model Directory" }
+            div { class: "form-group",
+                label { class: "form-label", "Model Dir (-md)" }
+                div { class: "input-group",
+                    input {
+                        class: "form-input",
+                        value: config.read().model_dir.clone(),
+                        placeholder: "C:\\models",
+                        oninput: move |e: Event<FormData>| config.write().model_dir = e.value(),
+                    }
+                    button { class: "btn-browse", onclick: pick_model_dir, "Browse" }
+                }
+                div { class: "form-hint", "Point to a directory containing .gguf models. The server will expose an endpoint to list and select which model to load." }
             }
         }
 
@@ -1233,13 +1284,19 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     button {
                         class: "btn-browse",
                         onclick: move |_| {
-                            if let Some(p) = rfd::FileDialog::new()
-                                .add_filter("Grammar", &["gbnf", "bnf"])
-                                .add_filter("All", &["*"])
-                                .pick_file()
-                            {
-                                config.write().grammar_file = p.to_string_lossy().to_string();
-                            }
+                            let mut cfg = config;
+                            spawn(async move {
+                                if let Ok(Some(p)) = tokio::task::spawn_blocking(move || {
+                                    rfd::FileDialog::new()
+                                        .add_filter("Grammar", &["gbnf", "bnf"])
+                                        .add_filter("All", &["*"])
+                                        .pick_file()
+                                })
+                                .await
+                                {
+                                    cfg.write().grammar_file = p.to_string_lossy().to_string();
+                                }
+                            });
                         },
                         "Browse"
                     }
@@ -1386,13 +1443,19 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                                     onclick: {
                                         let idx = i;
                                         move |_| {
-                                            if let Some(p) = rfd::FileDialog::new()
-                                                .add_filter("GGUF", &["gguf"])
-                                                .add_filter("All", &["*"])
-                                                .pick_file()
-                                            {
-                                                config.write().lora_adapters[idx].path = p.to_string_lossy().to_string();
-                                            }
+                                            let mut cfg = config;
+                                            spawn(async move {
+                                                if let Ok(Some(p)) = tokio::task::spawn_blocking(move || {
+                                                    rfd::FileDialog::new()
+                                                        .add_filter("GGUF", &["gguf"])
+                                                        .add_filter("All", &["*"])
+                                                        .pick_file()
+                                                })
+                                                .await
+                                                {
+                                                    cfg.write().lora_adapters[idx].path = p.to_string_lossy().to_string();
+                                                }
+                                            });
                                         }
                                     },
                                     "Browse"
@@ -1458,13 +1521,19 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     button {
                         class: "btn-browse",
                         onclick: move |_| {
-                            if let Some(p) = rfd::FileDialog::new()
-                                .add_filter("GGUF", &["gguf"])
-                                .add_filter("All", &["*"])
-                                .pick_file()
-                            {
-                                config.write().draft_model = p.to_string_lossy().to_string();
-                            }
+                            let mut cfg = config;
+                            spawn(async move {
+                                if let Ok(Some(p)) = tokio::task::spawn_blocking(move || {
+                                    rfd::FileDialog::new()
+                                        .add_filter("GGUF", &["gguf"])
+                                        .add_filter("All", &["*"])
+                                        .pick_file()
+                                })
+                                .await
+                                {
+                                    cfg.write().draft_model = p.to_string_lossy().to_string();
+                                }
+                            });
                         },
                         "Browse"
                     }
@@ -1562,9 +1631,16 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                     button {
                         class: "btn-browse",
                         onclick: move |_| {
-                            if let Some(p) = rfd::FileDialog::new().pick_file() {
-                                config.write().api_key_file = p.to_string_lossy().to_string();
-                            }
+                            let mut cfg = config;
+                            spawn(async move {
+                                if let Ok(Some(p)) = tokio::task::spawn_blocking(move || {
+                                    rfd::FileDialog::new().pick_file()
+                                })
+                                .await
+                                {
+                                    cfg.write().api_key_file = p.to_string_lossy().to_string();
+                                }
+                            });
                         },
                         "Browse"
                     }
@@ -1608,9 +1684,16 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                     button {
                         class: "btn-browse",
                         onclick: move |_| {
-                            if let Some(p) = rfd::FileDialog::new().pick_folder() {
-                                config.write().slot_save_path = p.to_string_lossy().to_string();
-                            }
+                            let mut cfg = config;
+                            spawn(async move {
+                                if let Ok(Some(p)) = tokio::task::spawn_blocking(move || {
+                                    rfd::FileDialog::new().pick_folder()
+                                })
+                                .await
+                                {
+                                    cfg.write().slot_save_path = p.to_string_lossy().to_string();
+                                }
+                            });
                         },
                         "Browse"
                     }
