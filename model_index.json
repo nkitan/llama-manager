@@ -1,44 +1,843 @@
 [
   {
-    "path": "/mnt/shared/models/text",
-    "filename": "text",
-    "size_bytes": 11889920288,
-    "clean_name": "text",
+    "path": "/mnt/shared/models/text/bonsai-1.7b.gguf",
+    "filename": "bonsai-1.7b.gguf",
+    "size_bytes": 248302272,
+    "clean_name": "bonsai 1.7b",
     "use_case": "Unknown",
     "hf_link": "",
     "github_link": "",
-    "size_info": "11.07 GB",
+    "size_info": "236.8 MB",
     "status": "pending_enrichment",
-    "family": "Text",
-    "version": "Text",
-    "tags": []
+    "family": "Bonsai",
+    "version": "Bonsai 1.7B",
+    "tags": [
+      "GGUF"
+    ]
   },
   {
-    "path": "/mnt/shared/models/multimodal",
-    "filename": "multimodal",
-    "size_bytes": 92902071232,
-    "clean_name": "multimodal",
+    "path": "/mnt/shared/models/text/bonsai-4b.gguf",
+    "filename": "bonsai-4b.gguf",
+    "size_bytes": 572270624,
+    "clean_name": "bonsai 4b",
     "use_case": "Unknown",
     "hf_link": "",
     "github_link": "",
-    "size_info": "86.52 GB",
+    "size_info": "545.8 MB",
     "status": "pending_enrichment",
-    "family": "Multimodal",
-    "version": "Multimodal",
-    "tags": []
+    "family": "Bonsai",
+    "version": "Bonsai 4B",
+    "tags": [
+      "GGUF"
+    ]
   },
   {
-    "path": "/mnt/shared/models/audiovisualmodels",
-    "filename": "audiovisualmodels",
-    "size_bytes": 177593223983,
-    "clean_name": "audiovisualmodels",
+    "path": "/mnt/shared/models/text/nanbeige4.1-3b-Q8_0.gguf",
+    "filename": "nanbeige4.1-3b-Q8_0.gguf",
+    "size_bytes": 4183948864,
+    "clean_name": "nanbeige4.1 3b",
     "use_case": "Unknown",
     "hf_link": "",
     "github_link": "",
-    "size_info": "165.40 GB",
+    "size_info": "3.90 GB",
     "status": "pending_enrichment",
-    "family": "Audiovisualmodels",
-    "version": "Audiovisualmodels",
-    "tags": []
+    "family": "Other",
+    "version": "Nanbeige4.1 3b",
+    "tags": [
+      "GGUF",
+      "Q8_0"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/text/bonsai-8b.gguf",
+    "filename": "bonsai-8b.gguf",
+    "size_bytes": 1158654496,
+    "clean_name": "bonsai 8b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.08 GB",
+    "status": "pending_enrichment",
+    "family": "Bonsai",
+    "version": "Bonsai 8B",
+    "tags": [
+      "GGUF"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/text/ternary-bonsai-8b-Q2_K.gguf",
+    "filename": "ternary-bonsai-8b-Q2_K.gguf",
+    "size_bytes": 3280470592,
+    "clean_name": "ternary bonsai 8b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "3.06 GB",
+    "status": "pending_enrichment",
+    "family": "Ternary Bonsai",
+    "version": "Ternary Bonsai 8B",
+    "tags": [
+      "GGUF",
+      "Q2_K"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/text/ternary-bonsai-4b-Q2_K.gguf",
+    "filename": "ternary-bonsai-4b-Q2_K.gguf",
+    "size_bytes": 1668932608,
+    "clean_name": "ternary bonsai 4b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.55 GB",
+    "status": "pending_enrichment",
+    "family": "Ternary Bonsai",
+    "version": "Ternary Bonsai 4B",
+    "tags": [
+      "GGUF",
+      "Q2_K"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/text/ternary-bonsai-1.7b-Q2_K.gguf",
+    "filename": "ternary-bonsai-1.7b-Q2_K.gguf",
+    "size_bytes": 777340832,
+    "clean_name": "ternary bonsai 1.7b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "741.3 MB",
+    "status": "pending_enrichment",
+    "family": "Ternary Bonsai",
+    "version": "Ternary Bonsai 1.7B",
+    "tags": [
+      "GGUF",
+      "Q2_K"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/multimodal/gemma-4-e4b-it-ud-Q8_K_XL.gguf",
+    "filename": "gemma-4-e4b-it-ud-Q8_K_XL.gguf",
+    "size_bytes": 8658661760,
+    "clean_name": "gemma 4 e4b it ud",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "8.06 GB",
+    "status": "pending_enrichment",
+    "family": "Gemma",
+    "version": "Gemma 4",
+    "tags": [
+      "GGUF",
+      "Q8_K_XL"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/multimodal/lfm2.5-VL-450M-Q8_0.gguf",
+    "filename": "lfm2.5-VL-450M-Q8_0.gguf",
+    "size_bytes": 379219104,
+    "clean_name": "lfm2.5 VL 450M",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "361.7 MB",
+    "status": "pending_enrichment",
+    "family": "LFM",
+    "version": "LFM 2.5",
+    "tags": [
+      "GGUF",
+      "Q8_0",
+      "Vision"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/multimodal/qwen3.6-35b-a3b-ud-Q8_K_XL.gguf",
+    "filename": "qwen3.6-35b-a3b-ud-Q8_K_XL.gguf",
+    "size_bytes": 38451182560,
+    "clean_name": "qwen3.6 35b a3b ud",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "35.81 GB",
+    "status": "pending_enrichment",
+    "family": "Qwen",
+    "version": "Qwen 3.6",
+    "tags": [
+      "GGUF",
+      "Q8_K_XL"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/multimodal/qwen3.6-27b-Q8_0.gguf",
+    "filename": "qwen3.6-27b-Q8_0.gguf",
+    "size_bytes": 28595763424,
+    "clean_name": "qwen3.6 27b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "26.63 GB",
+    "status": "pending_enrichment",
+    "family": "Qwen",
+    "version": "Qwen 3.6",
+    "tags": [
+      "GGUF",
+      "Q8_0"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/multimodal/qwen3.6-27b-Q4_K_M.gguf",
+    "filename": "qwen3.6-27b-Q4_K_M.gguf",
+    "size_bytes": 16817244384,
+    "clean_name": "qwen3.6 27b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "15.66 GB",
+    "status": "pending_enrichment",
+    "family": "Qwen",
+    "version": "Qwen 3.6",
+    "tags": [
+      "GGUF",
+      "Q4_K_M"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/ltx-2.3-22b-dev-Q8_0.gguf",
+    "filename": "ltx-2.3-22b-dev-Q8_0.gguf",
+    "size_bytes": 22755540384,
+    "clean_name": "ltx 2.3 22b dev",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "21.19 GB",
+    "status": "pending_enrichment",
+    "family": "Ltx",
+    "version": "Ltx 2.3",
+    "tags": [
+      "GGUF",
+      "Q8_0"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/SmoothMix_I2V_v2_High-Q6_K.gguf",
+    "filename": "SmoothMix_I2V_v2_High-Q6_K.gguf",
+    "size_bytes": 12003652096,
+    "clean_name": "SmoothMix I2V v2 High",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "11.18 GB",
+    "status": "pending_enrichment",
+    "family": "SmoothMix",
+    "version": "SmoothMix I2V",
+    "tags": [
+      "GGUF",
+      "Q6_K"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/SmoothMix_I2V_v2_Low-Q6_K.gguf",
+    "filename": "SmoothMix_I2V_v2_Low-Q6_K.gguf",
+    "size_bytes": 12003652096,
+    "clean_name": "SmoothMix I2V v2 Low",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "11.18 GB",
+    "status": "pending_enrichment",
+    "family": "SmoothMix",
+    "version": "SmoothMix I2V",
+    "tags": [
+      "GGUF",
+      "Q6_K"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/wan2.2_i2v_high_noise_14B_Q4_K_S.gguf",
+    "filename": "wan2.2_i2v_high_noise_14B_Q4_K_S.gguf",
+    "size_bytes": 8748151296,
+    "clean_name": "wan2.2 i2v high noise 14B Q4 K S",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "8.15 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/wan2.2_i2v_low_noise_14B_Q4_K_S.gguf",
+    "filename": "wan2.2_i2v_low_noise_14B_Q4_K_S.gguf",
+    "size_bytes": 8748151296,
+    "clean_name": "wan2.2 i2v low noise 14B Q4 K S",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "8.15 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/wan2.2-i2v-rapid-aio-v10-Q4_K.gguf",
+    "filename": "wan2.2-i2v-rapid-aio-v10-Q4_K.gguf",
+    "size_bytes": 10849052416,
+    "clean_name": "wan2.2 i2v rapid aio v10 Q4 K",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "10.10 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF",
+      "Q4_K"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/wan2.2-i2v-rapid-aio-v10-unc-Q4_K.gguf",
+    "filename": "wan2.2-i2v-rapid-aio-v10-unc-Q4_K.gguf",
+    "size_bytes": 10849052416,
+    "clean_name": "wan2.2 i2v rapid aio v10 unc Q4 K",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "10.10 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF",
+      "Q4_K",
+      "Uncensored"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/wan2.2-rapid-mega-aio-unc-v1-Q4_K.gguf",
+    "filename": "wan2.2-rapid-mega-aio-unc-v1-Q4_K.gguf",
+    "size_bytes": 11627589408,
+    "clean_name": "wan2.2 rapid mega aio unc v1 Q4 K",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "10.83 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF",
+      "Q4_K",
+      "Uncensored"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/Wan2.2-T2V-A14B-HighNoise-Q4_K_S.gguf",
+    "filename": "Wan2.2-T2V-A14B-HighNoise-Q4_K_S.gguf",
+    "size_bytes": 8746512896,
+    "clean_name": "Wan2.2 T2V A14B HighNoise Q4 K S",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "8.15 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF",
+      "Q4_K_S"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/unet/Wan2.2-T2V-A14B-LowNoise-Q4_K_S.gguf",
+    "filename": "Wan2.2-T2V-A14B-LowNoise-Q4_K_S.gguf",
+    "size_bytes": 8746512896,
+    "clean_name": "Wan2.2 T2V A14B LowNoise Q4 K S",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "8.15 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "GGUF",
+      "Q4_K_S"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors",
+    "filename": "wan2.2_ti2v_5B_fp16.safetensors",
+    "size_bytes": 9999658848,
+    "clean_name": "wan2.2 ti2v 5B fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "9.31 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/vae/wan_2.1_vae.safetensors",
+    "filename": "wan_2.1_vae.safetensors",
+    "size_bytes": 253815318,
+    "clean_name": "wan 2.1 vae",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "242.1 MB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan (Other)",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/vae/wan2.2_vae.safetensors",
+    "filename": "wan2.2_vae.safetensors",
+    "size_bytes": 1409400960,
+    "clean_name": "wan2.2 vae",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.31 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/vae/LTX23_audio_vae_bf16.safetensors",
+    "filename": "LTX23_audio_vae_bf16.safetensors",
+    "size_bytes": 364855188,
+    "clean_name": "LTX23 audio vae bf16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "348.0 MB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Ltx23 audio",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/vae/LTX23_video_vae_bf16.safetensors",
+    "filename": "LTX23_video_vae_bf16.safetensors",
+    "size_bytes": 1452258578,
+    "clean_name": "LTX23 video vae bf16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.35 GB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Ltx23 video",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/vae/taeltx2_3.safetensors",
+    "filename": "taeltx2_3.safetensors",
+    "size_bytes": 23531296,
+    "clean_name": "taeltx2 3",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "22.4 MB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Taeltx2 3",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/vae/taew2_2.safetensors",
+    "filename": "taew2_2.safetensors",
+    "size_bytes": 22848080,
+    "clean_name": "taew2 2",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "21.8 MB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Taew2 2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/text_encoders/umt5-xxl-encoder-Q4_K_S.gguf",
+    "filename": "umt5-xxl-encoder-Q4_K_S.gguf",
+    "size_bytes": 3497596768,
+    "clean_name": "umt5 xxl encoder Q4 K S",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "3.26 GB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Umt5 xxl",
+    "tags": [
+      "GGUF",
+      "Q4_K_S",
+      "Coder"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/text_encoders/t5xxl_fp8_e4m3fn.safetensors",
+    "filename": "t5xxl_fp8_e4m3fn.safetensors",
+    "size_bytes": 4893934904,
+    "clean_name": "t5xxl fp8 e4m3fn",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "4.56 GB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "T5xxl fp8",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+    "filename": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+    "size_bytes": 6735906897,
+    "clean_name": "umt5 xxl fp8 e4m3fn scaled",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "6.27 GB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Umt5 xxl",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/text_encoders/ltx-2.3_text_projection_bf16.safetensors",
+    "filename": "ltx-2.3_text_projection_bf16.safetensors",
+    "size_bytes": 2312149072,
+    "clean_name": "ltx 2.3 text projection bf16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "2.15 GB",
+    "status": "pending_enrichment",
+    "family": "Ltx",
+    "version": "Ltx 2.3",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/22-H-e8.safetensors",
+    "filename": "22-H-e8.safetensors",
+    "size_bytes": 613516752,
+    "clean_name": "22 H e8",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "585.1 MB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "22 H",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/DR34ML4Y_I2V_14B_HIGH.safetensors",
+    "filename": "DR34ML4Y_I2V_14B_HIGH.safetensors",
+    "size_bytes": 306807976,
+    "clean_name": "DR34ML4Y I2V 14B HIGH",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "292.6 MB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Dr34ml4y I2V",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank128_bf16.safetensors",
+    "filename": "lightx2v_I2V_14B_480p_cfg_step_distill_rank128_bf16.safetensors",
+    "size_bytes": 1466506280,
+    "clean_name": "lightx2v I2V 14B 480p cfg step distill rank128 bf16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.37 GB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Lightx2v I2V",
+    "tags": [
+      "Safetensors",
+      "Distilled"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank128_bf16.safetensors",
+    "filename": "lightx2v_T2V_14B_cfg_step_distill_v2_lora_rank128_bf16.safetensors",
+    "size_bytes": 1253192432,
+    "clean_name": "lightx2v T2V 14B cfg step distill v2 lora rank128 bf16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.17 GB",
+    "status": "pending_enrichment",
+    "family": "Other",
+    "version": "Lightx2v T2V",
+    "tags": [
+      "Safetensors",
+      "Distilled"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/svi-dance_lora_rank_128_fp16.safetensors",
+    "filename": "svi-dance_lora_rank_128_fp16.safetensors",
+    "size_bytes": 1227673024,
+    "clean_name": "svi dance lora rank 128 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Svi",
+    "version": "Svi dance",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/svi-film-opt-10212025_lora_rank_128_fp16.safetensors",
+    "filename": "svi-film-opt-10212025_lora_rank_128_fp16.safetensors",
+    "size_bytes": 1226934120,
+    "clean_name": "svi film opt 10212025 lora rank 128 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Svi",
+    "version": "Svi film",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/svi-film-transitions_lora_rank_128_fp16.safetensors",
+    "filename": "svi-film-transitions_lora_rank_128_fp16.safetensors",
+    "size_bytes": 1226934120,
+    "clean_name": "svi film transitions lora rank 128 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Svi",
+    "version": "Svi film",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/svi-shot_lora_rank_128_fp16.safetensors",
+    "filename": "svi-shot_lora_rank_128_fp16.safetensors",
+    "size_bytes": 1226934120,
+    "clean_name": "svi shot lora rank 128 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Svi",
+    "version": "Svi shot",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+    "filename": "SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+    "size_bytes": 1226934120,
+    "clean_name": "SVI v2 PRO Wan2.2 I2V A14B LOW lora rank 128 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/SVI_Wan2.2-I2V-A14B_high_noise_lora_v2.0_pro.safetensors",
+    "filename": "SVI_Wan2.2-I2V-A14B_high_noise_lora_v2.0_pro.safetensors",
+    "size_bytes": 1226928552,
+    "clean_name": "SVI Wan2.2 I2V A14B high noise lora v2.0 pro",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/SVI_Wan2.2-I2V-A14B_low_noise_lora_v2.0_pro.safetensors",
+    "filename": "SVI_Wan2.2-I2V-A14B_low_noise_lora_v2.0_pro.safetensors",
+    "size_bytes": 1226928552,
+    "clean_name": "SVI Wan2.2 I2V A14B low noise lora v2.0 pro",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/test_helper_v1.0_e219.safetensors",
+    "filename": "test_helper_v1.0_e219.safetensors",
+    "size_bytes": 306807976,
+    "clean_name": "test helper v1.0 e219",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "292.6 MB",
+    "status": "pending_enrichment",
+    "family": "Test",
+    "version": "Test helper",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1-high_noise.safetensors",
+    "filename": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1-high_noise.safetensors",
+    "size_bytes": 1226977424,
+    "clean_name": "Wan2.2 I2V A14B 4steps lora rank64 Seko V1 high noise",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1-low_noise.safetensors",
+    "filename": "Wan2.2-I2V-A14B-4steps-lora-rank64-Seko-V1-low_noise.safetensors",
+    "size_bytes": 1226977424,
+    "clean_name": "Wan2.2 I2V A14B 4steps lora rank64 Seko V1 low noise",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "1.14 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan 2.2",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/Wan_2_2_I2V_A14B_HIGH_lightx2v_4step_lora_260412_rank_256_fp16.safetensors",
+    "filename": "Wan_2_2_I2V_A14B_HIGH_lightx2v_4step_lora_260412_rank_256_fp16.safetensors",
+    "size_bytes": 2498179664,
+    "clean_name": "Wan 2 2 I2V A14B HIGH lightx2v 4step lora 260412 rank 256 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "2.33 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan (Other)",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/Wan_2_2_I2V_A14B_LOW_lightx2v_4step_lora_260412_rank_256_fp16.safetensors",
+    "filename": "Wan_2_2_I2V_A14B_LOW_lightx2v_4step_lora_260412_rank_256_fp16.safetensors",
+    "size_bytes": 2498179664,
+    "clean_name": "Wan 2 2 I2V A14B LOW lightx2v 4step lora 260412 rank 256 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "2.33 GB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan (Other)",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/loras/Wan22_I2V_VBVR_HIGH_rank_64_fp16.safetensors",
+    "filename": "Wan22_I2V_VBVR_HIGH_rank_64_fp16.safetensors",
+    "size_bytes": 630695648,
+    "clean_name": "Wan22 I2V VBVR HIGH rank 64 fp16",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "601.5 MB",
+    "status": "pending_enrichment",
+    "family": "Wan",
+    "version": "Wan (Other)",
+    "tags": [
+      "Safetensors"
+    ]
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels/image/flux-2-klein-9b-Q8_0.gguf",
+    "filename": "flux-2-klein-9b-Q8_0.gguf",
+    "size_bytes": 9978304800,
+    "clean_name": "flux 2 klein 9b",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "9.29 GB",
+    "status": "pending_enrichment",
+    "family": "Flux",
+    "version": "Flux 2",
+    "tags": [
+      "GGUF",
+      "Q8_0"
+    ]
   }
 ]

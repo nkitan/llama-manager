@@ -134,6 +134,7 @@ body {
 /* ── Top Bar ─────────────────────────────────────────────────────── */
 .top-bar {
     display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
     padding: 12px 24px;
     background: var(--color-canvas);
     border-bottom: 1px solid var(--color-hairline);
@@ -145,7 +146,72 @@ body {
     color: var(--color-ink);
 }
 .top-title span { font-size: 24px; }
-.top-right { display: flex; align-items: center; gap: 16px; }
+.top-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+.search-group {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    width: min(420px, 100%);
+}
+.search-input {
+    width: 100%; padding: 10px 14px;
+    border: 1px solid var(--color-hairline);
+    border-radius: 9999px;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: 'Inter', sans-serif;
+}
+.search-input:focus {
+    border-color: var(--color-brand-accent);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    outline: none;
+}
+.search-results {
+    background: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.07);
+    overflow: hidden;
+}
+.search-results-header {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--color-hairline);
+    font-size: 13px; font-weight: 600; color: var(--color-muted);
+}
+.search-results-list {
+    display: flex; flex-direction: column;
+}
+.search-result-item {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px;
+    padding: 14px 18px;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s;
+}
+.search-result-item:hover {
+    background: var(--color-surface-soft);
+}
+.search-result-label {
+    display: flex; flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+.search-result-title {
+    font-size: 14px; font-weight: 600; color: var(--color-ink);
+}
+.search-result-meta {
+    font-size: 12px; color: var(--color-muted);
+}
+.search-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 6px 10px; border-radius: 9999px;
+    background: var(--color-surface-soft); color: var(--color-muted);
+    font-size: 12px; white-space: nowrap;
+}
 
 .status-badge {
     display: flex; align-items: center; gap: 8px;
@@ -421,33 +487,36 @@ body {
 
 /* ── Log Panel ────────────────────────────────────────────────────── */
 .log-panel {
-    height: 220px; min-height: 120px;
-    background: var(--color-surface-dark);
-    border-top: 1px solid var(--color-hairline);
-    display: flex; flex-direction: column;
+    min-height: 160px; display: flex; flex-direction: column;
+    background: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.05);
 }
-.log-header {
+.log-panel .log-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 8px 24px; background: var(--color-surface-dark-elevated);
-    border-bottom: 1px solid #222222;
-    font-size: 11px; color: var(--color-on-dark-soft); font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    user-select: none;
+    padding: 12px 16px; background: var(--color-canvas);
+    border-bottom: 1px solid var(--color-hairline);
 }
-.log-content {
-    flex: 1; overflow-y: auto; padding: 12px 24px;
+.log-panel .log-title {
+    font-size: 12px; font-weight: 700; color: var(--color-ink);
+    text-transform: uppercase; letter-spacing: 0.12em;
+}
+.log-panel .log-content {
+    flex: 1; overflow-y: auto; padding: 14px 16px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 13px; line-height: 1.6;
-    background: var(--color-surface-dark);
+    font-size: 13px; line-height: 1.7;
+    background: var(--color-canvas);
 }
-.log-content::-webkit-scrollbar { width: 8px; }
-.log-content::-webkit-scrollbar-track { background: transparent; }
-.log-content::-webkit-scrollbar-thumb { background: #222222; border-radius: 4px; }
-.log-line { white-space: pre-wrap; word-break: break-all; margin-bottom: 4px; }
-.log-out { color: var(--color-on-dark-soft); }
+.log-panel .log-content::-webkit-scrollbar { width: 8px; }
+.log-panel .log-content::-webkit-scrollbar-track { background: transparent; }
+.log-panel .log-content::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.65); border-radius: 4px; }
+.log-line { white-space: pre-wrap; word-break: break-word; margin-bottom: 6px; }
+.log-out { color: var(--color-body); }
 .log-err { color: var(--color-error); }
 .log-info { color: var(--color-brand-accent); }
-.log-empty { color: #555555; font-style: italic; padding: 8px 0; }
+.log-empty { color: var(--color-muted); font-style: italic; padding: 10px 0; }
 
 /* ── Command preview ──────────────────────────────────────────────── */
 .cmd-preview {
@@ -1218,14 +1287,14 @@ fn App() -> Element {
                 onmousedown: on_log_resizer_mousedown,
             }
 
-            // ── Log panel ───────────────────────────────────────────
+            // ── Output panel integrated into main UI ───────────────
             div {
                 class: "log-panel",
-                style: "height: {log_panel_height}px;",
+                style: "min-height: {log_panel_height}px;",
                 div { class: "log-header",
-                    "Output"
+                    div { class: "log-title", "Output" }
                     button {
-                        class: "btn-browse",
+                        class: "btn btn-ghost btn-sm",
                         onclick: move |_| logs.write().clear(),
                         "Clear"
                     }
@@ -1456,8 +1525,167 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
 
 // ── Server ───────────────────────────────────────────────────────────────────
 
+#[derive(Clone, Debug)]
+struct OptimizationSuggestion {
+    key: String,
+    label: String,
+    current: String,
+    recommended: String,
+    reason: String,
+    selected: bool,
+}
+
+fn suggest_server_optimizations(cfg: &ServerConfig) -> Vec<OptimizationSuggestion> {
+    let cpu_count = std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4);
+    let mut suggestions = Vec::new();
+
+    if cfg.threads == 0 {
+        suggestions.push(OptimizationSuggestion {
+            key: "threads".into(),
+            label: "Worker threads (-t)".into(),
+            current: "auto".into(),
+            recommended: cpu_count.to_string(),
+            reason: format!("Use all available CPU cores ({}) for better throughput.", cpu_count),
+            selected: false,
+        });
+    } else if cfg.threads > cpu_count && cpu_count > 0 {
+        suggestions.push(OptimizationSuggestion {
+            key: "threads".into(),
+            label: "Worker threads (-t)".into(),
+            current: cfg.threads.to_string(),
+            recommended: cpu_count.to_string(),
+            reason: "Limit thread count to available CPUs to prevent oversubscription.".into(),
+            selected: false,
+        });
+    }
+
+    let recommended_batch = if cfg.threads > 0 {
+        std::cmp::max(1, cfg.threads / 2)
+    } else {
+        std::cmp::max(1, cpu_count / 2)
+    };
+    if cfg.threads_batch == 0 {
+        suggestions.push(OptimizationSuggestion {
+            key: "threads_batch".into(),
+            label: "Batch threads (-tb)".into(),
+            current: "auto".into(),
+            recommended: recommended_batch.to_string(),
+            reason: "Use fewer batch threads than worker threads for balanced throughput and lower latency.".into(),
+            selected: false,
+        });
+    }
+
+    if cfg.threads_http == 0 {
+        suggestions.push(OptimizationSuggestion {
+            key: "threads_http".into(),
+            label: "HTTP threads".into(),
+            current: "auto".into(),
+            recommended: std::cmp::max(2, cpu_count / 2).to_string(),
+            reason: "Allocate API server workers without overwhelming the host.".into(),
+            selected: false,
+        });
+    }
+
+    if !cfg.cont_batching {
+        suggestions.push(OptimizationSuggestion {
+            key: "cont_batching".into(),
+            label: "Continuous batching (-cb)".into(),
+            current: "off".into(),
+            recommended: "on".into(),
+            reason: "Continuous batching improves request throughput for many clients.".into(),
+            selected: false,
+        });
+    }
+
+    if !cfg.fit {
+        suggestions.push(OptimizationSuggestion {
+            key: "fit".into(),
+            label: "Fit memory (--fit)".into(),
+            current: "off".into(),
+            recommended: "on".into(),
+            reason: "Enable memory fitting to reduce peak RAM usage for large models.".into(),
+            selected: false,
+        });
+    }
+
+    if !cfg.flash_attn {
+        suggestions.push(OptimizationSuggestion {
+            key: "flash_attn".into(),
+            label: "Flash attention (-fa)".into(),
+            current: "off".into(),
+            recommended: "on".into(),
+            reason: "Use flash attention when supported for faster execution.".into(),
+            selected: false,
+        });
+    }
+
+    if cfg.parallel <= 1 && cpu_count > 1 {
+        suggestions.push(OptimizationSuggestion {
+            key: "parallel".into(),
+            label: "Parallel requests (-np)".into(),
+            current: cfg.parallel.to_string(),
+            recommended: "2".into(),
+            reason: "Enable a small amount of request parallelism to improve throughput.".into(),
+            selected: false,
+        });
+    }
+
+    suggestions
+}
+
+fn apply_server_optimization(cfg: &mut ServerConfig, key: &str, value: &str) {
+    match key {
+        "threads" => {
+            if let Ok(v) = value.parse::<u32>() { cfg.threads = v; }
+        }
+        "threads_batch" => {
+            if let Ok(v) = value.parse::<u32>() { cfg.threads_batch = v; }
+        }
+        "threads_http" => {
+            if let Ok(v) = value.parse::<u32>() { cfg.threads_http = v; }
+        }
+        "cont_batching" => {
+            cfg.cont_batching = value.eq_ignore_ascii_case("on") || value.eq_ignore_ascii_case("enabled") || value.eq_ignore_ascii_case("true");
+        }
+        "fit" => {
+            cfg.fit = value.eq_ignore_ascii_case("on") || value.eq_ignore_ascii_case("enabled") || value.eq_ignore_ascii_case("true");
+        }
+        "flash_attn" => {
+            cfg.flash_attn = value.eq_ignore_ascii_case("on") || value.eq_ignore_ascii_case("enabled") || value.eq_ignore_ascii_case("true");
+        }
+        "parallel" => {
+            if let Ok(v) = value.parse::<u32>() { cfg.parallel = v; }
+        }
+        _ => {}
+    }
+}
+
 #[component]
 fn TabServer(config: Signal<ServerConfig>) -> Element {
+    let mut suggestions = use_signal(Vec::<OptimizationSuggestion>::new);
+    let analyze = move |_| {
+        suggestions.set(suggest_server_optimizations(&config.read().clone()));
+    };
+
+    let apply_selected = move |_| {
+        let selected = suggestions.read().iter().filter(|s| s.selected).cloned().collect::<Vec<_>>();
+        if !selected.is_empty() {
+            let mut cfg = config.write();
+            for suggestion in selected {
+                apply_server_optimization(&mut cfg, &suggestion.key, &suggestion.recommended);
+            }
+        }
+    };
+
+    let apply_all = move |_| {
+        let mut cfg = config.write();
+        for suggestion in suggestions.read().iter() {
+            apply_server_optimization(&mut cfg, &suggestion.key, &suggestion.recommended);
+        }
+    };
+
     rsx! {
         div { class: "section-title", "Server Settings" }
         div { class: "section-desc", "Network binding and connection management." }
@@ -1468,7 +1696,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                 div { class: "form-group",
                     label { r#for: "form-host-1", class: "form-label", "Host" }
                     input {
-                    id: "form-host-1",
+                        id: "form-host-1",
                         class: "form-input",
                         value: config.read().host.clone(),
                         placeholder: "127.0.0.1",
@@ -1479,7 +1707,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                 div { class: "form-group",
                     label { r#for: "form-port-1", class: "form-label", "Port" }
                     input {
-                    id: "form-port-1",
+                        id: "form-port-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().port.to_string(),
@@ -1493,7 +1721,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                 div { class: "form-group",
                     label { r#for: "form-server-timeout-s-1", class: "form-label", "Server Timeout (s)" }
                     input {
-                    id: "form-server-timeout-s-1",
+                        id: "form-server-timeout-s-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().timeout.to_string(),
@@ -1506,7 +1734,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                 div { class: "form-group",
                     label { r#for: "form-http-threads-1", class: "form-label", "HTTP Threads" }
                     input {
-                    id: "form-http-threads-1",
+                        id: "form-http-threads-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads_http.to_string(),
@@ -1515,6 +1743,61 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                         },
                     }
                     div { class: "form-hint", "0 = auto" }
+                }
+            }
+        }
+
+        div { class: "card",
+            div { class: "card-title", "Launch Optimizer" }
+            div { class: "form-hint", "Analyze your current llama-server launch settings and get reviewable optimization suggestions." }
+            div { style: "display: flex; gap: 12px; flex-wrap: wrap;",
+                button {
+                    class: "btn btn-start",
+                    onclick: analyze,
+                    "Analyze Launch Parameters"
+                }
+                button {
+                    class: "btn btn-outline",
+                    onclick: apply_selected,
+                    disabled: suggestions.read().iter().all(|s| !s.selected),
+                    "Apply Selected"
+                }
+                button {
+                    class: "btn btn-outline",
+                    onclick: apply_all,
+                    disabled: suggestions.read().is_empty(),
+                    "Apply All"
+                }
+            }
+            if suggestions.read().is_empty() {
+                div { class: "form-hint", "Click Analyze to see suggested launch parameter optimizations." }
+            } else {
+                div { style: "display: grid; gap: 12px; margin-top: 16px;",
+                    for (idx, suggestion) in suggestions.read().iter().enumerate().map(|(idx, suggestion)| (idx, suggestion.clone())) {
+                        div { class: "card", style: "padding: 16px; background: var(--color-surface-soft);",
+                            div { style: "display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;",
+                                div {
+                                    div { style: "font-weight: 600; color: var(--color-ink);", "{suggestion.label}" }
+                                    div { class: "form-hint", style: "margin-top: 6px;", "{suggestion.reason}" }
+                                }
+                                button {
+                                    class: if suggestion.selected { "btn btn-start btn-sm" } else { "btn btn-outline btn-sm" },
+                                    onclick: move |_| {
+                                        let mut items = suggestions.read().clone();
+                                        if let Some(item) = items.get_mut(idx) {
+                                            item.selected = !item.selected;
+                                        }
+                                        suggestions.set(items);
+                                    },
+                                    if suggestion.selected { "Selected" } else { "Select" }
+                                }
+                            }
+                            div { style: "display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px;",
+                                span { style: "color: var(--color-muted);", "Current: {suggestion.current}" }
+                                span { style: "color: var(--color-muted);", "Recommended: {suggestion.recommended}" }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -3633,7 +3916,7 @@ fn TabDownload() -> Element {
                         style: "font-family: 'JetBrains Mono', monospace; font-size: 13px; min-height: 380px; flex-grow: 1; width: 100%;",
                         disabled: is_downloading(),
                         value: input_text(),
-                        placeholder: "category:\nhttps://github.com/...git\nrepo/model\n-subfolder\nhttps://huggingface.co/...",
+                        placeholder: "# Example download target file format\n# Category headers create folders under /mnt/modelsext/models\n# Use '-' lines to add a subfolder under the current category\n\ntext:\n- stable\n- llama2\nfacebook/opt-125m\nopenai/whisper-large\n\nmultimodal:\n- vision\nhttps://huggingface.co/your-user/your-model/resolve/main/model.gguf\nhttps://example.com/downloads/other-model.safetensors\n\nrepos:\nhttps://github.com/username/repo.git\nhttps://github.com/another/repo.git\n",
                         oninput: move |e: Event<FormData>| input_text.set(e.value()),
                     }
                 }
