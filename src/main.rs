@@ -3242,7 +3242,6 @@ struct TargetItem {
 
 fn parse_input_targets(input: &str) -> Vec<TargetItem> {
     let mut targets = Vec::new();
-    let mut current_category = "mtp".to_string();
 
     for line in input.lines() {
         let trimmed = line.trim();
@@ -3251,7 +3250,6 @@ fn parse_input_targets(input: &str) -> Vec<TargetItem> {
         }
 
         if trimmed.ends_with(':') {
-            current_category = trimmed[..trimmed.len() - 1].trim().to_string();
             continue;
         }
 
