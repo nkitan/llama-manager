@@ -5546,47 +5546,205 @@ fn TabMcp(
     }
 }
 
+#[derive(Clone, Debug)]
+struct GraphNode {
+    id: String,
+    title: String,
+    scope: String,
+    x: f64,
+    y: f64,
+}
+
+#[derive(Clone, Debug)]
+struct GraphEdge {
+    source: String,
+    target: String,
+}
+
+fn compute_node_positions(
+    global_mems: &[agent::Memory],
+    project_mems: &[agent::Memory],
+    width: f64,
+    height: f64,
+) -> Vec<GraphNode> {
+    let mut nodes = Vec::new();
+    let mut id_map = std::collections::HashMap::new();
+
+    let total = global_mems.len() + project_mems.len();
+    if total == 0 {
+        return nodes;
+    }
+
+    let mut idx = 0;
+    for m in global_mems.iter().chain(project_mems.iter()) {
+        id_map.insert(m.id.clone(), idx);
+        
+        let angle = idx as f64 * 2.0 * std::f64::consts::PI / total as f64;
+        let r = 100.0;
+        let x = width / 2.0 + r * angle.cos();
+        let y = height / 2.0 + r * angle.sin();
+        
+        nodes.push(GraphNode {
+            id: m.id.clone(),
+            title: m.title.clone(),
+            scope: m.scope.clone(),
+            x,
+            y,
+        });
+        idx += 1;
+    }
+
+    let mut edges = Vec::new();
+    for m in global_mems.iter().chain(project_mems.iter()) {
+        for link in &m.links {
+            if id_map.contains_key(link) {
+                edges.push(GraphEdge {
+                    source: m.id.clone(),
+                    target: link.clone(),
+                });
+            }
+        }
+    }
+
+    let iterations = 80;
+    let k = 50.0;
+    let gravity = 0.04;
+    let center_x = width / 2.0;
+    let center_y = height / 2.0;
+
+    for _ in 0..iterations {
+        let mut dxs = vec![0.0; nodes.len()];
+        let mut dys = vec![0.0; nodes.len()];
+
+        for i in 0..nodes.len() {
+            for j in 0..nodes.len() {
+                if i == j {
+                    continue;
+                }
+                let dx = nodes[i].x - nodes[j].x;
+                let dy = nodes[i].y - nodes[j].y;
+                let dist_sq = dx * dx + dy * dy + 0.1;
+                let dist = dist_sq.sqrt();
+                if dist < 140.0 {
+                    let f = (k * k) / dist;
+                    dxs[i] += (dx / dist) * f;
+                    dys[i] += (dy / dist) * f;
+                }
+            }
+        }
+
+        for edge in &edges {
+            if let (Some(&i), Some(&j)) = (id_map.get(&edge.source), id_map.get(&edge.target)) {
+                let dx = nodes[j].x - nodes[i].x;
+                let dy = nodes[j].y - nodes[i].y;
+                let dist_sq = dx * dx + dy * dy + 0.1;
+                let dist = dist_sq.sqrt();
+                
+                let f = (dist * dist) / k;
+                let force_x = (dx / dist) * f * 0.5;
+                let force_y = (dy / dist) * f * 0.5;
+                
+                dxs[i] += force_x;
+                dys[i] += force_y;
+                dxs[j] -= force_x;
+                dys[j] -= force_y;
+            }
+        }
+
+        for i in 0..nodes.len() {
+            dxs[i] += (center_x - nodes[i].x) * gravity;
+            dys[i] += (center_y - nodes[i].y) * gravity;
+
+            nodes[i].x += dxs[i].clamp(-12.0, 12.0);
+            nodes[i].y += dys[i].clamp(-12.0, 12.0);
+
+            nodes[i].x = nodes[i].x.clamp(35.0, width - 35.0);
+            nodes[i].y = nodes[i].y.clamp(35.0, height - 35.0);
+        }
+    }
+
+    nodes
+}
+
 #[component]
 fn TabAgents(
     config: Signal<ServerConfig>,
     search_target: Signal<String>,
 ) -> Element {
     let mut memory_manager = use_signal(move || agent::MemoryManager::new(get_default_config_path()));
-    let mut new_global_memory = use_signal(String::new);
-    let mut new_project_memory = use_signal(String::new);
     let mut memory_trigger = use_signal(|| 0);
-
-    let add_global_mem = move |_| {
-        let text = new_global_memory.read().trim().to_string();
-        if !text.is_empty() {
-            memory_manager.write().add_global(text);
-            new_global_memory.set(String::new());
-            memory_trigger.write();
-        }
-    };
-
-    let add_project_mem = move |_| {
-        let text = new_project_memory.read().trim().to_string();
-        if !text.is_empty() {
-            memory_manager.write().add_project(text);
-            new_project_memory.set(String::new());
-            memory_trigger.write();
-        }
-    };
+    
+    // Editor Form States
+    let mut selected_mem = use_signal(|| None::<agent::Memory>);
+    let mut edit_id = use_signal(String::new);
+    let mut edit_title = use_signal(String::new);
+    let mut edit_scope = use_signal(|| "project".to_string());
+    let mut edit_tags = use_signal(String::new);
+    let mut edit_links = use_signal(Vec::<String>::new);
+    let mut edit_content = use_signal(String::new);
+    
+    // UI filters
+    let mut search_query = use_signal(String::new);
+    let mut show_new_form = use_signal(|| false);
+    let mut hovered_node = use_signal(|| None::<String>);
 
     let clear_memories = move |_| {
         memory_manager.write().clear_all();
+        selected_mem.set(None);
+        show_new_form.set(false);
         memory_trigger.write();
     };
 
-    let global_mems = memory_manager.read().global_store.memories.clone();
-    let project_mems = memory_manager.read().project_store.memories.clone();
+    // Load Lists
+    let _trigger = memory_trigger.read(); // establish reactive dependency
+    let global_mems = memory_manager.read().global_memories.clone();
+    let project_mems = memory_manager.read().project_memories.clone();
+    
+    let all_memories: Vec<agent::Memory> = global_mems.iter().cloned().chain(project_mems.iter().cloned()).collect();
+
+    // Filters based on search query
+    let query = search_query.read().to_lowercase();
+    let filtered_globals: Vec<agent::Memory> = global_mems.iter()
+        .filter(|m| m.title.to_lowercase().contains(&query) || m.tags.iter().any(|t| t.to_lowercase().contains(&query)))
+        .cloned()
+        .collect();
+    let filtered_projects: Vec<agent::Memory> = project_mems.iter()
+        .filter(|m| m.title.to_lowercase().contains(&query) || m.tags.iter().any(|t| t.to_lowercase().contains(&query)))
+        .cloned()
+        .collect();
+
+    let selected_id = if show_new_form() {
+        edit_id.read().clone()
+    } else {
+        selected_mem.read().as_ref().map_or(String::new(), |m| m.id.clone())
+    };
+
+    // Graph variables
+    let graph_width = 540.0;
+    let graph_height = 420.0;
+    let positions = compute_node_positions(&global_mems, &project_mems, graph_width, graph_height);
+    
+    let mut edges = Vec::new();
+    let mut id_set = std::collections::HashSet::new();
+    for n in &positions {
+        id_set.insert(n.id.clone());
+    }
+    for m in &all_memories {
+        for l in &m.links {
+            if id_set.contains(l) && id_set.contains(&m.id) {
+                edges.push(GraphEdge {
+                    source: m.id.clone(),
+                    target: l.clone(),
+                });
+            }
+        }
+    }
 
     rsx! {
         div { class: "section-title", "Agents & Self-Learning Memory" }
-        div { class: "section-desc", "Self-learning layers analyze agent sessions and persist global & project-wide memories, optimizing behavior." }
+        div { class: "section-desc", "Self-learning layers persist project & global memories. Explore lessons via the document editor or Obsidian-type graph." }
 
-        // Clear memory
+        // Clear memory button
         div { style: "display: flex; justify-content: flex-end; margin-bottom: 16px;",
             button {
                 class: "btn btn-ghost btn-sm",
@@ -5597,62 +5755,448 @@ fn TabAgents(
             }
         }
 
-        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;",
-            // Global Memory
-            div { class: "card",
-                div { class: "card-title", "🌐 Global Memory Database" }
-                div { style: "font-size: 12.5px; color: var(--color-muted); margin-bottom: 8px;", "Learned behaviors and user constraints across all workspaces." }
+        // Notion Editor and Node Graph Layout
+        div {
+            style: "display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 24px;",
+            
+            // Notion-like Document Editor Workspace (60% equivalent)
+            div {
+                style: "flex: 3; min-width: 500px; display: flex; flex-direction: column;",
                 
-                div { style: "display: flex; gap: 8px; margin-bottom: 12px;",
-                    input {
-                        class: "form-input",
-                        placeholder: "Learn a global rule manually...",
-                        value: new_global_memory(),
-                        oninput: move |e| new_global_memory.set(e.value())
-                    }
-                    button {
-                        class: "btn btn-start btn-sm",
-                        onclick: add_global_mem,
-                        "Add"
-                    }
-                }
+                div {
+                    style: "display: flex; border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden; background: var(--color-canvas); min-height: 520px;",
+                    
+                    // Notion Sidebar (List of memories)
+                    div {
+                        style: "width: 200px; border-right: 1px solid var(--color-hairline); background: rgba(248, 250, 252, 0.5); display: flex; flex-direction: column; padding: 12px; gap: 12px;",
+                        
+                        // Sidebar Header
+                        div {
+                            style: "display: flex; justify-content: space-between; align-items: center;",
+                            span { style: "font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);", "📓 Memories" }
+                            button {
+                                class: "btn btn-ghost btn-sm",
+                                style: "padding: 2px 6px; font-size: 11px; display: flex; align-items: center; gap: 4px;",
+                                onclick: move |_| {
+                                    let new_id = format!("mem-manual-{}", chrono::Local::now().timestamp_millis());
+                                    edit_id.set(new_id);
+                                    edit_title.set("Untitled Memory".to_string());
+                                    edit_scope.set("project".to_string());
+                                    edit_tags.set("".to_string());
+                                    edit_links.set(Vec::new());
+                                    edit_content.set("".to_string());
+                                    show_new_form.set(true);
+                                    selected_mem.set(None);
+                                },
+                                "➕ New"
+                            }
+                        }
 
-                if global_mems.is_empty() {
-                    div { style: "text-align: center; color: var(--color-muted); padding: 16px; font-style: italic; font-size: 12.5px;", "Global memory database is empty." }
-                } else {
-                    ul { style: "display: flex; flex-direction: column; gap: 6px; padding-left: 16px; margin: 0; font-size: 13px; color: var(--color-body); max-height: 240px; overflow-y: auto;",
-                        for mem in global_mems.iter() {
-                            li { "{mem}" }
+                        // Search Box
+                        input {
+                            class: "form-input",
+                            style: "font-size: 12px; padding: 4px 8px; height: 28px;",
+                            placeholder: "🔍 Search memories...",
+                            value: search_query(),
+                            oninput: move |e| search_query.set(e.value())
+                        }
+
+                        // Memories list
+                        div {
+                            style: "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;",
+                            
+                            // Global Memories
+                            div {
+                                style: "display: flex; flex-direction: column; gap: 4px;",
+                                span { style: "font-size: 11px; font-weight: 600; color: var(--color-muted); margin-bottom: 2px;", "🌐 Global Scope" }
+                                if filtered_globals.is_empty() {
+                                    span { style: "font-size: 11.5px; font-style: italic; color: var(--color-muted); padding-left: 8px;", "No matching global" }
+                                } else {
+                                    for m in &filtered_globals {
+                                        div {
+                                            key: "{m.id}",
+                                            style: format!("font-size: 12.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: background 0.15s; {} ", 
+                                                if selected_id == m.id || (show_new_form() && edit_id() == m.id) { "background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600;" } else { "color: var(--color-body);" }
+                                            ),
+                                            onclick: {
+                                                let m = m.clone();
+                                                move |_| {
+                                                    edit_id.set(m.id.clone());
+                                                    edit_title.set(m.title.clone());
+                                                    edit_scope.set(m.scope.clone());
+                                                    edit_tags.set(m.tags.join(", "));
+                                                    edit_links.set(m.links.clone());
+                                                    edit_content.set(m.content.clone());
+                                                    selected_mem.set(Some(m.clone()));
+                                                    show_new_form.set(false);
+                                                }
+                                            },
+                                            span { "📄" }
+                                            "{m.title}"
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Project Memories
+                            div {
+                                style: "display: flex; flex-direction: column; gap: 4px;",
+                                span { style: "font-size: 11px; font-weight: 600; color: var(--color-muted); margin-bottom: 2px;", "📂 Project Scope" }
+                                if filtered_projects.is_empty() {
+                                    span { style: "font-size: 11.5px; font-style: italic; color: var(--color-muted); padding-left: 8px;", "No matching project" }
+                                } else {
+                                    for m in &filtered_projects {
+                                        div {
+                                            key: "{m.id}",
+                                            style: format!("font-size: 12.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: background 0.15s; {} ", 
+                                                if selected_id == m.id || (show_new_form() && edit_id() == m.id) { "background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600;" } else { "color: var(--color-body);" }
+                                            ),
+                                            onclick: {
+                                                let m = m.clone();
+                                                move |_| {
+                                                    edit_id.set(m.id.clone());
+                                                    edit_title.set(m.title.clone());
+                                                    edit_scope.set(m.scope.clone());
+                                                    edit_tags.set(m.tags.join(", "));
+                                                    edit_links.set(m.links.clone());
+                                                    edit_content.set(m.content.clone());
+                                                    selected_mem.set(Some(m.clone()));
+                                                    show_new_form.set(false);
+                                                }
+                                            },
+                                            span { "📄" }
+                                            "{m.title}"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Notion Editor Workspace Area
+                    div {
+                        style: "flex: 1; display: flex; flex-direction: column; padding: 24px; background: #ffffff;",
+                        
+                        if selected_mem.read().is_some() || show_new_form() {
+                            // Title Area (Borderless, Large Notion Title)
+                            input {
+                                style: "width: 100%; border: none; outline: none; font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 16px; padding: 0; font-family: inherit;",
+                                placeholder: "Untitled Memory",
+                                value: edit_title(),
+                                oninput: move |e| edit_title.set(e.value())
+                            }
+
+                            // Meta Properties
+                            div {
+                                style: "display: grid; grid-template-columns: 80px 1fr; gap: 10px; font-size: 13px; color: var(--color-muted); border-bottom: 1px solid var(--color-hairline); padding-bottom: 16px; margin-bottom: 16px;",
+                                
+                                // Scope
+                                span { style: "display: flex; align-items: center;", "🌐 Scope" }
+                                select {
+                                    style: "border: 1px solid var(--color-hairline); border-radius: 4px; padding: 3px 6px; max-width: 140px; font-size: 12.5px; outline: none; color: var(--color-body);",
+                                    value: edit_scope(),
+                                    onchange: move |e| edit_scope.set(e.value()),
+                                    option { value: "project", "📂 Project" }
+                                    option { value: "global", "🌐 Global" }
+                                }
+
+                                // Tags
+                                span { style: "display: flex; align-items: center;", "🏷️ Tags" }
+                                input {
+                                    class: "form-input",
+                                    style: "font-size: 12.5px; padding: 4px 8px; max-width: 320px;",
+                                    placeholder: "e.g. rust, config (comma separated)",
+                                    value: edit_tags(),
+                                    oninput: move |e| edit_tags.set(e.value())
+                                }
+
+                                // Links
+                                span { style: "display: flex; align-items: center;", "🔗 Links" }
+                                div {
+                                    style: "display: flex; flex-direction: column; gap: 6px;",
+                                    if all_memories.len() <= 1 {
+                                        span { style: "font-style: italic; font-size: 12px;", "No other memories available to link." }
+                                    } else {
+                                        div {
+                                            style: "border: 1px solid var(--color-hairline); border-radius: 4px; max-height: 100px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; max-width: 420px;",
+                                            for other in all_memories.iter().filter(|m| m.id != edit_id()) {
+                                                label {
+                                                    key: "{other.id}",
+                                                    style: "display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; color: var(--color-body);",
+                                                    input {
+                                                        type: "checkbox",
+                                                        checked: edit_links.read().contains(&other.id),
+                                                        onchange: {
+                                                            let other_id = other.id.clone();
+                                                            move |e| {
+                                                                let is_checked = e.value() == "true";
+                                                                let mut links = edit_links.read().clone();
+                                                                if is_checked {
+                                                                    if !links.contains(&other_id) {
+                                                                        links.push(other_id.clone());
+                                                                    }
+                                                                } else {
+                                                                    links.retain(|l| l != &other_id);
+                                                                }
+                                                                edit_links.set(links);
+                                                            }
+                                                        }
+                                                    }
+                                                    "{other.title}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Markdown editor area
+                            textarea {
+                                style: "flex: 1; border: none; outline: none; resize: none; font-size: 14px; line-height: 1.6; color: #334155; font-family: monospace; min-height: 240px; margin-bottom: 16px;",
+                                placeholder: "Write details in Markdown here...",
+                                value: edit_content(),
+                                oninput: move |e| edit_content.set(e.value())
+                            }
+
+                            // Save & Cancel Buttons
+                            div {
+                                style: "display: flex; justify-content: space-between; border-top: 1px solid var(--color-hairline); padding-top: 16px;",
+                                
+                                if selected_mem.read().is_some() {
+                                    button {
+                                        class: "btn btn-ghost btn-sm",
+                                        style: "color: var(--color-error); border-color: rgba(239,68,68,0.2);",
+                                        onclick: move |_| {
+                                            let scope = edit_scope.read().clone();
+                                            let id = edit_id.read().clone();
+                                            if memory_manager.write().delete_memory(&id, &scope).is_ok() {
+                                                selected_mem.set(None);
+                                                show_new_form.set(false);
+                                                memory_trigger.write();
+                                            }
+                                        },
+                                        "🗑️ Delete"
+                                    }
+                                } else {
+                                    div {}
+                                }
+
+                                div { style: "display: flex; gap: 8px;",
+                                    button {
+                                        class: "btn btn-ghost btn-sm",
+                                        onclick: move |_| {
+                                            selected_mem.set(None);
+                                            show_new_form.set(false);
+                                        },
+                                        "Cancel"
+                                    }
+                                    button {
+                                        class: "btn btn-start btn-sm",
+                                        onclick: move |_| {
+                                            let id = edit_id.read().clone();
+                                            let title = edit_title.read().trim().to_string();
+                                            let scope = edit_scope.read().clone();
+                                            let content = edit_content.read().clone();
+                                            let tags = edit_tags.read()
+                                                .split(',')
+                                                .map(|s| s.trim().to_string())
+                                                .filter(|s| !s.is_empty())
+                                                .collect();
+                                            let links = edit_links.read().clone();
+
+                                            let mem = agent::Memory {
+                                                id,
+                                                title: if title.is_empty() { "Untitled Memory".to_string() } else { title },
+                                                created_at: chrono::Local::now().to_rfc3339(),
+                                                tags,
+                                                links,
+                                                scope: scope.clone(),
+                                                content: content.clone(),
+                                            };
+
+                                            if memory_manager.write().save_memory(mem).is_ok() {
+                                                let _ = agent::save_chroma_memory(&content, &scope);
+                                                selected_mem.set(None);
+                                                show_new_form.set(false);
+                                                memory_trigger.write();
+                                            }
+                                        },
+                                        "💾 Save"
+                                    }
+                                }
+                            }
+                        } else {
+                            div {
+                                style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--color-muted); font-size: 13.5px; text-align: center; gap: 12px; padding: 40px;",
+                                span { style: "font-size: 48px;", "📓" }
+                                p { "Select a document in the sidebar or click a graph node on the right to edit." }
+                                button {
+                                    class: "btn btn-start btn-sm",
+                                    onclick: move |_| {
+                                        let new_id = format!("mem-manual-{}", chrono::Local::now().timestamp_millis());
+                                        edit_id.set(new_id);
+                                        edit_title.set("Untitled Memory".to_string());
+                                        edit_scope.set("project".to_string());
+                                        edit_tags.set("".to_string());
+                                        edit_links.set(Vec::new());
+                                        edit_content.set("".to_string());
+                                        show_new_form.set(true);
+                                        selected_mem.set(None);
+                                    },
+                                    "➕ Add Memory File"
+                                }
+                            }
                         }
                     }
                 }
             }
-
-            // Project Memory
-            div { class: "card",
-                div { class: "card-title", "📂 Project Workspace Memory" }
-                div { style: "font-size: 12.5px; color: var(--color-muted); margin-bottom: 8px;", "Project-specific paths, files, and build guidelines learned." }
-                
-                div { style: "display: flex; gap: 8px; margin-bottom: 12px;",
-                    input {
-                        class: "form-input",
-                        placeholder: "Learn a project rule manually...",
-                        value: new_project_memory(),
-                        oninput: move |e| new_project_memory.set(e.value())
+            
+            // Obsidian-like Node Graph (40% equivalent)
+            div {
+                style: "flex: 2; min-width: 320px; display: flex; flex-direction: column;",
+                div { class: "card", style: "height: 100%; display: flex; flex-direction: column; padding: 16px;",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+                        span { class: "card-title", "🕸️ Memory Connections Graph (Obsidian-Style)" }
+                        div { style: "display: flex; gap: 8px; font-size: 10px;",
+                            span { style: "display: flex; align-items: center; gap: 4px;",
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6366f1;" }
+                                "Global"
+                            }
+                            span { style: "display: flex; align-items: center; gap: 4px;",
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a78bfa;" }
+                                "Project"
+                            }
+                        }
                     }
-                    button {
-                        class: "btn btn-start btn-sm",
-                        onclick: add_project_mem,
-                        "Add"
-                    }
-                }
+                    
+                    if positions.is_empty() {
+                        div {
+                            style: "flex: 1; display: flex; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas); font-style: italic; color: var(--color-muted); font-size: 12.5px; height: 420px;",
+                            "No memory files to graph. Create some memories to see them visualised!"
+                        }
+                    } else {
+                        div {
+                            style: "position: relative; width: 100%; height: 420px;",
+                            svg {
+                                width: "100%",
+                                height: "100%",
+                                view_box: "0 0 540 420",
+                                style: "background: var(--color-canvas); border-radius: 8px; border: 1px solid var(--color-hairline);",
+                                
+                                defs {
+                                    pattern {
+                                        id: "graph-grid",
+                                        width: "20",
+                                        height: "20",
+                                        pattern_units: "userSpaceOnUse",
+                                        path {
+                                            d: "M 20 0 L 0 0 0 20",
+                                            fill: "none",
+                                            stroke: "rgba(100, 116, 139, 0.06)",
+                                            stroke_width: "1",
+                                        }
+                                    }
+                                }
+                                rect {
+                                    width: "100%",
+                                    height: "100%",
+                                    fill: "url(#graph-grid)",
+                                }
 
-                if project_mems.is_empty() {
-                    div { style: "text-align: center; color: var(--color-muted); padding: 16px; font-style: italic; font-size: 12.5px;", "Project memory database is empty." }
-                } else {
-                    ul { style: "display: flex; flex-direction: column; gap: 6px; padding-left: 16px; margin: 0; font-size: 13px; color: var(--color-body); max-height: 240px; overflow-y: auto;",
-                        for mem in project_mems.iter() {
-                            li { "{mem}" }
+                                // Draw Edges
+                                for edge in &edges {
+                                    if let (Some(s_pos), Some(t_pos)) = (positions.iter().find(|n| n.id == edge.source), positions.iter().find(|n| n.id == edge.target)) {
+                                        line {
+                                            x1: "{s_pos.x}",
+                                            y1: "{s_pos.y}",
+                                            x2: "{t_pos.x}",
+                                            y2: "{t_pos.y}",
+                                            stroke: "rgba(148, 163, 184, 0.4)",
+                                            stroke_width: "1.5",
+                                            stroke_dasharray: if edge.source == selected_id || edge.target == selected_id { "0" } else { "3,3" },
+                                            opacity: if edge.source == selected_id || edge.target == selected_id { "0.9" } else { "0.4" },
+                                        }
+                                    }
+                                }
+
+                                // Draw Nodes
+                                {positions.iter().map(|node| {
+                                    let is_selected = node.id == selected_id;
+                                    let is_hovered = hovered_node.read().as_ref() == Some(&node.id);
+                                    let fill_color = if node.scope == "global" {
+                                        if is_selected { "#4f46e5" } else { "#6366f1" }
+                                    } else {
+                                        if is_selected { "#7c3aed" } else { "#a78bfa" }
+                                    };
+                                    let stroke_color = if is_selected {
+                                        "#fbbf24"
+                                    } else if is_hovered {
+                                        "rgba(100, 116, 139, 0.6)"
+                                    } else {
+                                        "transparent"
+                                    };
+                                    let radius = if is_selected { 11.0 } else if is_hovered { 9.0 } else { 7.5 };
+
+                                    rsx! {
+                                        g {
+                                            key: "{node.id}",
+                                            onclick: {
+                                                let node_id = node.id.clone();
+                                                let all_mems = all_memories.clone();
+                                                move |_| {
+                                                    if let Some(mem) = all_mems.iter().find(|m| m.id == node_id) {
+                                                        edit_id.set(mem.id.clone());
+                                                        edit_title.set(mem.title.clone());
+                                                        edit_scope.set(mem.scope.clone());
+                                                        edit_tags.set(mem.tags.join(", "));
+                                                        edit_links.set(mem.links.clone());
+                                                        edit_content.set(mem.content.clone());
+                                                        selected_mem.set(Some(mem.clone()));
+                                                        show_new_form.set(false);
+                                                    }
+                                                }
+                                            },
+                                            onmouseenter: {
+                                                let node_id = node.id.clone();
+                                                move |_| hovered_node.set(Some(node_id.clone()))
+                                            },
+                                            onmouseleave: move |_| hovered_node.set(None),
+                                            style: "cursor: pointer;",
+                                            
+                                            circle {
+                                                cx: "{node.x}",
+                                                cy: "{node.y}",
+                                                r: "{radius}",
+                                                fill: "{fill_color}",
+                                                stroke: "{stroke_color}",
+                                                stroke_width: "2.5",
+                                                style: "transition: all 0.2s ease;",
+                                            }
+                                            
+                                            text {
+                                                x: "{node.x}",
+                                                y: "{node.y - 14.0}",
+                                                text_anchor: "middle",
+                                                font_size: "10.5px",
+                                                font_weight: if is_selected { "bold" } else { "normal" },
+                                                fill: if is_selected { "var(--color-accent)" } else { "var(--color-muted)" },
+                                                "{node.title}"
+                                            }
+                                        }
+                                    }
+                                })}
+                            }
+                            
+                            // Floating node tooltip
+                            if let Some(hover_id) = hovered_node.read().clone() {
+                                if let Some(node) = positions.iter().find(|n| n.id == hover_id) {
+                                    div {
+                                        style: format!("position: absolute; left: {}px; top: {}px; transform: translate(-50%, -100%); background: #1e293b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 10; font-weight: 500; white-space: nowrap;", node.x, node.y - 20.0),
+                                        "{node.title} ({node.scope})"
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -5660,7 +6204,7 @@ fn TabAgents(
         }
 
         // Web Search Integration Settings
-        div { class: "card",
+        div { class: "card", style: "margin-bottom: 20px;",
             div { class: "card-title", "🌐 Internet Search & Browser Options" }
             div { class: "form-group", style: "max-width: 480px;",
                 label { class: "form-label", "SearXNG URL (Optional endpoint, falls back to DuckDuckGo html search)" }

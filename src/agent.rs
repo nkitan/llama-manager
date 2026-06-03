@@ -8,9 +8,115 @@ use crate::notes;
 
 // ── Memory System ────────────────────────────────────────────────────────────
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Memory {
+    pub id: String,
+    pub title: String,
+    pub created_at: String,
+    pub tags: Vec<String>,
+    pub links: Vec<String>,
+    pub scope: String,      // "global" or "project"
+    pub content: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct MemoryStore {
     pub memories: Vec<String>,
+}
+
+pub fn serialize_memory(mem: &Memory) -> String {
+    let mut s = String::new();
+    s.push_str("---\n");
+    s.push_str(&format!("id: {}\n", mem.id));
+    s.push_str(&format!("title: {}\n", mem.title.replace('\n', " ")));
+    s.push_str(&format!("created_at: {}\n", mem.created_at));
+    s.push_str("tags:\n");
+    for t in &mem.tags {
+        s.push_str(&format!("  - {}\n", t));
+    }
+    s.push_str("links:\n");
+    for l in &mem.links {
+        s.push_str(&format!("  - {}\n", l));
+    }
+    s.push_str(&format!("scope: {}\n", mem.scope));
+    s.push_str("---\n");
+    s.push_str(&mem.content);
+    s
+}
+
+pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
+    let mut mem = Memory::default();
+    if !file_content.starts_with("---") {
+        return Err("Missing frontmatter prefix".to_string());
+    }
+    let parts: Vec<&str> = file_content.splitn(3, "---").collect();
+    if parts.len() < 3 {
+        return Err("Invalid markdown memory format".to_string());
+    }
+    let frontmatter = parts[1];
+    mem.content = parts[2].trim().to_string();
+    
+    let mut in_tags = false;
+    let mut in_links = false;
+    
+    for line in frontmatter.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with("tags:") {
+            in_tags = true;
+            in_links = false;
+            let val = trimmed["tags:".len()..].trim();
+            if val.starts_with('[') && val.ends_with(']') {
+                mem.tags = val[1..val.len()-1]
+                    .split(',')
+                    .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                in_tags = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with("links:") {
+            in_tags = false;
+            in_links = true;
+            let val = trimmed["links:".len()..].trim();
+            if val.starts_with('[') && val.ends_with(']') {
+                mem.links = val[1..val.len()-1]
+                    .split(',')
+                    .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                in_links = false;
+            }
+            continue;
+        }
+        if trimmed.starts_with('-') || trimmed.starts_with('*') {
+            let val = trimmed[1..].trim().trim_matches('"').trim_matches('\'').to_string();
+            if in_tags {
+                mem.tags.push(val);
+            } else if in_links {
+                mem.links.push(val);
+            }
+            continue;
+        }
+        if let Some(pos) = trimmed.find(':') {
+            let key = trimmed[..pos].trim();
+            let val = trimmed[pos+1..].trim().trim_matches('"').trim_matches('\'').to_string();
+            match key {
+                "id" => { mem.id = val; }
+                "title" => { mem.title = val; }
+                "created_at" => { mem.created_at = val; }
+                "scope" => { mem.scope = val; }
+                _ => {}
+            }
+        }
+    }
+    if mem.id.is_empty() {
+        return Err("Missing id".to_string());
+    }
+    Ok(mem)
 }
 
 // ── ChromaDB Helper Functions ────────────────────────────────────────────────
@@ -59,76 +165,237 @@ pub fn save_chroma_memory(text: &str, scope: &str) -> Result<(), String> {
 }
 
 pub struct MemoryManager {
-    pub global_path: PathBuf,
-    pub project_path: PathBuf,
+    pub global_dir: PathBuf,
+    pub project_dir: PathBuf,
+    pub global_memories: Vec<Memory>,
+    pub project_memories: Vec<Memory>,
     pub global_store: MemoryStore,
     pub project_store: MemoryStore,
 }
 
 impl MemoryManager {
     pub fn new(base_dir: PathBuf) -> Self {
-        let global_path = base_dir.join("global_memory.json");
-        let project_path = base_dir.join(".llama-manager-memory.json");
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home/notroot".to_string());
+        let global_dir = PathBuf::from(home).join(".local/share/llama-manager/memories");
+        let project_dir = base_dir.join(".llama-manager-memories");
 
-        let global_store = Self::load_file(&global_path);
-        let project_store = Self::load_file(&project_path);
+        let legacy_global = base_dir.join("global_memory.json");
+        let legacy_project = base_dir.join(".llama-manager-memory.json");
+
+        Self::migrate_legacy_if_needed(&legacy_global, &global_dir, "global");
+        Self::migrate_legacy_if_needed(&legacy_project, &project_dir, "project");
+
+        let global_memories = Self::load_memories_from_dir(&global_dir);
+        let project_memories = Self::load_memories_from_dir(&project_dir);
+
+        let global_store = MemoryStore {
+            memories: global_memories.iter().map(|m| m.content.clone()).collect(),
+        };
+        let project_store = MemoryStore {
+            memories: project_memories.iter().map(|m| m.content.clone()).collect(),
+        };
 
         Self {
-            global_path,
-            project_path,
+            global_dir,
+            project_dir,
+            global_memories,
+            project_memories,
             global_store,
             project_store,
         }
     }
 
-    fn load_file(path: &PathBuf) -> MemoryStore {
-        if path.exists() {
-            if let Ok(content) = std::fs::read_to_string(path) {
-                if let Ok(store) = serde_json::from_str::<MemoryStore>(&content) {
-                    return store;
+    fn migrate_legacy_if_needed(legacy_path: &PathBuf, dest_dir: &PathBuf, scope: &str) {
+        if legacy_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(legacy_path) {
+                #[derive(Deserialize)]
+                struct LegacyMemoryStore {
+                    memories: Vec<String>,
+                }
+                if let Ok(store) = serde_json::from_str::<LegacyMemoryStore>(&content) {
+                    let _ = std::fs::create_dir_all(dest_dir);
+                    for (i, m_text) in store.memories.iter().enumerate() {
+                        if m_text.trim().is_empty() {
+                            continue;
+                        }
+                        let now = chrono::Local::now().to_rfc3339();
+                        let id = format!("mem-{}-{}", scope, chrono::Local::now().timestamp_millis() + i as i64);
+                        
+                        let title = m_text.lines().next().unwrap_or("Migrated Memory").trim();
+                        let title_truncated = if title.len() > 50 {
+                            format!("{}...", &title[..47])
+                        } else {
+                            title.to_string()
+                        };
+
+                        let mem = Memory {
+                            id: id.clone(),
+                            title: title_truncated,
+                            created_at: now,
+                            tags: vec!["migrated".to_string()],
+                            links: Vec::new(),
+                            scope: scope.to_string(),
+                            content: m_text.clone(),
+                        };
+
+                        let file_content = serialize_memory(&mem);
+                        let file_path = dest_dir.join(format!("{}.md", id));
+                        let _ = std::fs::write(file_path, file_content);
+                    }
+                }
+            }
+            let backup_path = legacy_path.with_extension("json.bak");
+            let _ = std::fs::rename(legacy_path, backup_path);
+        }
+    }
+
+    fn load_memories_from_dir(dir: &PathBuf) -> Vec<Memory> {
+        let mut list = Vec::new();
+        if !dir.exists() {
+            return list;
+        }
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+                    if let Ok(content) = std::fs::read_to_string(&path) {
+                        if let Ok(mem) = parse_memory(&content) {
+                            list.push(mem);
+                        }
+                    }
                 }
             }
         }
-        MemoryStore::default()
+        list.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        list
     }
 
-    pub fn save_global(&self) -> Result<(), String> {
-        let content = serde_json::to_string_pretty(&self.global_store)
-            .map_err(|e| format!("Failed to serialize global memory: {}", e))?;
-        std::fs::write(&self.global_path, content)
-            .map_err(|e| format!("Failed to write global memory: {}", e))?;
+    pub fn save_memory(&mut self, mem: Memory) -> Result<(), String> {
+        let dir = if mem.scope == "global" {
+            &self.global_dir
+        } else {
+            &self.project_dir
+        };
+        let _ = std::fs::create_dir_all(dir);
+        let path = dir.join(format!("{}.md", mem.id));
+        let content = serialize_memory(&mem);
+        std::fs::write(&path, content)
+            .map_err(|e| format!("Failed to write memory: {}", e))?;
+
+        if mem.scope == "global" {
+            self.global_memories.retain(|m| m.id != mem.id);
+            self.global_memories.push(mem.clone());
+            self.global_memories.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            self.global_store.memories = self.global_memories.iter().map(|m| m.content.clone()).collect();
+        } else {
+            self.project_memories.retain(|m| m.id != mem.id);
+            self.project_memories.push(mem.clone());
+            self.project_memories.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            self.project_store.memories = self.project_memories.iter().map(|m| m.content.clone()).collect();
+        }
         Ok(())
     }
 
-    pub fn save_project(&self) -> Result<(), String> {
-        let content = serde_json::to_string_pretty(&self.project_store)
-            .map_err(|e| format!("Failed to serialize project memory: {}", e))?;
-        std::fs::write(&self.project_path, content)
-            .map_err(|e| format!("Failed to write project memory: {}", e))?;
+    pub fn delete_memory(&mut self, id: &str, scope: &str) -> Result<(), String> {
+        let dir = if scope == "global" {
+            &self.global_dir
+        } else {
+            &self.project_dir
+        };
+        let path = dir.join(format!("{}.md", id));
+        if path.exists() {
+            std::fs::remove_file(path).map_err(|e| format!("Failed to delete memory file: {}", e))?;
+        }
+
+        if scope == "global" {
+            self.global_memories.retain(|m| m.id != id);
+            self.global_store.memories = self.global_memories.iter().map(|m| m.content.clone()).collect();
+        } else {
+            self.project_memories.retain(|m| m.id != id);
+            self.project_store.memories = self.project_memories.iter().map(|m| m.content.clone()).collect();
+        }
         Ok(())
     }
 
     pub fn add_global(&mut self, text: String) {
-        if !text.trim().is_empty() && !self.global_store.memories.contains(&text) {
-            self.global_store.memories.push(text.clone());
-            let _ = self.save_global();
-            let _ = save_chroma_memory(&text, "global");
+        if text.trim().is_empty() {
+            return;
         }
+        if self.global_memories.iter().any(|m| m.content == text) {
+            return;
+        }
+        let now = chrono::Local::now().to_rfc3339();
+        let id = format!("mem-global-{}", chrono::Local::now().timestamp_millis());
+        let title = text.lines().next().unwrap_or("Manual Global Memory").trim();
+        let title_truncated = if title.len() > 50 {
+            format!("{}...", &title[..47])
+        } else {
+            title.to_string()
+        };
+
+        let mem = Memory {
+            id,
+            title: title_truncated,
+            created_at: now,
+            tags: vec!["manual".to_string()],
+            links: Vec::new(),
+            scope: "global".to_string(),
+            content: text.clone(),
+        };
+
+        let _ = self.save_memory(mem);
+        let _ = save_chroma_memory(&text, "global");
     }
 
     pub fn add_project(&mut self, text: String) {
-        if !text.trim().is_empty() && !self.project_store.memories.contains(&text) {
-            self.project_store.memories.push(text.clone());
-            let _ = self.save_project();
-            let _ = save_chroma_memory(&text, "project");
+        if text.trim().is_empty() {
+            return;
         }
+        if self.project_memories.iter().any(|m| m.content == text) {
+            return;
+        }
+        let now = chrono::Local::now().to_rfc3339();
+        let id = format!("mem-project-{}", chrono::Local::now().timestamp_millis());
+        let title = text.lines().next().unwrap_or("Manual Project Memory").trim();
+        let title_truncated = if title.len() > 50 {
+            format!("{}...", &title[..47])
+        } else {
+            title.to_string()
+        };
+
+        let mem = Memory {
+            id,
+            title: title_truncated,
+            created_at: now,
+            tags: vec!["manual".to_string()],
+            links: Vec::new(),
+            scope: "project".to_string(),
+            content: text.clone(),
+        };
+
+        let _ = self.save_memory(mem);
+        let _ = save_chroma_memory(&text, "project");
     }
 
     pub fn clear_all(&mut self) {
+        for m in &self.global_memories {
+            let path = self.global_dir.join(format!("{}.md", m.id));
+            let _ = std::fs::remove_file(path);
+        }
+        for m in &self.project_memories {
+            let path = self.project_dir.join(format!("{}.md", m.id));
+            let _ = std::fs::remove_file(path);
+        }
+        self.global_memories.clear();
+        self.project_memories.clear();
         self.global_store.memories.clear();
         self.project_store.memories.clear();
-        let _ = self.save_global();
-        let _ = self.save_project();
+        
+        let mut cmd = Command::new("uv");
+        cmd.arg("run")
+           .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
+           .arg("clear");
+        let _ = cmd.output();
     }
 }
 
@@ -508,7 +775,7 @@ pub async fn run_agent_task(
     }
 
     // Load TODO list items and inject into system prompt
-    let project_todos = TodoList::load_project(memory_manager.project_path.parent().unwrap().to_path_buf());
+    let project_todos = TodoList::load_project(memory_manager.project_dir.parent().unwrap().to_path_buf());
     let global_todos = TodoList::load_global();
     
     let mut todos_context = String::new();
@@ -523,8 +790,8 @@ pub async fn run_agent_task(
     }
 
     // Load Quick Notes and inject into system prompt
-    let project_notes = notes::load_notes("project", memory_manager.project_path.parent().unwrap().to_path_buf());
-    let global_notes = notes::load_notes("global", memory_manager.project_path.parent().unwrap().to_path_buf());
+    let project_notes = notes::load_notes("project", memory_manager.project_dir.parent().unwrap().to_path_buf());
+    let global_notes = notes::load_notes("global", memory_manager.project_dir.parent().unwrap().to_path_buf());
     let mut notes_context = String::new();
     notes_context.push_str("\nQuick Notes:\n");
     notes_context.push_str(&format!("Global Notes: {}\n", if global_notes.is_empty() { "(empty)".to_string() } else { global_notes }));
@@ -651,7 +918,7 @@ pub async fn run_agent_task(
                                 let now = chrono::Local::now().to_rfc3339();
                                 let id = format!("todo-{}", chrono::Local::now().timestamp_millis());
                                 let entry = TodoEntry { id: id.clone(), text, scope, status: TodoStatus::Pending, created_at: now };
-                                match TodoList::add_todo(entry, memory_manager.project_path.parent().unwrap().to_path_buf()) {
+                                match TodoList::add_todo(entry, memory_manager.project_dir.parent().unwrap().to_path_buf()) {
                                     Ok(_) => Ok(format!("Added todo item with ID: {}", id)),
                                     Err(e) => Err(format!("Failed to add todo: {}", e)),
                                 }
@@ -660,20 +927,20 @@ pub async fn run_agent_task(
                                 let id = arguments.get("id").cloned().unwrap_or_default();
                                 let scope_str = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
                                 let scope = if scope_str == "global" { TodoScope::Global } else { TodoScope::Project };
-                                match TodoList::complete_todo(&id, scope, memory_manager.project_path.parent().unwrap().to_path_buf()) {
+                                match TodoList::complete_todo(&id, scope, memory_manager.project_dir.parent().unwrap().to_path_buf()) {
                                     Ok(_) => Ok(format!("Completed todo: {}", id)),
                                     Err(e) => Err(format!("Failed to complete todo: {}", e)),
                                 }
                             }
                             "read_notes" => {
                                 let scope = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                let n = notes::load_notes(&scope, memory_manager.project_path.parent().unwrap().to_path_buf());
+                                let n = notes::load_notes(&scope, memory_manager.project_dir.parent().unwrap().to_path_buf());
                                 Ok(format!("Notes (scope: {}):\n{}", scope, n))
                             }
                             "update_notes" => {
                                 let content = arguments.get("content").cloned().unwrap_or_default();
                                 let scope = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                match notes::save_notes(&scope, &content, memory_manager.project_path.parent().unwrap().to_path_buf()) {
+                                match notes::save_notes(&scope, &content, memory_manager.project_dir.parent().unwrap().to_path_buf()) {
                                     Ok(_) => Ok(format!("Successfully updated notes for scope: {}", scope)),
                                     Err(e) => Err(format!("Failed to save notes: {}", e))
                                 }
@@ -713,7 +980,7 @@ pub async fn run_agent_task(
                                     monitor_state.add_event(model, &format!("Spawning subagent: {}", sub_prompt), monitor_path.clone());
                                 }
                                 // Subagents run recursively with same model and host, but step limit is lower
-                                let mut box_memory = MemoryManager::new(memory_manager.global_path.parent().unwrap().to_path_buf());
+                                let mut box_memory = MemoryManager::new(memory_manager.global_dir.parent().unwrap().to_path_buf());
                                 match Box::pin(run_agent_task(
                                     host,
                                     port,
@@ -846,4 +1113,33 @@ pub async fn run_agent_task(
         text: final_response,
         logs,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_memory_serialization_roundtrip() {
+        let mem = Memory {
+            id: "mem-test-123".to_string(),
+            title: "Test Memory Title".to_string(),
+            created_at: "2026-06-03T23:00:00Z".to_string(),
+            tags: vec!["rust".to_string(), "testing".to_string()],
+            links: vec!["mem-other-456".to_string()],
+            scope: "project".to_string(),
+            content: "This is some test memory content.\nIt spans multiple lines.\n".to_string(),
+        };
+
+        let serialized = serialize_memory(&mem);
+        let parsed = parse_memory(&serialized).unwrap();
+
+        assert_eq!(parsed.id, mem.id);
+        assert_eq!(parsed.title, mem.title);
+        assert_eq!(parsed.created_at, mem.created_at);
+        assert_eq!(parsed.tags, mem.tags);
+        assert_eq!(parsed.links, mem.links);
+        assert_eq!(parsed.scope, mem.scope);
+        assert_eq!(parsed.content, mem.content.trim());
+    }
 }
