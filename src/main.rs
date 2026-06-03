@@ -20,6 +20,7 @@ enum Tab {
     Library,
     Download,
     Server,
+    Instances,
     Context,
     Gpu,
     Performance,
@@ -36,6 +37,7 @@ impl Tab {
             Self::Library => "Model Index",
             Self::Download => "Downloader",
             Self::Server => "Server",
+            Self::Instances => "Instances",
             Self::Context => "Context",
             Self::Gpu => "GPU & Memory",
             Self::Performance => "Performance",
@@ -51,6 +53,7 @@ impl Tab {
             Self::Library => "\u{1F4DA}",     // 📚
             Self::Download => "\u{1F4E5}",    // 📥
             Self::Server => "\u{1F310}",       // 🌐
+            Self::Instances => "\u{1F5A5}",    // 🖥️
             Self::Context => "\u{1F4CF}",      // 📏
             Self::Gpu => "\u{1F3AE}",          // 🎮
             Self::Performance => "\u{26A1}",   // ⚡
@@ -66,6 +69,7 @@ impl Tab {
             Tab::Library,
             Tab::Download,
             Tab::Server,
+            Tab::Instances,
             Tab::Context,
             Tab::Gpu,
             Tab::Performance,
@@ -143,6 +147,8 @@ fn config_search_entries() -> Vec<ConfigSearchEntry> {
         ConfigSearchEntry { label: "Verbose Logging".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
         ConfigSearchEntry { label: "Model Scan Directories".into(), section: "Model Index".into(), tab: Tab::Library, target_id: "form-scan-directories-1".into() },
         ConfigSearchEntry { label: "SearxNG URL".into(), section: "Model Index".into(), tab: Tab::Library, target_id: "form-searxng-service-url-1".into() },
+        ConfigSearchEntry { label: "Launch Optimizer".into(), section: "Server".into(), tab: Tab::Server, target_id: "launch-optimizer-1".into() },
+        ConfigSearchEntry { label: "Optimize Configs".into(), section: "Server".into(), tab: Tab::Server, target_id: "launch-optimizer-1".into() },
         ConfigSearchEntry { label: "Chat".into(), section: "Navigation".into(), tab: Tab::Chat, target_id: "".into() },
         ConfigSearchEntry { label: "Downloader".into(), section: "Navigation".into(), tab: Tab::Download, target_id: "".into() },
     ]
@@ -1304,7 +1310,7 @@ fn App() -> Element {
 
                                             let mut st = search_target.clone();
                                             spawn(async move {
-                                                tokio::time::sleep(std::time::Duration::from_millis(70)).await;
+                                                tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                                                 st.set(tgt);
                                             });
                                         },
@@ -1390,6 +1396,7 @@ fn App() -> Element {
                         Tab::Library     => rsx! { TabLibrary     { config, scanned_models, index_status, scan_trigger, search_target } },
                         Tab::Download    => rsx! { TabDownload    { search_target } },
                         Tab::Server      => rsx! { TabServer      { config, search_target } },
+                        Tab::Instances   => rsx! { TabInstances   { search_target } },
                         Tab::Context     => rsx! { TabContext      { config, search_target } },
                         Tab::Gpu         => rsx! { TabGpu         { config, search_target } },
                         Tab::Performance => rsx! { TabPerformance { config, search_target } },
@@ -1936,7 +1943,7 @@ fn TabServer(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
             }
         }
 
-        div { class: "card",
+        div { class: "card", id: "launch-optimizer-1",
             div { class: "card-title", "Launch Optimizer" }
             div { class: "form-hint", "Analyze your current llama-server launch settings and get reviewable optimization suggestions." }
             div { style: "display: flex; gap: 12px; flex-wrap: wrap;",
@@ -4474,6 +4481,311 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
                         perform_send(config, messages, current_input, is_generating, chat_error);
                     },
                     "Send"
+                }
+            }
+        }
+    }
+}
+
+// ── Instances Tab ────────────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct LlamaInstance {
+    hostname: String,
+    port: u16,
+    status: String,  // "online", "offline", "checking"
+    models: Vec<String>,
+}
+
+#[component]
+fn TabInstances(search_target: Signal<String>) -> Element {
+    let mut detected_instances = use_signal(Vec::<LlamaInstance>::new);
+    let mut custom_hostname_input = use_signal(|| "127.0.0.1".to_string());
+    let mut custom_port_input = use_signal(String::new);
+    let mut last_check_time = use_signal(|| 0i64);
+    let mut check_status = use_signal(|| "Idle".to_string());
+
+    // Common ports to check for llama-server
+    let common_ports = vec![8080, 8000, 8001, 8002, 8003, 8004, 5000, 5001, 5002];
+
+    // Async task to periodically detect instances
+    let _detector = use_resource(move || {
+        let common_ports = common_ports.clone();
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                
+                check_status.set("Checking ports...".to_string());
+                let mut instances = Vec::new();
+
+                // Check common ports
+                for port in &common_ports {
+                    let port = *port;
+                    let client = reqwest::Client::new();
+                    let url = format!("http://127.0.0.1:{}/v1/models", port);
+                    
+                    match tokio::time::timeout(
+                        std::time::Duration::from_millis(500),
+                        client.get(&url).send()
+                    ).await {
+                        Ok(Ok(response)) => {
+                            if response.status().is_success() {
+                                if let Ok(body) = response.text().await {
+                                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+                                        let models = json.get("data")
+                                            .and_then(|d| d.as_array())
+                                            .map(|arr| {
+                                                arr.iter()
+                                                    .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(String::from))
+                                                    .collect()
+                                            })
+                                            .unwrap_or_default();
+                                        
+                                        instances.push(LlamaInstance {
+                                            hostname: "127.0.0.1".to_string(),
+                                            port,
+                                            status: "online".to_string(),
+                                            models,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Check if we already have this instance stored to preserve its status
+                            let existing = detected_instances.read();
+                            if !existing.iter().any(|i| i.port == port) {
+                                // Only add as offline if we've had it before, otherwise skip
+                            }
+                        }
+                    }
+                }
+
+                // Check custom instances (non-localhost)
+                for inst in detected_instances.read().iter() {
+                    if !common_ports.contains(&inst.port) {
+                        let client = reqwest::Client::new();
+                        let url = format!("http://{}:{}/v1/models", inst.hostname, inst.port);
+                        
+                        match tokio::time::timeout(
+                            std::time::Duration::from_millis(500),
+                            client.get(&url).send()
+                        ).await {
+                            Ok(Ok(response)) => {
+                                if response.status().is_success() {
+                                    if let Ok(body) = response.text().await {
+                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+                                            let models = json.get("data")
+                                                .and_then(|d| d.as_array())
+                                                .map(|arr| {
+                                                    arr.iter()
+                                                        .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(String::from))
+                                                        .collect()
+                                                })
+                                                .unwrap_or_default();
+                                            
+                                            instances.push(LlamaInstance {
+                                                hostname: inst.hostname.clone(),
+                                                port: inst.port,
+                                                status: "online".to_string(),
+                                                models,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {
+                                instances.push(LlamaInstance {
+                                    hostname: inst.hostname.clone(),
+                                    port: inst.port,
+                                    status: "offline".to_string(),
+                                    models: Vec::new(),
+                                });
+                            }
+                        }
+                    }
+                }
+
+                detected_instances.set(instances);
+                *last_check_time.write() = chrono::Local::now().timestamp();
+                check_status.set("Ready".to_string());
+            }
+        }
+    });
+
+    let add_custom_instance = move |_: Event<MouseData>| {
+        if let Ok(port) = custom_port_input().parse::<u16>() {
+            let hostname = custom_hostname_input().trim().to_string();
+            if !hostname.is_empty() {
+                let mut instances = detected_instances.read().clone();
+                if !instances.iter().any(|i| i.hostname == hostname && i.port == port) {
+                    instances.push(LlamaInstance {
+                        hostname,
+                        port,
+                        status: "checking".to_string(),
+                        models: Vec::new(),
+                    });
+                    detected_instances.set(instances);
+                    custom_port_input.set(String::new());
+                }
+            }
+        }
+    };
+
+    let mut remove_instance = move |(hostname, port): (String, u16)| {
+        let mut instances = detected_instances.read().clone();
+        instances.retain(|i| !(i.hostname == hostname && i.port == port));
+        detected_instances.set(instances);
+    };
+
+    let manual_refresh = move |_: Event<MouseData>| {
+        check_status.set("Manual refresh triggered...".to_string());
+    };
+
+    rsx! {
+        div { class: "tab-container",
+            // Header
+            div { class: "card",
+                div { class: "card-title", "🖥️ Llama-Server Instance Monitor" }
+                div { class: "form-hint", "Discovers running llama-server instances on common ports and displays loaded models per instance." }
+            }
+
+            // Add Custom Instance Card
+            div { class: "card",
+                div { class: "card-title", "Add Custom Instance" }
+                div { class: "form-group",
+                    label { r#for: "form-custom-hostname-1", class: "form-label", "Hostname or IP Address" }
+                    input {
+                        id: "form-custom-hostname-1",
+                        autofocus: search_target.read().as_str() == "form-custom-hostname-1",
+                        r#type: "text",
+                        class: "form-input",
+                        placeholder: "e.g., 127.0.0.1, example.com, 192.168.1.100",
+                        value: custom_hostname_input(),
+                        oninput: move |e: Event<FormData>| {
+                            custom_hostname_input.set(e.value());
+                        },
+                    }
+                }
+                div { class: "form-group",
+                    label { r#for: "form-custom-port-1", class: "form-label", "Port Number" }
+                    div { style: "display: flex; gap: 8px;",
+                        input {
+                            id: "form-custom-port-1",
+                            autofocus: search_target.read().as_str() == "form-custom-port-1",
+                            r#type: "number",
+                            class: "form-input",
+                            placeholder: "e.g., 8000",
+                            min: "1",
+                            max: "65535",
+                            value: custom_port_input(),
+                            oninput: move |e: Event<FormData>| {
+                                custom_port_input.set(e.value());
+                            },
+                            onkeydown: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter {
+                                    if let Ok(port) = custom_port_input().parse::<u16>() {
+                                        let hostname = custom_hostname_input().trim().to_string();
+                                        if !hostname.is_empty() {
+                                            let mut instances = detected_instances.read().clone();
+                                            if !instances.iter().any(|i| i.hostname == hostname && i.port == port) {
+                                                instances.push(LlamaInstance {
+                                                    hostname,
+                                                    port,
+                                                    status: "checking".to_string(),
+                                                    models: Vec::new(),
+                                                });
+                                                detected_instances.set(instances);
+                                                custom_port_input.set(String::new());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        button {
+                            class: "btn btn-primary",
+                            onclick: add_custom_instance,
+                            "Add"
+                        }
+                        button {
+                            class: "btn btn-secondary",
+                            onclick: manual_refresh,
+                            "🔄 Refresh"
+                        }
+                    }
+                }
+                div { class: "form-hint", "Detected instances refresh automatically every 10 seconds. Add remote instances by specifying hostname/IP and port." }
+            }
+
+            // Status Card
+            div { class: "card",
+                div { class: "card-title", "Status" }
+                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 16px;",
+                    div {
+                        div { class: "form-label", "Detection Status" }
+                        div { style: "font-family: monospace; font-size: 13px; color: var(--color-on-surface-soft);", "{check_status()}" }
+                    }
+                    div {
+                        div { class: "form-label", "Detected Instances" }
+                        div { style: "font-family: monospace; font-size: 13px; color: var(--color-primary);", "{detected_instances.read().len()}" }
+                    }
+                }
+            }
+
+            // Instances List
+            if detected_instances.read().is_empty() {
+                div { class: "card",
+                    div { style: "text-align: center; padding: 32px; color: var(--color-muted);",
+                        "No instances detected. Make sure llama-server is running on one of the common ports (8080, 8000-8004, 5000-5002) or add a custom instance."
+                    }
+                }
+            } else {
+                div { class: "card",
+                    div { class: "card-title", "Active Instances" }
+                    div { style: "display: flex; flex-direction: column; gap: 16px;",
+                        for inst in detected_instances.read().iter() {
+                            div { style: "border: 1px solid var(--color-hairline); border-radius: 8px; padding: 16px; background: var(--color-surface-dark);",
+                                div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+                                    div {
+                                        div { style: "font-weight: 600; margin-bottom: 4px;", "{inst.hostname}:{inst.port}" }
+                                        div { style: "font-size: 12px; color: var(--color-muted);",
+                                            match inst.status.as_str() {
+                                                "online" => rsx! { span { style: "color: var(--color-success);", "✓ Online" } },
+                                                "offline" => rsx! { span { style: "color: var(--color-error);", "✗ Offline" } },
+                                                _ => rsx! { span { style: "color: var(--color-warning);", "⏳ Checking..." } },
+                                            }
+                                        }
+                                    }
+                                    button {
+                                        class: "btn btn-ghost btn-sm",
+                                        onclick: {
+                                            let hostname = inst.hostname.clone();
+                                            let port = inst.port;
+                                            move |_| remove_instance((hostname.clone(), port))
+                                        },
+                                        "Remove"
+                                    }
+                                }
+                                if !inst.models.is_empty() {
+                                    div { style: "border-top: 1px solid var(--color-hairline); padding-top: 12px;",
+                                        div { style: "font-size: 12px; font-weight: 500; color: var(--color-muted); margin-bottom: 8px;", "Loaded Models ({inst.models.len()})" }
+                                        div { style: "display: flex; flex-direction: column; gap: 6px;",
+                                            for model in inst.models.iter() {
+                                                div { style: "font-size: 12px; padding: 6px 8px; background: var(--color-surface); border-radius: 4px; color: var(--color-on-surface-soft);",
+                                                    "📦 {model}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if inst.status == "online" {
+                                    div { style: "border-top: 1px solid var(--color-hairline); padding-top: 12px;",
+                                        div { style: "font-size: 12px; color: var(--color-muted);", "No models loaded" }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
