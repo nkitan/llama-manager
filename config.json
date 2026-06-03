@@ -68,5 +68,7 @@
   "model_scan_dirs": [
     "/mnt/shared/models"
   ],
-  "searxng_url": "http://localhost:8888"
+  "searxng_url": "http://localhost:8888",
+  "ui_transparency": 0.4,
+  "ui_background_color": "#0f172a"
 }
