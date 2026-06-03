@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+fn default_searxng_url() -> String {
+    "http://localhost:8888".to_string()
+}
+
 // ── Enums ───────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -225,6 +229,12 @@ pub struct ServerConfig {
     // ─ Logging
     pub log_format: LogFormat,
     pub verbose: bool,
+
+    // ─ Model Indexing / Scan Settings
+    #[serde(default)]
+    pub model_scan_dirs: Vec<String>,
+    #[serde(default = "default_searxng_url")]
+    pub searxng_url: String,
 }
 
 impl Default for ServerConfig {
@@ -320,6 +330,10 @@ impl Default for ServerConfig {
             // Logging
             log_format: LogFormat::Text,
             verbose: false,
+
+            // Model Indexing / Scan Settings
+            model_scan_dirs: Vec::new(),
+            searxng_url: "http://localhost:8888".into(),
         }
     }
 }

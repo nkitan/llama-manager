@@ -1,0 +1,44 @@
+[
+  {
+    "path": "/mnt/shared/models/text",
+    "filename": "text",
+    "size_bytes": 11889920288,
+    "clean_name": "text",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "11.07 GB",
+    "status": "pending_enrichment",
+    "family": "Text",
+    "version": "Text",
+    "tags": []
+  },
+  {
+    "path": "/mnt/shared/models/multimodal",
+    "filename": "multimodal",
+    "size_bytes": 92902071232,
+    "clean_name": "multimodal",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "86.52 GB",
+    "status": "pending_enrichment",
+    "family": "Multimodal",
+    "version": "Multimodal",
+    "tags": []
+  },
+  {
+    "path": "/mnt/shared/models/audiovisualmodels",
+    "filename": "audiovisualmodels",
+    "size_bytes": 177593223983,
+    "clean_name": "audiovisualmodels",
+    "use_case": "Unknown",
+    "hf_link": "",
+    "github_link": "",
+    "size_info": "165.40 GB",
+    "status": "pending_enrichment",
+    "family": "Audiovisualmodels",
+    "version": "Audiovisualmodels",
+    "tags": []
+  }
+]

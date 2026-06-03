@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 
 mod config;
+mod library;
 
 use config::*;
 use dioxus::prelude::*;
@@ -14,7 +15,10 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Copy, PartialEq)]
 enum Tab {
+    Chat,
     Model,
+    Library,
+    Download,
     Server,
     Context,
     Gpu,
@@ -27,7 +31,10 @@ enum Tab {
 impl Tab {
     fn label(&self) -> &str {
         match self {
+            Self::Chat => "Chat",
             Self::Model => "Model",
+            Self::Library => "Model Index",
+            Self::Download => "Downloader",
             Self::Server => "Server",
             Self::Context => "Context",
             Self::Gpu => "GPU & Memory",
@@ -39,7 +46,10 @@ impl Tab {
     }
     fn icon(&self) -> &str {
         match self {
+            Self::Chat => "\u{1F4AC}",        // 💬
             Self::Model => "\u{1F4E6}",       // 📦
+            Self::Library => "\u{1F4DA}",     // 📚
+            Self::Download => "\u{1F4E5}",    // 📥
             Self::Server => "\u{1F310}",       // 🌐
             Self::Context => "\u{1F4CF}",      // 📏
             Self::Gpu => "\u{1F3AE}",          // 🎮
@@ -51,7 +61,10 @@ impl Tab {
     }
     fn all() -> &'static [Tab] {
         &[
+            Tab::Chat,
             Tab::Model,
+            Tab::Library,
+            Tab::Download,
             Tab::Server,
             Tab::Context,
             Tab::Gpu,
@@ -68,239 +81,527 @@ impl Tab {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CSS: &str = r#"
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+:root {
+    --color-primary: #111111;
+    --color-primary-active: #242424;
+    --color-primary-disabled: #e5e7eb;
+    --color-ink: #111111;
+    --color-body: #374151;
+    --color-muted: #6b7280;
+    --color-muted-soft: #898989;
+    --color-hairline: #e5e7eb;
+    --color-hairline-soft: #f3f4f6;
+    --color-canvas: #ffffff;
+    --color-surface-soft: #f8f9fa;
+    --color-surface-card: #f5f5f5;
+    --color-surface-strong: #e5e7eb;
+    --color-surface-dark: #101010;
+    --color-surface-dark-elevated: #1a1a1a;
+    --color-on-primary: #ffffff;
+    --color-on-dark: #ffffff;
+    --color-on-dark-soft: #a1a1aa;
+    --color-brand-accent: #3b82f6;
+    --color-success: #10b981;
+    --color-warning: #f59e0b;
+    --color-error: #ef4444;
+}
+
 body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: #0f1117;
-    color: #e2e8f0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--color-canvas);
+    color: var(--color-body);
     overflow: hidden;
     height: 100vh;
 }
 
 .app { display: flex; flex-direction: column; height: 100vh; }
 
+/* ── Focus States ────────────────────────────────────────────────── */
+.btn:focus-visible,
+.form-input:focus-visible,
+.form-select:focus-visible,
+.form-textarea:focus-visible,
+.sidebar-item:focus-visible,
+[role="button"]:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
 /* ── Top Bar ─────────────────────────────────────────────────────── */
 .top-bar {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 10px 24px;
-    background: linear-gradient(135deg, #151827 0%, #1e2138 100%);
-    border-bottom: 1px solid #2a2d4a;
-    min-height: 56px;
+    padding: 12px 24px;
+    background: var(--color-canvas);
+    border-bottom: 1px solid var(--color-hairline);
+    min-height: 64px;
 }
 .top-title {
     display: flex; align-items: center; gap: 12px;
-    font-size: 18px; font-weight: 700; letter-spacing: -0.3px;
+    font-size: 20px; font-weight: 600; letter-spacing: -0.04em;
+    color: var(--color-ink);
 }
-.top-title span { font-size: 26px; }
+.top-title span { font-size: 24px; }
 .top-right { display: flex; align-items: center; gap: 16px; }
+
 .status-badge {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 14px; border-radius: 20px;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.3px;
+    padding: 6px 14px; border-radius: 9999px;
+    font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    border: 1px solid transparent;
 }
-.status-badge.running { background: rgba(34,197,94,0.15); color: #4ade80; }
-.status-badge.stopped { background: rgba(100,116,139,0.15); color: #94a3b8; }
+.status-badge.running { 
+    background: rgba(16,185,129,0.08); 
+    color: var(--color-success); 
+    border-color: rgba(16,185,129,0.15);
+}
+.status-badge.stopped { 
+    background: rgba(107,114,128,0.08); 
+    color: var(--color-muted); 
+    border-color: rgba(107,114,128,0.15);
+}
 .status-dot {
     width: 8px; height: 8px; border-radius: 50%;
 }
 .status-dot.running {
-    background: #22c55e;
-    box-shadow: 0 0 8px rgba(34,197,94,0.6);
+    background: var(--color-success);
+    box-shadow: 0 0 8px rgba(16,185,129,0.5);
     animation: pulse 2s infinite;
 }
-.status-dot.stopped { background: #64748b; }
+.status-dot.stopped { background: var(--color-muted); }
 @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
 
 /* ── Buttons ─────────────────────────────────────────────────────── */
 .btn {
-    padding: 8px 20px; border: none; border-radius: 8px;
-    font-size: 13px; font-weight: 600; cursor: pointer;
-    transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: background-color 0.2s, transform 0.1s;
+    display: inline-flex; align-items: center; gap: 8px;
+    outline: none;
+    font-family: 'Inter', sans-serif;
+}
+.btn:active { transform: scale(0.98); }
+
+.btn-start {
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+}
+.btn-start:hover {
+    background: var(--color-primary-active);
+}
+.btn-start:disabled {
+    background: var(--color-primary-disabled);
+    color: var(--color-muted);
+    cursor: not-allowed;
+}
+
+.btn-stop {
+    background: var(--color-error);
+    color: var(--color-on-primary);
+}
+.btn-stop:hover {
+    background: #dc2626;
+}
+
+.btn-ghost {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+}
+.btn-ghost:hover {
+    background: var(--color-surface-soft);
+}
+
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+
+.btn-browse {
+    padding: 8px 14px; background: var(--color-canvas); color: var(--color-body);
+    border: 1px solid var(--color-hairline); border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif;
+    white-space: nowrap; transition: background-color 0.2s;
     outline: none;
 }
-.btn:active { transform: scale(0.97); }
-.btn-start {
-    background: linear-gradient(135deg, #22c55e, #16a34a);
-    color: white; box-shadow: 0 2px 12px rgba(34,197,94,0.3);
-}
-.btn-start:hover { filter: brightness(1.1); }
-.btn-stop {
-    background: linear-gradient(135deg, #ef4444, #dc2626);
-    color: white; box-shadow: 0 2px 12px rgba(239,68,68,0.3);
-}
-.btn-stop:hover { filter: brightness(1.1); }
-.btn-ghost {
-    background: rgba(124,92,252,0.1); color: #a78bfa;
-    border: 1px solid rgba(124,92,252,0.25);
-}
-.btn-ghost:hover { background: rgba(124,92,252,0.2); }
-.btn-sm { padding: 6px 14px; font-size: 12px; }
-.btn-browse {
-    padding: 8px 14px; background: #2a2d4a; color: #cbd5e1;
-    border: 1px solid #363a5c; border-radius: 8px; cursor: pointer;
-    font-size: 12px; white-space: nowrap; transition: all 0.2s;
-}
-.btn-browse:hover { background: #363a5c; }
+.btn-browse:hover { background: var(--color-surface-soft); }
 
 /* ── Main area ───────────────────────────────────────────────────── */
 .main { display: flex; flex: 1; overflow: hidden; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar {
-    width: 190px; min-width: 190px;
-    background: #111322;
-    border-right: 1px solid #232640;
+    width: 220px; min-width: 220px;
+    background: var(--color-surface-card);
+    border-right: 1px solid var(--color-hairline);
     display: flex; flex-direction: column;
-    padding: 12px 0;
+    padding: 16px 8px;
+    gap: 4px;
 }
 .sidebar-item {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 20px; cursor: pointer;
-    transition: all 0.15s; color: #64748b;
-    border-left: 3px solid transparent;
-    font-size: 13px; font-weight: 500;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; cursor: pointer;
+    transition: all 0.15s; color: var(--color-muted);
+    border-radius: 6px;
+    font-size: 14px; font-weight: 500;
     user-select: none;
+    outline: none;
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
 }
-.sidebar-item:hover { background: #181b30; color: #cbd5e1; }
+.sidebar-item:hover { background: var(--color-hairline-soft); color: var(--color-ink); }
 .sidebar-item.active {
-    background: #1a1e38; color: #a78bfa;
-    border-left-color: #7c5cfc;
+    background: var(--color-canvas); color: var(--color-ink);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid var(--color-hairline);
 }
-.sidebar-icon { font-size: 16px; width: 22px; text-align: center; }
+.sidebar-icon { font-size: 16px; width: 20px; text-align: center; }
 
 /* ── Content ─────────────────────────────────────────────────────── */
 .content {
-    flex: 1; overflow-y: auto; padding: 24px 28px;
-    display: flex; flex-direction: column; gap: 20px;
+    flex: 1; overflow-y: auto; padding: 32px;
+    display: flex; flex-direction: column; gap: 24px;
+    background: var(--color-canvas);
 }
-.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar { width: 8px; }
 .content::-webkit-scrollbar-track { background: transparent; }
-.content::-webkit-scrollbar-thumb { background: #2a2d4a; border-radius: 3px; }
+.content::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: 4px; }
 
 .section-title {
-    font-size: 20px; font-weight: 700; margin-bottom: 4px;
+    font-size: 24px; font-weight: 600; letter-spacing: -0.04em; color: var(--color-ink); margin-bottom: 6px;
+    font-family: 'Inter', sans-serif;
 }
 .section-desc {
-    font-size: 13px; color: #64748b; margin-bottom: 8px; line-height: 1.5;
+    font-size: 14px; color: var(--color-muted); margin-bottom: 12px; line-height: 1.5;
 }
 
 /* ── Cards ────────────────────────────────────────────────────────── */
 .card {
-    background: #161829;
-    border: 1px solid #232640;
-    border-radius: 12px; padding: 20px;
+    background: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: 12px; padding: 24px;
+    display: flex; flex-direction: column; gap: 16px;
 }
 .card-title {
-    font-size: 11px; font-weight: 700; color: #64748b;
-    text-transform: uppercase; letter-spacing: 0.8px;
-    margin-bottom: 16px;
+    font-size: 12px; font-weight: 600; color: var(--color-muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 4px;
 }
 
 /* ── Form  ────────────────────────────────────────────────────────── */
-.form-group { margin-bottom: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
 .form-group:last-child { margin-bottom: 0; }
 .form-label {
-    display: block; font-size: 13px; font-weight: 500;
-    color: #cbd5e1; margin-bottom: 6px;
+    font-size: 14px; font-weight: 500;
+    color: var(--color-ink);
 }
-.form-hint { font-size: 11px; color: #4a5568; margin-top: 4px; }
+.form-hint { font-size: 12px; color: var(--color-muted); margin-top: 2px; line-height: 1.4; }
+
 .form-input, .form-select {
-    width: 100%; padding: 9px 13px;
-    background: #0f1117; border: 1px solid #2a2d4a;
-    border-radius: 8px; color: #e2e8f0; font-size: 13px;
-    transition: border-color 0.2s; outline: none;
-    font-family: inherit;
+    width: 100%; padding: 10px 14px;
+    background: var(--color-canvas); border: 1px solid var(--color-hairline);
+    border-radius: 8px; color: var(--color-ink); font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s; outline: none;
+    font-family: 'Inter', sans-serif;
 }
-.form-input:focus, .form-select:focus { border-color: #7c5cfc; }
-.form-input::placeholder { color: #3d4260; }
+.form-input:focus, .form-select:focus, .tag-input-container:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(17,17,17,0.05);
+}
+.form-input::placeholder { color: var(--color-muted-soft); }
+
 .form-textarea {
-    width: 100%; padding: 9px 13px; min-height: 80px; resize: vertical;
-    background: #0f1117; border: 1px solid #2a2d4a;
-    border-radius: 8px; color: #e2e8f0; font-size: 13px;
-    font-family: 'Cascadia Code', 'Fira Code', monospace;
-    outline: none; transition: border-color 0.2s;
+    width: 100%; padding: 10px 14px; min-height: 100px; resize: vertical;
+    background: var(--color-canvas); border: 1px solid var(--color-hairline);
+    border-radius: 8px; color: var(--color-ink); font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s;
 }
-.form-textarea:focus { border-color: #7c5cfc; }
-.form-row { display: flex; gap: 14px; }
-.form-row > * { flex: 1; }
+.form-textarea:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(17,17,17,0.05);
+}
+.form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.form-row > * { flex: 1; min-width: 200px; }
 .input-group { display: flex; gap: 8px; }
 .input-group .form-input { flex: 1; }
+
+.resizer-v {
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    position: relative;
+    flex-shrink: 0;
+    align-self: stretch;
+    z-index: 10;
+}
+.resizer-v:hover, .resizer-v.dragging {
+    background: var(--color-brand-accent);
+}
+.resizer-h {
+    height: 6px;
+    cursor: row-resize;
+    background: transparent;
+    transition: background 0.15s;
+    position: relative;
+    flex-shrink: 0;
+    width: 100%;
+    z-index: 10;
+}
+.resizer-h:hover, .resizer-h.dragging {
+    background: var(--color-brand-accent);
+}
+
+.tag-badge {
+    display: inline-flex;
+    align-items: center;
+    background: var(--color-hairline-soft);
+    color: var(--color-ink);
+    border: 1px solid var(--color-hairline);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+    gap: 6px;
+    max-width: 100%;
+    word-break: break-all;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+.tag-badge button {
+    background: transparent;
+    border: none;
+    color: var(--color-muted);
+    cursor: pointer;
+    padding: 2px;
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    transition: background-color 0.15s, color 0.15s;
+    margin-left: 4px;
+}
+.tag-badge button:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--color-error);
+}
 
 /* ── Toggles ──────────────────────────────────────────────────────── */
 .toggle-row {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 11px 0; border-bottom: 1px solid #1e2040;
+    padding: 12px 0; border-bottom: 1px solid var(--color-hairline);
+    gap: 16px;
 }
 .toggle-row:last-child { border-bottom: none; }
 .toggle-info { display: flex; flex-direction: column; gap: 2px; }
-.toggle-name { font-size: 13px; color: #e2e8f0; font-weight: 500; }
-.toggle-desc { font-size: 11px; color: #4a5568; }
+.toggle-name { font-size: 14px; color: var(--color-ink); font-weight: 500; }
+.toggle-desc { font-size: 12px; color: var(--color-muted); }
+
 .toggle-switch {
-    width: 40px; height: 22px; border-radius: 11px;
-    background: #2a2d4a; cursor: pointer;
-    position: relative; transition: background 0.25s;
+    width: 44px; height: 24px; border-radius: 9999px;
+    background: var(--color-surface-strong); cursor: pointer;
+    position: relative; transition: background-color 0.2s;
     flex-shrink: 0;
 }
-.toggle-switch.on { background: #7c5cfc; }
+.toggle-switch.on { background: var(--color-primary); }
 .toggle-thumb {
-    position: absolute; width: 16px; height: 16px;
+    position: absolute; width: 18px; height: 18px;
     background: white; border-radius: 50%;
     top: 3px; left: 3px;
-    transition: transform 0.25s;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
-.toggle-switch.on .toggle-thumb { transform: translateX(18px); }
+.toggle-switch.on .toggle-thumb { transform: translateX(20px); }
 
 /* ── Log Panel ────────────────────────────────────────────────────── */
 .log-panel {
-    height: 200px; min-height: 100px;
-    background: #0a0b14;
-    border-top: 1px solid #232640;
+    height: 220px; min-height: 120px;
+    background: var(--color-surface-dark);
+    border-top: 1px solid var(--color-hairline);
     display: flex; flex-direction: column;
 }
 .log-header {
     display: flex; align-items: center; justify-content: space-between;
-    padding: 6px 16px; background: #0f1020;
-    border-bottom: 1px solid #1a1d30;
-    font-size: 11px; color: #64748b; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 8px 24px; background: var(--color-surface-dark-elevated);
+    border-bottom: 1px solid #222222;
+    font-size: 11px; color: var(--color-on-dark-soft); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.05em;
     user-select: none;
 }
 .log-content {
-    flex: 1; overflow-y: auto; padding: 8px 16px;
-    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-    font-size: 11.5px; line-height: 1.7;
+    flex: 1; overflow-y: auto; padding: 12px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.6;
+    background: var(--color-surface-dark);
 }
-.log-content::-webkit-scrollbar { width: 5px; }
+.log-content::-webkit-scrollbar { width: 8px; }
 .log-content::-webkit-scrollbar-track { background: transparent; }
-.log-content::-webkit-scrollbar-thumb { background: #1e2040; border-radius: 3px; }
-.log-line { white-space: pre-wrap; word-break: break-all; }
-.log-out { color: #94a3b8; }
-.log-err { color: #fca5a5; }
-.log-info { color: #7dd3fc; }
-.log-empty { color: #2a2d4a; font-style: italic; padding: 16px 0; }
+.log-content::-webkit-scrollbar-thumb { background: #222222; border-radius: 4px; }
+.log-line { white-space: pre-wrap; word-break: break-all; margin-bottom: 4px; }
+.log-out { color: var(--color-on-dark-soft); }
+.log-err { color: var(--color-error); }
+.log-info { color: var(--color-brand-accent); }
+.log-empty { color: #555555; font-style: italic; padding: 8px 0; }
 
 /* ── Command preview ──────────────────────────────────────────────── */
 .cmd-preview {
-    background: #0a0b14; border: 1px solid #232640;
-    border-radius: 8px; padding: 12px 14px;
-    font-family: 'Cascadia Code', 'Fira Code', monospace;
-    font-size: 11.5px; line-height: 1.6;
-    color: #94a3b8; word-break: break-all;
-    max-height: 80px; overflow-y: auto;
+    background: var(--color-surface-dark); border: 1px solid var(--color-hairline);
+    border-radius: 8px; padding: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; line-height: 1.6;
+    color: var(--color-on-dark-soft); word-break: break-all;
+    max-height: 100px; overflow-y: auto;
+}
+.cmd-preview::-webkit-scrollbar { width: 6px; }
+.cmd-preview::-webkit-scrollbar-thumb { background: #222222; border-radius: 3px; }
+
+/* ── nav-pill-group for tabs ──────────────────────────────────────── */
+.nav-pill-group {
+    background: var(--color-surface-soft);
+    border-radius: 9999px;
+    padding: 4px;
+    display: inline-flex;
+    gap: 4px;
+    border: 1px solid var(--color-hairline);
+}
+.category-tab {
+    background: transparent;
+    border: none;
+    color: var(--color-muted);
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+}
+.category-tab:hover {
+    color: var(--color-ink);
+}
+.category-tab.active {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ── Accordion elements ───────────────────────────────────────────── */
+.family-header {
+    padding: 12px 16px;
+    background: var(--color-surface-card);
+    border: 1px solid var(--color-hairline);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    color: var(--color-ink);
+    user-select: none;
+    transition: background-color 0.2s, border-color 0.2s;
+    outline: none;
+}
+.family-header:hover {
+    background: var(--color-surface-strong);
+}
+
+.version-header {
+    padding: 10px 14px;
+    background: var(--color-surface-soft);
+    border: 1px solid var(--color-hairline);
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 500;
+    color: var(--color-ink);
+    user-select: none;
+    transition: background-color 0.2s, border-color 0.2s;
+    outline: none;
+}
+.version-header:hover {
+    background: var(--color-surface-strong);
+}
+
+.version-content {
+    margin-left: 20px;
+    overflow-x: auto;
+    background: var(--color-canvas);
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--color-hairline);
+}
+
+.scan-dir-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-canvas);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--color-hairline);
+}
+
+.stat-card {
+    background: var(--color-canvas); border: 1px solid var(--color-hairline); padding: 12px; border-radius: 8px; text-align: center;
+}
+.stat-card-title {
+    font-size: 11px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.stat-card-value {
+    font-size: 20px; font-weight: 600; color: var(--color-ink); margin-top: 4px;
+}
+
+/* ── model-table ──────────────────────────────────────────────────── */
+.model-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 13px;
+}
+.model-table thead tr {
+    border-bottom: 1px solid var(--color-hairline);
+    color: var(--color-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.model-table th {
+    padding: 10px 8px;
+}
+.model-table td {
+    padding: 12px 8px;
+}
+.model-table tbody tr {
+    border-bottom: 1px solid var(--color-hairline-soft);
+}
+.model-table tbody tr:last-child {
+    border-bottom: none;
 }
 
 /* ── Misc ─────────────────────────────────────────────────────────── */
 .error-toast {
-    background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3);
-    color: #fca5a5; border-radius: 8px; padding: 10px 16px;
-    font-size: 13px; display: flex; align-items: center; gap: 8px;
+    background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2);
+    color: var(--color-error); border-radius: 8px; padding: 12px 16px;
+    font-size: 14px; display: flex; align-items: center; gap: 8px;
+    font-weight: 500;
 }
 .lora-row {
-    display: flex; align-items: flex-end; gap: 8px;
-    padding: 10px 0; border-bottom: 1px solid #1e2040;
+    display: flex; align-items: flex-end; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--color-hairline);
+    flex-wrap: wrap;
 }
 .lora-row:last-child { border-bottom: none; }
+.table-row-hover:hover { background: var(--color-surface-soft); }
 "#;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -315,16 +616,94 @@ fn main() {
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 
+fn get_default_config_path() -> std::path::PathBuf {
+    std::path::PathBuf::from("/home/notroot/Work/llama-manager")
+}
+
+fn load_default_config() -> ServerConfig {
+    let dir = get_default_config_path();
+    let _ = std::fs::create_dir_all(&dir);
+    let path = dir.join("config.json");
+    if path.exists() {
+        if let Ok(cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
+            return cfg;
+        }
+    }
+    let default_cfg = ServerConfig::default();
+    let _ = default_cfg.save_to_file(&path.to_string_lossy());
+    default_cfg
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum DragType {
+    None,
+    Sidebar,
+    LogPanel,
+}
+
 #[component]
 fn App() -> Element {
     // ── State ───────────────────────────────────────────────────────
-    let mut config = use_signal(ServerConfig::default);
-    let mut active_tab = use_signal(|| Tab::Model);
+    let mut config = use_signal(load_default_config);
+    let mut show_config_modal = use_signal(|| false);
+
+    // Resizer States
+    let mut sidebar_width = use_signal(|| 220.0);
+    let mut log_panel_height = use_signal(|| 180.0);
+    let mut drag_state = use_signal(|| DragType::None);
+    let mut drag_start_y = use_signal(|| 0.0);
+    let mut drag_start_height = use_signal(|| 180.0);
+
+    // Watch config.json on disk for changes and load it in real time
+    let _config_watcher = use_resource(move || {
+        let mut config = config;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+                let dir = get_default_config_path();
+                let path = dir.join("config.json");
+                if path.exists() {
+                    if let Ok(disk_cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
+                        let current_cfg = config.read().clone();
+                        let current_str = serde_json::to_string(&current_cfg).unwrap_or_default();
+                        let disk_str = serde_json::to_string(&disk_cfg).unwrap_or_default();
+                        if current_str != disk_str {
+                            config.set(disk_cfg);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Auto-save config to ~/.local/share/llama-manager/config.json whenever it changes
+    use_effect(move || {
+        let current_config = config.read().clone();
+        let dir = get_default_config_path();
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("config.json");
+        match current_config.save_to_file(&path.to_string_lossy()) {
+            Ok(_) => {
+                println!("[MANAGER] Auto-saved config to: {:?}", path);
+            }
+            Err(e) => {
+                eprintln!("[MANAGER] Failed to auto-save config: {}", e);
+            }
+        }
+    });
+    let mut active_tab = use_signal(|| Tab::Chat);
     let mut logs = use_signal(Vec::<String>::new);
     let mut error_msg = use_signal(|| None::<String>);
     let mut available_models = use_signal(Vec::<String>::new);
     let mut selected_model = use_signal(String::new);
     let mut loading_models = use_signal(|| false);
+
+    let mut scanned_models = use_signal(|| {
+        let index_path = get_default_config_path().join("model_index.json");
+        library::load_index(&index_path.to_string_lossy())
+    });
+    let mut index_status = use_signal(|| "Idle".to_string());
+    let scan_trigger = use_signal(|| 0u64);
 
     // Server process + shared log buffer
     let mut server_child: Signal<Option<Arc<Mutex<Child>>>> = use_signal(|| None);
@@ -332,6 +711,119 @@ fn App() -> Element {
         use_signal(|| Arc::new(Mutex::new(Vec::new())));
 
     let is_running = server_child.read().is_some();
+
+    // ── Indexer & LLM Metadata Enricher ──────────────────────────────
+    let _indexer = use_resource(move || {
+        async move {
+            let mut last_scan_time = std::time::Instant::now() - std::time::Duration::from_secs(600);
+            
+            loop {
+                let trigger_val = scan_trigger();
+                let now = std::time::Instant::now();
+                let time_since_last = now.duration_since(last_scan_time);
+                
+                if time_since_last.as_secs() >= 300 || trigger_val > 0 {
+                    index_status.set("Scanning directories\u{2026}".to_string());
+                    
+                    let dirs = {
+                        let cfg = config.read();
+                        if cfg.model_scan_dirs.is_empty() {
+                            let mut auto_dirs = Vec::new();
+                            let base = "/mnt/modelsext/models";
+                            let subdirs = [
+                                "3D", "all", "asr", "audio", "coder", "dflash", "diffusion", "embedding",
+                                "embodied", "image", "infographic", "mtp", "multilingual", "multimodal",
+                                "ocr", "osworld", "privacy", "research", "reshoot", "text", "timeseries",
+                                "tts", "ui", "uncensored", "video", "vision", "web", "world"
+                            ];
+                            for sub in &subdirs {
+                                let p = format!("{}/{}", base, sub);
+                                if std::path::Path::new(&p).exists() {
+                                    auto_dirs.push(p);
+                                }
+                            }
+                            auto_dirs
+                        } else {
+                            cfg.model_scan_dirs.clone()
+                        }
+                    };
+                    
+                    if !dirs.is_empty() {
+                        let existing = scanned_models.read().clone();
+                        let updated = tokio::task::spawn_blocking(move || {
+                            let scanned = library::scan_directories(&dirs);
+                            library::merge_indexes(scanned, existing)
+                        }).await.unwrap_or_default();
+                        
+                        let index_path = get_default_config_path().join("model_index.json");
+                        let _ = library::save_index(&index_path.to_string_lossy(), &updated);
+                        scanned_models.set(updated);
+                    }
+                    
+                    last_scan_time = std::time::Instant::now();
+                    index_status.set("Scan completed. Idle.".to_string());
+                }
+                
+                // Enrichment check
+                let mut pending_indices = Vec::new();
+                for (idx, m) in scanned_models.read().iter().enumerate() {
+                    if m.status == "pending_enrichment" {
+                        pending_indices.push(idx);
+                    }
+                }
+                
+                if !pending_indices.is_empty() {
+                    let port = config.read().port;
+                    let client = reqwest::Client::new();
+                    let ping_url = format!("http://127.0.0.1:{}/v1/models", port);
+                    let server_active = client.get(&ping_url)
+                        .timeout(std::time::Duration::from_millis(500))
+                        .send()
+                        .await
+                        .is_ok();
+                    
+                    if server_active {
+                        if let Some(&first_idx) = pending_indices.first() {
+                            // Set status to enriching first
+                            {
+                                let mut current = scanned_models.read().clone();
+                                current[first_idx].status = "enriching".to_string();
+                                let index_path = get_default_config_path().join("model_index.json");
+                                let _ = library::save_index(&index_path.to_string_lossy(), &current);
+                                scanned_models.set(current);
+                            }
+
+                            let mut model_to_enrich = scanned_models.read()[first_idx].clone();
+                            index_status.set(format!("Enriching metadata for {}\u{2026}", model_to_enrich.filename));
+                            
+                            let searx_url = config.read().searxng_url.clone();
+                            let result = library::enrich_model(&mut model_to_enrich, &searx_url, port).await;
+                            
+                            let mut current = scanned_models.read().clone();
+                            match result {
+                                Ok(_) => {
+                                    index_status.set(format!("Enriched: {}", model_to_enrich.filename));
+                                    current[first_idx] = model_to_enrich;
+                                }
+                                Err(e) => {
+                                    index_status.set(format!("Enrichment failed for {}: {}", model_to_enrich.filename, e));
+                                    model_to_enrich.status = "failed".to_string();
+                                    current[first_idx] = model_to_enrich;
+                                }
+                            }
+                            let index_path = get_default_config_path().join("model_index.json");
+                            let _ = library::save_index(&index_path.to_string_lossy(), &current);
+                            scanned_models.set(current);
+                        }
+                    } else {
+                        index_status.set("Model server offline. Enrichment paused.".to_string());
+                    }
+                }
+                
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            }
+        }
+    });
 
     // ── Log poller ──────────────────────────────────────────────────
     // Drain the shared buffer into the displayed logs every 200ms.
@@ -503,21 +995,99 @@ fn App() -> Element {
         });
     };
 
+    let on_sidebar_resizer_mousedown = move |_| {
+        drag_state.set(DragType::Sidebar);
+    };
+
+    let on_log_resizer_mousedown = move |evt: MouseEvent| {
+        drag_state.set(DragType::LogPanel);
+        drag_start_y.set(evt.client_coordinates().y);
+        drag_start_height.set(*log_panel_height.read());
+    };
+
     // ── Render ──────────────────────────────────────────────────────
     rsx! {
         style { {CSS} }
-        div { class: "app",
+        if show_config_modal() {
+            div {
+                style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 5, 8, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000;",
+                onclick: move |_| show_config_modal.set(false),
+                div {
+                    style: "background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 12px; width: 80%; max-width: 650px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);",
+                    onclick: move |e| e.stop_propagation(),
+                    div {
+                        style: "padding: 16px 20px; border-bottom: 1px solid var(--color-hairline); display: flex; justify-content: space-between; align-items: center;",
+                        span { style: "font-size: 14px; font-weight: 600; color: var(--color-ink); display: flex; align-items: center; gap: 8px;",
+                            span { style: "font-size: 16px;", "\u{1F4DD}" }
+                            span { "Current Configuration JSON" }
+                        }
+                        button {
+                            style: "background: none; border: none; color: var(--color-muted); font-size: 20px; cursor: pointer; transition: color 0.2s;",
+                            aria_label: "Close configuration modal",
+                            onclick: move |_| show_config_modal.set(false),
+                            "\u{2715}"
+                        }
+                    }
+                    div {
+                        style: "padding: 20px; overflow-y: auto; flex-grow: 1; font-family: monospace; font-size: 12px; line-height: 1.5; color: var(--color-on-dark-soft); background: var(--color-surface-dark); border-radius: 0 0 12px 12px; border-top: 1px solid var(--color-hairline);",
+                        pre {
+                            style: "margin: 0; white-space: pre-wrap; word-break: break-all; user-select: text;",
+                            {
+                                match serde_json::to_string_pretty(&config.read().clone()) {
+                                    Ok(json) => json,
+                                    Err(e) => format!("Error serializing config: {}", e)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        div {
+            class: "app",
+            onmousemove: move |evt: MouseEvent| {
+                match drag_state() {
+                    DragType::Sidebar => {
+                        let new_w = evt.client_coordinates().x;
+                        if new_w >= 150.0 && new_w <= 450.0 {
+                            sidebar_width.set(new_w);
+                        }
+                    }
+                    DragType::LogPanel => {
+                        let delta_y = evt.client_coordinates().y - *drag_start_y.read();
+                        let new_h = *drag_start_height.read() - delta_y;
+                        if new_h >= 80.0 && new_h <= 500.0 {
+                            log_panel_height.set(new_h);
+                        }
+                    }
+                    DragType::None => {}
+                }
+            },
+            onmouseup: move |_| {
+                drag_state.set(DragType::None);
+            },
+            onmouseleave: move |_| {
+                drag_state.set(DragType::None);
+            },
 
             // ── Top bar ─────────────────────────────────────────────
             div { class: "top-bar",
                 div { class: "top-title",
-                    span { "\u{1F999}" }
-                    "Llama Manager"
+                    span { aria_hidden: "true", "\u{1F999}" }
+                    "Llama-Manager"
                 }
                 div { class: "top-right",
                     // Save / Load
                     button { class: "btn btn-ghost btn-sm", onclick: save_config, "Save Config" }
                     button { class: "btn btn-ghost btn-sm", onclick: load_config, "Load Config" }
+                    button {
+                        class: "btn btn-ghost btn-sm",
+                        onclick: move |_| {
+                            let current = show_config_modal();
+                            show_config_modal.set(!current);
+                        },
+                        "Show Config"
+                    }
                     // Status badge
                     div {
                         class: if is_running { "status-badge running" } else { "status-badge stopped" },
@@ -539,18 +1109,26 @@ fn App() -> Element {
             div { class: "main",
 
                 // ── Sidebar ─────────────────────────────────────────
-                div { class: "sidebar",
+                div {
+                    class: "sidebar",
+                    style: "width: {sidebar_width}px; min-width: {sidebar_width}px;",
                     for tab in Tab::all() {
-                        div {
+                        button {
                             class: if active_tab() == *tab { "sidebar-item active" } else { "sidebar-item" },
                             onclick: {
                                 let t = *tab;
                                 move |_| active_tab.set(t)
                             },
-                            span { class: "sidebar-icon", {tab.icon()} }
+                            span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
                             {tab.label()}
                         }
                     }
+                }
+
+                // Vertical Resizer Handle
+                div {
+                    class: if drag_state() == DragType::Sidebar { "resizer-v dragging" } else { "resizer-v" },
+                    onmousedown: on_sidebar_resizer_mousedown,
                 }
 
                 // ── Content area ────────────────────────────────────
@@ -564,7 +1142,10 @@ fn App() -> Element {
                     }
 
                     match active_tab() {
+                        Tab::Chat        => rsx! { TabChat        { config } },
                         Tab::Model       => rsx! { TabModel       { config } },
+                        Tab::Library     => rsx! { TabLibrary     { config, scanned_models, index_status, scan_trigger } },
+                        Tab::Download    => rsx! { TabDownload    { } },
                         Tab::Server      => rsx! { TabServer      { config } },
                         Tab::Context     => rsx! { TabContext      { config } },
                         Tab::Gpu         => rsx! { TabGpu         { config } },
@@ -588,8 +1169,9 @@ fn App() -> Element {
                                 div { class: "form-hint", "Loading models\u{2026}" }
                             } else {
                                 div { class: "form-group",
-                                    label { class: "form-label", "Select a model to load" }
+                                    label { r#for: "form-select-a-model-to-load-1", class: "form-label", "Select a model to load" }
                                     select {
+                    id: "form-select-a-model-to-load-1",
                                         class: "form-input",
                                         value: selected_model(),
                                         onchange: move |e: Event<FormData>| {
@@ -630,8 +1212,16 @@ fn App() -> Element {
                 }
             }
 
+            // Horizontal Resizer Handle
+            div {
+                class: if drag_state() == DragType::LogPanel { "resizer-h dragging" } else { "resizer-h" },
+                onmousedown: on_log_resizer_mousedown,
+            }
+
             // ── Log panel ───────────────────────────────────────────
-            div { class: "log-panel",
+            div {
+                class: "log-panel",
+                style: "height: {log_panel_height}px;",
                 div { class: "log-header",
                     "Output"
                     button {
@@ -725,9 +1315,10 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Executable" }
             div { class: "form-group",
-                label { class: "form-label", "llama-server path" }
+                label { r#for: "form-llama-server-path-1", class: "form-label", "llama-server path" }
                 div { class: "input-group",
                     input {
+                    id: "form-llama-server-path-1",
                         class: "form-input",
                         value: config.read().exe_path.clone(),
                         placeholder: "llama-server",
@@ -735,7 +1326,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                     }
                     button { class: "btn-browse", onclick: pick_exe, "Browse" }
                 }
-                div { class: "form-hint", "Path to the llama-server binary. Use \"llama-server\" if it is on your PATH." }
+                div { class: "form-hint", "Path to the llama-server binary. Use \u{201C}llama-server\u{201D} if it is on your PATH." }
             }
         }
 
@@ -743,9 +1334,10 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Local Model" }
             div { class: "form-group",
-                label { class: "form-label", "Model File (.gguf)" }
+                label { r#for: "form-model-file-gguf-1", class: "form-label", "Model File (.gguf)" }
                 div { class: "input-group",
                     input {
+                    id: "form-model-file-gguf-1",
                         class: "form-input",
                         value: config.read().model_path.clone(),
                         placeholder: "C:\\models\\my-model.gguf",
@@ -755,8 +1347,9 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 }
             }
             div { class: "form-group",
-                label { class: "form-label", "Model Alias" }
+                label { r#for: "form-model-alias-1", class: "form-label", "Model Alias" }
                 input {
+                    id: "form-model-alias-1",
                     class: "form-input",
                     value: config.read().model_alias.clone(),
                     placeholder: "Optional friendly name",
@@ -769,9 +1362,10 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Model Directory" }
             div { class: "form-group",
-                label { class: "form-label", "Model Directory (--models-dir)" }
+                label { r#for: "form-model-directory-models-dir-1", class: "form-label", "Model Directory (--models-dir)" }
                 div { class: "input-group",
                     input {
+                    id: "form-model-directory-models-dir-1",
                         class: "form-input",
                         value: config.read().model_dir.clone(),
                         placeholder: "C:\\models",
@@ -787,8 +1381,9 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Remote Model (Alternative)" }
             div { class: "form-group",
-                label { class: "form-label", "Model URL" }
+                label { r#for: "form-model-url-1", class: "form-label", "Model URL" }
                 input {
+                    id: "form-model-url-1",
                     class: "form-input",
                     value: config.read().model_url.clone(),
                     placeholder: "https://example.com/model.gguf",
@@ -797,8 +1392,9 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
             }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "HuggingFace Repo" }
+                    label { r#for: "form-huggingface-repo-1", class: "form-label", "HuggingFace Repo" }
                     input {
+                    id: "form-huggingface-repo-1",
                         class: "form-input",
                         value: config.read().hf_repo.clone(),
                         placeholder: "org/model-name-GGUF",
@@ -806,8 +1402,9 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                     }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "HuggingFace File" }
+                    label { r#for: "form-huggingface-file-1", class: "form-label", "HuggingFace File" }
                     input {
+                    id: "form-huggingface-file-1",
                         class: "form-input",
                         value: config.read().hf_file.clone(),
                         placeholder: "model-Q4_K_M.gguf",
@@ -816,12 +1413,13 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 }
             }
             div { class: "form-group",
-                label { class: "form-label", "HuggingFace Token" }
+                label { r#for: "form-huggingface-token-1", class: "form-label", "HuggingFace Token" }
                 input {
+                    id: "form-huggingface-token-1",
                     class: "form-input",
                     r#type: "password",
                     value: config.read().hf_token.clone(),
-                    placeholder: "hf_...",
+                    placeholder: "hf_\u{2026}",
                     oninput: move |e: Event<FormData>| config.write().hf_token = e.value(),
                 }
                 div { class: "form-hint", "Required for gated models. Stored locally only." }
@@ -832,18 +1430,20 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Chat Template & System Prompt" }
             div { class: "form-group",
-                label { class: "form-label", "Chat Template" }
+                label { r#for: "form-chat-template-1", class: "form-label", "Chat Template" }
                 input {
+                    id: "form-chat-template-1",
                     class: "form-input",
                     value: config.read().chat_template.clone(),
-                    placeholder: "e.g. chatml, llama3, gemma ...",
+                    placeholder: "e.g. chatml, llama3, gemma\u{2026}",
                     oninput: move |e: Event<FormData>| config.write().chat_template = e.value(),
                 }
                 div { class: "form-hint", "Override the model's built-in chat template." }
             }
             div { class: "form-group",
-                label { class: "form-label", "System Prompt" }
+                label { r#for: "form-system-prompt-1", class: "form-label", "System Prompt" }
                 textarea {
+                    id: "form-system-prompt-1",
                     class: "form-textarea",
                     value: config.read().system_prompt.clone(),
                     placeholder: "You are a helpful assistant.",
@@ -866,8 +1466,9 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "Network" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Host" }
+                    label { r#for: "form-host-1", class: "form-label", "Host" }
                     input {
+                    id: "form-host-1",
                         class: "form-input",
                         value: config.read().host.clone(),
                         placeholder: "127.0.0.1",
@@ -876,8 +1477,9 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "Use 0.0.0.0 to expose to the network." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Port" }
+                    label { r#for: "form-port-1", class: "form-label", "Port" }
                     input {
+                    id: "form-port-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().port.to_string(),
@@ -889,8 +1491,9 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
             }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Server Timeout (s)" }
+                    label { r#for: "form-server-timeout-s-1", class: "form-label", "Server Timeout (s)" }
                     input {
+                    id: "form-server-timeout-s-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().timeout.to_string(),
@@ -901,8 +1504,9 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "0 = no timeout" }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "HTTP Threads" }
+                    label { r#for: "form-http-threads-1", class: "form-label", "HTTP Threads" }
                     input {
+                    id: "form-http-threads-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads_http.to_string(),
@@ -929,8 +1533,9 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "Context Window" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Context Size (-c)" }
+                    label { r#for: "form-context-size-c-1", class: "form-label", "Context Size (-c)" }
                     input {
+                    id: "form-context-size-c-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().ctx_size.to_string(),
@@ -941,8 +1546,9 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "Total context length in tokens. Default 8192." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Max Predict (-n)" }
+                    label { r#for: "form-max-predict-n-1", class: "form-label", "Max Predict (-n)" }
                     input {
+                    id: "form-max-predict-n-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().predict.to_string(),
@@ -959,8 +1565,9 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "Batching" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Batch Size (-b)" }
+                    label { r#for: "form-batch-size-b-1", class: "form-label", "Batch Size (-b)" }
                     input {
+                    id: "form-batch-size-b-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().batch_size.to_string(),
@@ -971,8 +1578,9 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "Logical max batch size (prompt processing)." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Micro-Batch Size (-ub)" }
+                    label { r#for: "form-micro-batch-size-ub-1", class: "form-label", "Micro-Batch Size (-ub)" }
                     input {
+                    id: "form-micro-batch-size-ub-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().ubatch_size.to_string(),
@@ -988,8 +1596,9 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Parallelism" }
             div { class: "form-group",
-                label { class: "form-label", "Parallel Sequences (-np)" }
+                label { r#for: "form-parallel-sequences-np-1", class: "form-label", "Parallel Sequences (-np)" }
                 input {
+                    id: "form-parallel-sequences-np-1",
                     class: "form-input",
                     r#type: "number",
                     value: config.read().parallel.to_string(),
@@ -1019,18 +1628,126 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
 
 // ── GPU & Memory ─────────────────────────────────────────────────────────────
 
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct GpuInfo {
+    pub name: String,
+    pub temperature: f32,
+    pub utilization: f32,
+    pub mem_used: f32,
+    pub mem_total: f32,
+    pub power: f32,
+}
+
 #[component]
 fn TabGpu(config: Signal<ServerConfig>) -> Element {
+    let mut gpu_info = use_signal(|| None::<GpuInfo>);
+
+    let _gpu_poller = use_resource(move || {
+        async move {
+            loop {
+                let info = tokio::task::spawn_blocking(move || {
+                    let output = std::process::Command::new("nvidia-smi")
+                        .args(&[
+                            "--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total,power.draw",
+                            "--format=csv,noheader,nounits"
+                        ])
+                        .output();
+                    
+                    if let Ok(out) = output {
+                        if out.status.success() {
+                            let text = String::from_utf8_lossy(&out.stdout);
+                            let parts: Vec<&str> = text.trim().split(',').map(|s| s.trim()).collect();
+                            if parts.len() >= 6 {
+                                return Some(GpuInfo {
+                                    name: parts[0].to_string(),
+                                    temperature: parts[1].parse::<f32>().unwrap_or(0.0),
+                                    utilization: parts[2].parse::<f32>().unwrap_or(0.0),
+                                    mem_used: parts[3].parse::<f32>().unwrap_or(0.0),
+                                    mem_total: parts[4].parse::<f32>().unwrap_or(0.0),
+                                    power: parts[5].parse::<f32>().unwrap_or(0.0),
+                                });
+                            }
+                        }
+                    }
+                    None
+                }).await.unwrap_or(None);
+
+                gpu_info.set(info);
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+        }
+    });
+
+    let vram_pct = gpu_info().map(|info| {
+        if info.mem_total > 0.0 {
+            info.mem_used / info.mem_total * 100.0
+        } else {
+            0.0
+        }
+    }).unwrap_or(0.0);
+
     rsx! {
         div { class: "section-title", "GPU & Memory" }
         div { class: "section-desc", "Control GPU offloading, memory mapping, and KV cache quantization." }
+
+        // Live GPU Dashboard
+        if let Some(info) = gpu_info() {
+            div { class: "card",
+                div { class: "card-title", "GPU Status ({info.name})" }
+                div { style: "display: flex; gap: 24px; flex-wrap: wrap; margin-top: 8px;",
+                    div { style: "flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 8px;",
+                        div { style: "display: flex; justify-content: space-between; font-size: 13px;",
+                            span { style: "font-weight: 500; color: var(--color-ink);", "VRAM Usage" }
+                            span { style: "color: var(--color-muted);", "{info.mem_used as u32} MiB / {info.mem_total as u32} MiB" }
+                        }
+                        div {
+                            style: "width: 100%; height: 8px; background: var(--color-surface-strong); border-radius: 9999px; overflow: hidden;",
+                            div {
+                                style: "height: 100%; width: {vram_pct}%; background: var(--color-brand-accent); border-radius: 9999px; transition: width 0.3s ease-in-out;"
+                            }
+                        }
+                    }
+                    div { style: "flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 8px;",
+                        div { style: "display: flex; justify-content: space-between; font-size: 13px;",
+                            span { style: "font-weight: 500; color: var(--color-ink);", "GPU Core Load" }
+                            span { style: "color: var(--color-muted);", "{info.utilization as u32}%" }
+                        }
+                        div {
+                            style: "width: 100%; height: 8px; background: var(--color-surface-strong); border-radius: 9999px; overflow: hidden;",
+                            div {
+                                style: "height: 100%; width: {info.utilization}%; background: var(--color-success); border-radius: 9999px; transition: width 0.3s ease-in-out;"
+                            }
+                        }
+                    }
+                }
+                div { style: "display: flex; gap: 32px; margin-top: 12px; font-size: 13px; border-top: 1px solid var(--color-hairline); padding-top: 12px;",
+                    div {
+                        "Temperature: "
+                        span {
+                            style: if info.temperature > 75.0 { "color: var(--color-error); font-weight: 600;" } else { "color: var(--color-ink); font-weight: 600;" },
+                            "{info.temperature}\u{00B0}C"
+                        }
+                    }
+                    div {
+                        "Power Draw: "
+                        span { style: "color: var(--color-ink); font-weight: 600;", "{info.power} W" }
+                    }
+                }
+            }
+        } else {
+            div { class: "card",
+                div { class: "card-title", "GPU Status" }
+                div { style: "font-size: 13px; color: var(--color-muted); font-style: italic;", "Querying GPU info..." }
+            }
+        }
 
         div { class: "card",
             div { class: "card-title", "GPU Offload" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "GPU Layers (-ngl)" }
+                    label { r#for: "form-gpu-layers-ngl-1", class: "form-label", "GPU Layers (-ngl)" }
                     input {
+                    id: "form-gpu-layers-ngl-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().gpu_layers.to_string(),
@@ -1041,8 +1758,9 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "-1 = offload all layers to GPU. 0 = CPU only." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Main GPU (-mg)" }
+                    label { r#for: "form-main-gpu-mg-1", class: "form-label", "Main GPU (-mg)" }
                     input {
+                    id: "form-main-gpu-mg-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().main_gpu.to_string(),
@@ -1055,8 +1773,9 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
             }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Split Mode (-sm)" }
+                    label { r#for: "form-split-mode-sm-1", class: "form-label", "Split Mode (-sm)" }
                     select {
+                    id: "form-split-mode-sm-1",
                         class: "form-select",
                         value: config.read().split_mode.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().split_mode = SplitMode::from_str(&e.value()),
@@ -1066,8 +1785,9 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Tensor Split (-ts)" }
+                    label { r#for: "form-tensor-split-ts-1", class: "form-label", "Tensor Split (-ts)" }
                     input {
+                    id: "form-tensor-split-ts-1",
                         class: "form-input",
                         value: config.read().tensor_split.clone(),
                         placeholder: "e.g. 3,2 for 60/40 split",
@@ -1129,8 +1849,9 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "KV Cache Quantization" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "K Cache Type (-ctk)" }
+                    label { r#for: "form-k-cache-type-ctk-1", class: "form-label", "K Cache Type (-ctk)" }
                     select {
+                    id: "form-k-cache-type-ctk-1",
                         class: "form-select",
                         value: config.read().cache_type_k.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().cache_type_k = CacheType::from_str(&e.value()),
@@ -1140,8 +1861,9 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "V Cache Type (-ctv)" }
+                    label { r#for: "form-v-cache-type-ctv-1", class: "form-label", "V Cache Type (-ctv)" }
                     select {
+                    id: "form-v-cache-type-ctv-1",
                         class: "form-select",
                         value: config.read().cache_type_v.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().cache_type_v = CacheType::from_str(&e.value()),
@@ -1168,8 +1890,9 @@ fn TabPerformance(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "Threading" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Threads (-t)" }
+                    label { r#for: "form-threads-t-1", class: "form-label", "Threads (-t)" }
                     input {
+                    id: "form-threads-t-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads.to_string(),
@@ -1180,8 +1903,9 @@ fn TabPerformance(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "CPU threads for generation. 0 = auto-detect." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Batch Threads (-tb)" }
+                    label { r#for: "form-batch-threads-tb-1", class: "form-label", "Batch Threads (-tb)" }
                     input {
+                    id: "form-batch-threads-tb-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads_batch.to_string(),
@@ -1245,8 +1969,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "Core Sampling" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Temperature (--temp)" }
+                    label { r#for: "form-temperature-temp-1", class: "form-label", "Temperature (--temp)" }
                     input {
+                    id: "form-temperature-temp-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -1258,8 +1983,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "0 = greedy, higher = more random. Default 0.8." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Seed (-s)" }
+                    label { r#for: "form-seed-s-1", class: "form-label", "Seed (-s)" }
                     input {
+                    id: "form-seed-s-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().seed.to_string(),
@@ -1272,8 +1998,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
             }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Top-K (--top-k)" }
+                    label { r#for: "form-top-k-top-k-1", class: "form-label", "Top-K (--top-k)" }
                     input {
+                    id: "form-top-k-top-k-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().top_k.to_string(),
@@ -1284,8 +2011,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "0 = disabled. Default 40." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Top-P (--top-p)" }
+                    label { r#for: "form-top-p-top-p-1", class: "form-label", "Top-P (--top-p)" }
                     input {
+                    id: "form-top-p-top-p-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -1298,8 +2026,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                 }
             }
             div { class: "form-group",
-                label { class: "form-label", "Min-P (--min-p)" }
+                label { r#for: "form-min-p-min-p-1", class: "form-label", "Min-P (--min-p)" }
                 input {
+                    id: "form-min-p-min-p-1",
                     class: "form-input",
                     r#type: "number",
                     step: "0.01",
@@ -1316,8 +2045,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
             div { class: "card-title", "Penalties" }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Repeat Penalty" }
+                    label { r#for: "form-repeat-penalty-1", class: "form-label", "Repeat Penalty" }
                     input {
+                    id: "form-repeat-penalty-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -1329,8 +2059,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "1.0 = no penalty." }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Presence Penalty" }
+                    label { r#for: "form-presence-penalty-1", class: "form-label", "Presence Penalty" }
                     input {
+                    id: "form-presence-penalty-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -1342,8 +2073,9 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                 }
             }
             div { class: "form-group",
-                label { class: "form-label", "Frequency Penalty" }
+                label { r#for: "form-frequency-penalty-1", class: "form-label", "Frequency Penalty" }
                 input {
+                    id: "form-frequency-penalty-1",
                     class: "form-input",
                     r#type: "number",
                     step: "0.05",
@@ -1358,18 +2090,20 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Grammar Constraint" }
             div { class: "form-group",
-                label { class: "form-label", "Grammar (BNF)" }
+                label { r#for: "form-grammar-bnf-1", class: "form-label", "Grammar (BNF)" }
                 textarea {
+                    id: "form-grammar-bnf-1",
                     class: "form-textarea",
                     value: config.read().grammar.clone(),
-                    placeholder: "root ::= ...",
+                    placeholder: "root ::=\u{2026}",
                     oninput: move |e: Event<FormData>| config.write().grammar = e.value(),
                 }
             }
             div { class: "form-group",
-                label { class: "form-label", "Grammar File" }
+                label { r#for: "form-grammar-file-1", class: "form-label", "Grammar File" }
                 div { class: "input-group",
                     input {
+                    id: "form-grammar-file-1",
                         class: "form-input",
                         value: config.read().grammar_file.clone(),
                         placeholder: "Path to .gbnf file",
@@ -1412,8 +2146,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "RoPE Scaling" }
             div { class: "form-group",
-                label { class: "form-label", "Scaling Type" }
+                label { r#for: "form-scaling-type-1", class: "form-label", "Scaling Type" }
                 select {
+                    id: "form-scaling-type-1",
                     class: "form-select",
                     value: config.read().rope_scaling.as_str().to_string(),
                     onchange: move |e: Event<FormData>| config.write().rope_scaling = RopeScaling::from_str(&e.value()),
@@ -1424,8 +2159,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
             }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Freq Base" }
+                    label { r#for: "form-freq-base-1", class: "form-label", "Freq Base" }
                     input {
+                    id: "form-freq-base-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().rope_freq_base.to_string(),
@@ -1436,8 +2172,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     div { class: "form-hint", "0 = model default" }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Freq Scale" }
+                    label { r#for: "form-freq-scale-1", class: "form-label", "Freq Scale" }
                     input {
+                    id: "form-freq-scale-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().rope_freq_scale.to_string(),
@@ -1450,8 +2187,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
             if config.read().rope_scaling == RopeScaling::Yarn {
                 div { class: "form-row",
                     div { class: "form-group",
-                        label { class: "form-label", "YaRN Orig Ctx" }
+                        label { r#for: "form-yarn-orig-ctx-1", class: "form-label", "YaRN Orig Ctx" }
                         input {
+                    id: "form-yarn-orig-ctx-1",
                             class: "form-input",
                             r#type: "number",
                             value: config.read().yarn_orig_ctx.to_string(),
@@ -1461,8 +2199,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         }
                     }
                     div { class: "form-group",
-                        label { class: "form-label", "Extension Factor" }
+                        label { r#for: "form-extension-factor-1", class: "form-label", "Extension Factor" }
                         input {
+                    id: "form-extension-factor-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.1",
@@ -1475,8 +2214,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                 }
                 div { class: "form-row",
                     div { class: "form-group",
-                        label { class: "form-label", "Attention Factor" }
+                        label { r#for: "form-attention-factor-1", class: "form-label", "Attention Factor" }
                         input {
+                    id: "form-attention-factor-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.1",
@@ -1487,8 +2227,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         }
                     }
                     div { class: "form-group",
-                        label { class: "form-label", "Beta Fast" }
+                        label { r#for: "form-beta-fast-1", class: "form-label", "Beta Fast" }
                         input {
+                    id: "form-beta-fast-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.5",
@@ -1499,8 +2240,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         }
                     }
                     div { class: "form-group",
-                        label { class: "form-label", "Beta Slow" }
+                        label { r#for: "form-beta-slow-1", class: "form-label", "Beta Slow" }
                         input {
+                    id: "form-beta-slow-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.1",
@@ -1521,9 +2263,10 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                 div { class: "lora-row",
                     div { style: "flex:3;",
                         div { class: "form-group",
-                            label { class: "form-label", "Adapter Path" }
+                            label { r#for: "form-adapter-path-1", class: "form-label", "Adapter Path" }
                             div { class: "input-group",
                                 input {
+                    id: "form-adapter-path-1",
                                     class: "form-input",
                                     value: config.read().lora_adapters[i].path.clone(),
                                     placeholder: "path/to/lora.gguf",
@@ -1559,8 +2302,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     }
                     div { style: "flex:1;",
                         div { class: "form-group",
-                            label { class: "form-label", "Scale" }
+                            label { r#for: "form-scale-1", class: "form-label", "Scale" }
                             input {
+                    id: "form-scale-1",
                                 class: "form-input",
                                 r#type: "number",
                                 step: "0.1",
@@ -1578,7 +2322,8 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     }
                     button {
                         class: "btn-browse",
-                        style: "align-self: center; color: #ef4444;",
+                        style: "align-self: center; color: var(--color-error);",
+                        aria_label: "Remove LoRA adapter",
                         onclick: {
                             let idx = i;
                             move |_| { config.write().lora_adapters.remove(idx); }
@@ -1604,9 +2349,10 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Speculative Decoding" }
             div { class: "form-group",
-                label { class: "form-label", "Draft Model (-md)" }
+                label { r#for: "form-draft-model-md-1", class: "form-label", "Draft Model (-md)" }
                 div { class: "input-group",
                     input {
+                    id: "form-draft-model-md-1",
                         class: "form-input",
                         value: config.read().draft_model.clone(),
                         placeholder: "Path to smaller draft model.gguf",
@@ -1636,8 +2382,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
             }
             div { class: "form-row",
                 div { class: "form-group",
-                    label { class: "form-label", "Draft GPU Layers (-ngld)" }
+                    label { r#for: "form-draft-gpu-layers-ngld-1", class: "form-label", "Draft GPU Layers (-ngld)" }
                     input {
+                    id: "form-draft-gpu-layers-ngld-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().draft_gpu_layers.to_string(),
@@ -1647,8 +2394,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     }
                 }
                 div { class: "form-group",
-                    label { class: "form-label", "Draft Tokens (--draft)" }
+                    label { r#for: "form-draft-tokens-draft-1", class: "form-label", "Draft Tokens (--draft)" }
                     input {
+                    id: "form-draft-tokens-draft-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().draft_tokens.to_string(),
@@ -1676,8 +2424,9 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
             }
             if config.read().embedding {
                 div { class: "form-group", style: "margin-top: 12px;",
-                    label { class: "form-label", "Pooling Type" }
+                    label { r#for: "form-pooling-type-1", class: "form-label", "Pooling Type" }
                     select {
+                    id: "form-pooling-type-1",
                         class: "form-select",
                         value: config.read().pooling.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().pooling = PoolingType::from_str(&e.value()),
@@ -1703,8 +2452,9 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Authentication" }
             div { class: "form-group",
-                label { class: "form-label", "API Key (--api-key)" }
+                label { r#for: "form-api-key-api-key-1", class: "form-label", "API Key (--api-key)" }
                 input {
+                    id: "form-api-key-api-key-1",
                     class: "form-input",
                     r#type: "password",
                     value: config.read().api_key.clone(),
@@ -1714,9 +2464,10 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                 div { class: "form-hint", "If set, clients must provide this key as a Bearer token." }
             }
             div { class: "form-group",
-                label { class: "form-label", "API Key File (--api-key-file)" }
+                label { r#for: "form-api-key-file-api-key-file-1", class: "form-label", "API Key File (--api-key-file)" }
                 div { class: "input-group",
                     input {
+                    id: "form-api-key-file-api-key-file-1",
                         class: "form-input",
                         value: config.read().api_key_file.clone(),
                         placeholder: "Path to file containing API key",
@@ -1767,9 +2518,10 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                 }
             }
             div { class: "form-group", style: "margin-top: 12px;",
-                label { class: "form-label", "Slot Save Path" }
+                label { r#for: "form-slot-save-path-1", class: "form-label", "Slot Save Path" }
                 div { class: "input-group",
                     input {
+                    id: "form-slot-save-path-1",
                         class: "form-input",
                         value: config.read().slot_save_path.clone(),
                         placeholder: "Directory for slot snapshots",
@@ -1798,8 +2550,9 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             div { class: "card-title", "Logging" }
             div { class: "form-group",
-                label { class: "form-label", "Log Format" }
+                label { r#for: "form-log-format-1", class: "form-label", "Log Format" }
                 select {
+                    id: "form-log-format-1",
                     class: "form-select",
                     value: config.read().log_format.as_str().to_string(),
                     onchange: move |e: Event<FormData>| config.write().log_format = LogFormat::from_str(&e.value()),
@@ -1816,6 +2569,1397 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                     class: if config.read().verbose { "toggle-switch on" } else { "toggle-switch" },
                     onclick: move |_| { let c = config.read().verbose; config.write().verbose = !c; },
                     div { class: "toggle-thumb" }
+                }
+            }
+        }
+    }
+}
+
+// ── Model Library / Index Tab ────────────────────────────────────────────────
+
+#[component]
+fn TabLibrary(
+    config: Signal<ServerConfig>,
+    scanned_models: Signal<Vec<library::ScannedModel>>,
+    index_status: Signal<String>,
+    scan_trigger: Signal<u64>,
+) -> Element {
+    let mut input_text = use_signal(String::new);
+    let mut error_local = use_signal(|| None::<String>);
+    let mut library_view_mode = use_signal(|| "index".to_string());
+
+    let enrich_all_models = move |_| {
+        let mut current = scanned_models.read().clone();
+        for m in &mut current {
+            m.status = "pending_enrichment".to_string();
+        }
+        let index_path = get_default_config_path().join("model_index.json");
+        let _ = library::save_index(&index_path.to_string_lossy(), &current);
+        scanned_models.set(current);
+        *scan_trigger.write() += 1;
+    };
+
+    // Track collapsed state (defaults to expanded)
+    let collapsed_families = use_signal(Vec::<String>::new);
+    let collapsed_versions = use_signal(Vec::<String>::new);
+
+    let browse_dir = move |_| {
+        let mut config = config;
+        let mut scan_trigger = scan_trigger;
+        spawn(async move {
+            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new().pick_folder()
+            })
+            .await
+            {
+                let path_str = path.to_string_lossy().to_string();
+                let mut current_dirs = config.read().model_scan_dirs.clone();
+                if !current_dirs.contains(&path_str) {
+                    current_dirs.push(path_str);
+                    config.write().model_scan_dirs = current_dirs;
+                    *scan_trigger.write() += 1;
+                }
+            }
+        });
+    };
+
+    let force_scan = move |_| {
+        *scan_trigger.write() += 1;
+    };
+
+    let is_family_collapsed = move |fam: &str| {
+        collapsed_families.read().contains(&fam.to_string())
+    };
+
+    let toggle_family = move |fam: String| {
+        let mut collapsed_families = collapsed_families;
+        let mut current = collapsed_families.read().clone();
+        if let Some(pos) = current.iter().position(|x| x == &fam) {
+            current.remove(pos);
+        } else {
+            current.push(fam);
+        }
+        collapsed_families.set(current);
+    };
+
+    let is_version_collapsed = move |ver: &str| {
+        collapsed_versions.read().contains(&ver.to_string())
+    };
+
+    let toggle_version = move |ver: String| {
+        let mut collapsed_versions = collapsed_versions;
+        let mut current = collapsed_versions.read().clone();
+        if let Some(pos) = current.iter().position(|x| x == &ver) {
+            current.remove(pos);
+        } else {
+            current.push(ver);
+        }
+        collapsed_versions.set(current);
+    };
+
+    // Grouping calculations
+    let mut unique_families = Vec::new();
+    for m in scanned_models.read().iter() {
+        if !unique_families.contains(&m.family) {
+            unique_families.push(m.family.clone());
+        }
+    }
+    unique_families.sort_by_key(|f| f.to_lowercase());
+
+    rsx! {
+        div { class: "section-title", "Model Library & Indexer" }
+        div { class: "section-desc", "Scan directories containing GGUF/safetensors/ckpt models. Enriches metadata (use-case, size, HF/GitHub links) automatically using SearXNG and a running local model." }
+
+        if let Some(ref err) = *error_local.read() {
+            div { class: "error-toast", style: "margin-bottom: 12px;",
+                "\u{26A0}\u{FE0F} "
+                {err.clone()}
+            }
+        }
+
+        // Sub-navigation Tabs
+        div {
+            style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;",
+            div {
+                class: "nav-pill-group",
+                button {
+                    class: if library_view_mode() == "index" { "category-tab active" } else { "category-tab" },
+                    onclick: move |_| library_view_mode.set("index".to_string()),
+                    "\u{1F4C1} Directory & Index"
+                }
+                button {
+                    class: if library_view_mode() == "progress" { "category-tab active" } else { "category-tab" },
+                    onclick: move |_| library_view_mode.set("progress".to_string()),
+                    "\u{1F4CA} Enrichment Progress"
+                }
+            }
+            button {
+                class: "btn btn-ghost btn-sm",
+                style: "color: var(--color-warning); border-color: var(--color-hairline);",
+                onclick: enrich_all_models,
+                "\u{26A1} Enrich All Models"
+            }
+        }
+
+        if library_view_mode() == "index" {
+            // Directories Configuration
+            div { class: "card",
+            div { class: "card-title", "Scan Directories" }
+
+            div { class: "form-group",
+                label { r#for: "form-scan-directories-1", class: "form-label", "Directories to Scan" }
+                div { class: "input-group",
+                    div {
+                        class: "tag-input-container form-input",
+                        style: "display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; min-height: 38px; cursor: text;",
+                        onclick: move |_| {
+                            // Focus can be handled naturally by the user clicking the transparent input
+                        },
+                        for (idx, dir) in config.read().model_scan_dirs.iter().enumerate() {
+                            div {
+                                key: "{dir}",
+                                class: "tag-badge",
+                                span { {dir.clone()} }
+                                button {
+                                    r#type: "button",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        config.write().model_scan_dirs.remove(idx);
+                                        *scan_trigger.write() += 1;
+                                    },
+                                    "\u{2715}"
+                                }
+                            }
+                        }
+                        input {
+                            id: "form-scan-directories-1",
+                            r#type: "text",
+                            style: "border: none; outline: none; background: transparent; color: var(--color-ink); font-size: 14px; flex: 1; min-width: 150px; padding: 2px 0;",
+                            value: input_text(),
+                            placeholder: if config.read().model_scan_dirs.is_empty() { "Type directory path and press Enter or comma..." } else { "" },
+                            oninput: move |e: Event<FormData>| {
+                                let val = e.value();
+                                if val.contains(',') {
+                                    let parts: Vec<String> = val.split(',')
+                                        .map(|s| s.trim().to_string())
+                                        .filter(|s| !s.is_empty())
+                                        .collect();
+                                    
+                                    let last_is_incomplete = !val.ends_with(',');
+                                    let mut to_add = parts.clone();
+                                    let mut remainder = String::new();
+                                    if last_is_incomplete && !parts.is_empty() {
+                                        remainder = to_add.pop().unwrap();
+                                    }
+                                    
+                                    if !to_add.is_empty() {
+                                        let mut current = config.read().model_scan_dirs.clone();
+                                        let mut added = false;
+                                        for p in to_add {
+                                            if !current.contains(&p) {
+                                                current.push(p);
+                                                added = true;
+                                            }
+                                        }
+                                        if added {
+                                            config.write().model_scan_dirs = current;
+                                            *scan_trigger.write() += 1;
+                                        }
+                                    }
+                                    input_text.set(remainder);
+                                } else {
+                                    input_text.set(val);
+                                }
+                            },
+                            onkeydown: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter {
+                                    let val = input_text.read().trim().to_string();
+                                    if !val.is_empty() {
+                                        let mut current = config.read().model_scan_dirs.clone();
+                                        if !current.contains(&val) {
+                                            current.push(val);
+                                            config.write().model_scan_dirs = current;
+                                            *scan_trigger.write() += 1;
+                                        }
+                                    }
+                                    input_text.set(String::new());
+                                } else if e.key() == Key::Backspace && input_text.read().is_empty() {
+                                    let mut current = config.read().model_scan_dirs.clone();
+                                    if !current.is_empty() {
+                                        current.pop();
+                                        config.write().model_scan_dirs = current;
+                                        *scan_trigger.write() += 1;
+                                    }
+                                }
+                            },
+                            onblur: move |_| {
+                                let val = input_text.read().trim().to_string();
+                                if !val.is_empty() {
+                                    let mut current = config.read().model_scan_dirs.clone();
+                                    if !current.contains(&val) {
+                                        current.push(val.clone());
+                                        config.write().model_scan_dirs = current;
+                                        *scan_trigger.write() += 1;
+                                    }
+                                }
+                                input_text.set(String::new());
+                            }
+                        }
+                    }
+                    button { class: "btn-browse", onclick: browse_dir, "Browse & Add" }
+                }
+                div { class: "form-hint", "List of directories to search for models. Type paths and separate with commas or Enter." }
+            }
+
+            // SearXNG URL configuration
+            div { class: "form-group", style: "margin-top: 14px;",
+                label { r#for: "form-searxng-service-url-1", class: "form-label", "SearXNG Service URL" }
+                input {
+                    id: "form-searxng-service-url-1",
+                    class: "form-input",
+                    value: config.read().searxng_url.clone(),
+                    placeholder: "http://localhost:8888",
+                    oninput: move |e: Event<FormData>| config.write().searxng_url = e.value(),
+                }
+                div { class: "form-hint", "SearXNG URL used to fetch internet search results for models." }
+            }
+
+            // Actions & Status
+            div { style: "display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 14px; border-top: 1px solid #232640;",
+                div { class: "form-hint", "Status: " span { style: "color: #a78bfa; font-weight: 600;", "{index_status()}" } }
+                button { class: "btn btn-ghost btn-sm", onclick: force_scan, "\u{1F50E} Scan & Index Now" }
+            }
+        }
+
+        // Indexed Models List
+        div { class: "card",
+            div { class: "card-title", "Indexed Models ({scanned_models.read().len()})" }
+
+            if scanned_models.read().is_empty() {
+                div { class: "log-empty", "No models indexed yet. Add scan directories and run a scan." }
+            } else {
+                div { style: "display: flex; flex-direction: column; gap: 10px;",
+                    for family in unique_families.iter() {
+                        {
+                            let family_models: Vec<_> = scanned_models.read().iter().enumerate()
+                                .filter(|(_, m)| m.family == *family)
+                                .map(|(idx, m)| (idx, m.clone()))
+                                .collect();
+                            let is_collapsed = is_family_collapsed(family);
+
+                            rsx! {
+                                div {
+                                    key: "{family}",
+                                    style: "display: flex; flex-direction: column; gap: 4px;",
+
+                                    // Family Header
+                                    div {
+                                        class: "family-header table-row-hover",
+                                        role: "button",
+                                        tabindex: "0",
+                                        onclick: {
+                                            let fam = family.clone();
+                                            move |_| toggle_family(fam.clone())
+                                        },
+                                        onkeydown: {
+                                            let fam = family.clone();
+                                            let toggle_family = toggle_family.clone();
+                                            move |evt| {
+                                                if evt.key() == Key::Enter || evt.key() == Key::Character(" ".into()) {
+                                                    toggle_family(fam.clone());
+                                                }
+                                            }
+                                        },
+                                        div { style: "display: flex; align-items: center; gap: 8px;",
+                                            span { style: "font-size: 14px; color: var(--color-primary);", if is_collapsed { "\u{25B6}" } else { "\u{25BC}" } }
+                                            span { "\u{1F4C1} " }
+                                            span { "{family} Family" }
+                                        }
+                                        span { style: "font-size: 11px; color: var(--color-muted); background: var(--color-surface-soft); padding: 2px 8px; border-radius: 12px; font-weight: 600; border: 1px solid var(--color-hairline);", "{family_models.len()} models" }
+                                    }
+
+                                    // Family Content
+                                    if !is_collapsed {
+                                        {
+                                            let mut unique_versions = Vec::new();
+                                            for (_, m) in &family_models {
+                                                if !unique_versions.contains(&m.version) {
+                                                    unique_versions.push(m.version.clone());
+                                                }
+                                            }
+                                            unique_versions.sort_by_key(|v| v.to_lowercase());
+
+                                            rsx! {
+                                                for version in unique_versions.iter() {
+                                                    {
+                                                        let version_models: Vec<_> = family_models.iter()
+                                                            .filter(|(_, m)| m.version == *version)
+                                                            .collect();
+                                                        let ver_key = format!("{}:{}", family, version);
+                                                        let is_ver_collapsed = is_version_collapsed(&ver_key);
+
+                                                        rsx! {
+                                                            div {
+                                                                key: "{version}",
+                                                                style: "display: flex; flex-direction: column; gap: 4px; margin-left: 20px;",
+
+                                                                // Version Header
+                                                                div {
+                                                                    class: "version-header table-row-hover",
+                                                                    role: "button",
+                                                                    tabindex: "0",
+                                                                    onclick: {
+                                                                        let vk = ver_key.clone();
+                                                                        move |_| toggle_version(vk.clone())
+                                                                    },
+                                                                    onkeydown: {
+                                                                        let vk = ver_key.clone();
+                                                                        let toggle_version = toggle_version.clone();
+                                                                        move |evt| {
+                                                                            if evt.key() == Key::Enter || evt.key() == Key::Character(" ".into()) {
+                                                                                toggle_version(vk.clone());
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    div { style: "display: flex; align-items: center; gap: 8px;",
+                                                                        span { style: "font-size: 11px;", if is_ver_collapsed { "\u{25B6}" } else { "\u{25BC}" } }
+                                                                        span { "\u{21B3} \u{1F5C0} " }
+                                                                        span { "{version}" }
+                                                                    }
+                                                                    span { style: "font-size: 10px; color: var(--color-muted);", "{version_models.len()} versions/files" }
+                                                                }
+
+                                                                // Version Content
+                                                                if !is_ver_collapsed {
+                                                                    div { class: "version-content",
+                                                                        table {
+                                                                            class: "model-table",
+                                                                            thead {
+                                                                                tr {
+                                                                                    th { "Model Name / File" }
+                                                                                    th { "Use-case" }
+                                                                                    th { "Size" }
+                                                                                    th { "Links" }
+                                                                                    th { style: "text-align: right;", "Action" }
+                                                                                }
+                                                                            }
+                                                                            tbody {
+                                                                                for &(idx, m) in version_models.iter() {
+                                                                                    tr {
+                                                                                        key: "{m.path}",
+                                                                                        class: "table-row-hover",
+
+                                                                                        // Column 1: Clean Name, Filename, and Tags
+                                                                                        td { style: "padding: 10px 6px; max-width: 250px; word-break: break-all;",
+                                                                                            div { style: "font-weight: 600; color: var(--color-ink); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;",
+                                                                                                {
+                                                                                                    if m.clean_name == "Unknown" || m.clean_name.is_empty() {
+                                                                                                        m.filename.clone()
+                                                                                                    } else {
+                                                                                                        m.clean_name.clone()
+                                                                                                    }
+                                                                                                }
+                                                                                                span {
+                                                                                                    style: "font-size: 9px; background: var(--color-surface-soft); color: var(--color-primary); padding: 1px 5px; border-radius: 4px; font-weight: 600; text-transform: uppercase; border: 1px solid var(--color-hairline);",
+                                                                                                    "{m.version}"
+                                                                                                }
+                                                                                            }
+                                                                                            div { style: "font-size: 10px; color: var(--color-muted); font-family: monospace; margin-top: 2px;", {m.filename.clone()} }
+
+                                                                                            // Hierarchy Tags BADGES!
+                                                                                            if !m.tags.is_empty() {
+                                                                                                div { style: "display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;",
+                                                                                                    for tag in m.tags.iter() {
+                                                                                                        span {
+                                                                                                            style: {
+                                                                                                                let color = if tag.starts_with("Q") || tag.starts_with("IQ") || tag == "BF16" || tag == "F16" || tag == "FP16" || tag == "F32" || tag == "FP32" {
+                                                                                                                    "background: rgba(59, 130, 246, 0.08); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.15);"
+                                                                                                                } else {
+                                                                                                                    match tag.as_str() {
+                                                                                                                        "GGUF" => "background: rgba(139, 92, 246, 0.08); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.15);",
+                                                                                                                        "Safetensors" => "background: rgba(59, 130, 246, 0.08); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.15);",
+                                                                                                                        "Uncensored" => "background: rgba(239, 68, 68, 0.08); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.15);",
+                                                                                                                        "Thinking" => "background: rgba(245, 158, 11, 0.08); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.15);",
+                                                                                                                        "Abliterated" => "background: rgba(249, 115, 22, 0.08); color: #c2410c; border: 1px solid rgba(249, 115, 22, 0.15);",
+                                                                                                                        _ => "background: rgba(107, 114, 128, 0.08); color: #374151; border: 1px solid rgba(107, 114, 128, 0.15);"
+                                                                                                                    }
+                                                                                                                };
+                                                                                                                format!("padding: 1px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 500; {}", color)
+                                                                                                            },
+                                                                                                            "{tag}"
+                                                                                                        }
+                                                                                                    }
+                                                                                                }
+                                                                                            }
+                                                                                        }
+
+                                                                                        // Column 2: Use-case
+                                                                                        td { style: "padding: 10px 6px;",
+                                                                                            span {
+                                                                                                style: {
+                                                                                                    let bg = match m.use_case.as_str() {
+                                                                                                        "Text Generation" => "rgba(124, 92, 252, 0.15); color: #c084fc",
+                                                                                                        "Text Embedding" => "rgba(59, 130, 246, 0.15); color: #60a5fa",
+                                                                                                        "OCR" => "rgba(234, 179, 8, 0.15); color: #facc15",
+                                                                                                        "ASR" => "rgba(34, 197, 94, 0.15); color: #4ade80",
+                                                                                                        "TTS" => "rgba(236, 72, 153, 0.15); color: #f472b6",
+                                                                                                        "Image Generation" => "rgba(249, 115, 22, 0.15); color: #ffedd5",
+                                                                                                        "Video Generation" => "rgba(6, 182, 212, 0.15); color: #22d3ee",
+                                                                                                        "Coding" => "rgba(239, 68, 68, 0.15); color: #f87171",
+                                                                                                        _ => "rgba(100, 116, 139, 0.15); color: #cbd5e1"
+                                                                                                    };
+                                                                                                    format!("padding: 2px 6px; border-radius: 10px; font-size: 10.5px; font-weight: 500; background: {}", bg)
+                                                                                                },
+                                                                                                {m.use_case.clone()}
+                                                                                            }
+                                                                                        }
+
+                                                                                        // Column 3: Size
+                                                                                        td { style: "padding: 10px 6px;",
+                                                                                            div { style: "font-weight: 500; color: #cbd5e1;", {m.size_info.clone()} }
+                                                                                        }
+
+                                                                                        // Column 4: Links
+                                                                                        td { style: "padding: 10px 6px;",
+                                                                                            div { style: "display: flex; gap: 6px;",
+                                                                                                if !m.hf_link.is_empty() {
+                                                                                                    a {
+                                                                                                        href: "{m.hf_link}",
+                                                                                                        target: "_blank",
+                                                                                                        style: "color: #3b82f6; text-decoration: none; display: inline-flex; align-items: center; gap: 2px;",
+                                                                                                        "\u{1F917} HF"
+                                                                                                    }
+                                                                                                }
+                                                                                                if !m.github_link.is_empty() {
+                                                                                                    a {
+                                                                                                        href: "{m.github_link}",
+                                                                                                        target: "_blank",
+                                                                                                        style: "color: #10b981; text-decoration: none; display: inline-flex; align-items: center; gap: 2px;",
+                                                                                                        "\u{1F431} Git"
+                                                                                                    }
+                                                                                                }
+                                                                                                if m.hf_link.is_empty() && m.github_link.is_empty() {
+                                                                                                    span { style: "color: #4a5568; font-style: italic; font-size: 11px;", "None" }
+                                                                                                }
+                                                                                            }
+                                                                                        }
+
+                                                                                        // Column 5: Action
+                                                                                        td { style: "padding: 10px 6px; text-align: right;",
+                                                                                            div { style: "display: flex; gap: 5px; justify-content: flex-end;",
+                                                                                                if m.status == "failed" || m.status == "pending_enrichment" {
+                                                                                                    button {
+                                                                                                        class: "btn-browse",
+                                                                                                        style: "font-size: 10.5px; padding: 3px 6px;",
+                                                                                                        onclick: {
+                                                                                                            let id = *idx;
+                                                                                                            move |_| {
+                                                                                                                let mut current = scanned_models.read().clone();
+                                                                                                                current[id].status = "pending_enrichment".to_string();
+                                                                                                                let index_path = get_default_config_path().join("model_index.json");
+                            let _ = library::save_index(&index_path.to_string_lossy(), &current);
+                                                                                                                scanned_models.set(current);
+                                                                                                            }
+                                                                                                        },
+                                                                                                        "\u{21BB} Enrich"
+                                                                                                    }
+                                                                                                } else if m.status == "enriching" {
+                                                                                                    span { style: "font-size: 10.5px; color: #eab308; font-style: italic;", "Enriching\u{2026}" }
+                                                                                                }
+
+                                                                                                button {
+                                                                                                    class: "btn btn-ghost btn-sm",
+                                                                                                    style: "font-size: 10.5px; padding: 3px 6px;",
+                                                                                                    onclick: {
+                                                                                                        let path = m.path.clone();
+                                                                                                        move |_| {
+                                                                                                            config.write().model_path = path.clone();
+                                                                                                            error_local.set(Some("Active model updated!".to_string()));
+                                                                                                        }
+                                                                                                    },
+                                                                                                    "\u{2714} Use Model"
+                                                                                                }
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        } else {
+            {
+                let total = scanned_models.read().len();
+                let enriched = scanned_models.read().iter().filter(|m| m.status == "enriched").count();
+                let pending = scanned_models.read().iter().filter(|m| m.status == "pending_enrichment").count();
+                let failed = scanned_models.read().iter().filter(|m| m.status == "failed").count();
+                let enriching = scanned_models.read().iter().filter(|m| m.status == "enriching").count();
+                let completed = enriched + failed;
+                let percent = if total > 0 { (completed as f32 / total as f32 * 100.0) as u32 } else { 0 };
+
+                rsx! {
+                    div { class: "card",
+                        div { class: "card-title", "Enrichment Progress & Stats" }
+                        
+                        // Progress bar
+                        div { style: "margin: 16px 0;",
+                            div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;",
+                                span { style: "color: var(--color-muted); font-weight: 500;", "Overall Completion" }
+                                span { style: "color: var(--color-primary); font-weight: 700;", "{percent}% ({completed} / {total})" }
+                            }
+                            div { class: "progress-bar-bg",
+                                div { class: "progress-bar-fill", style: "width: {percent}%;" }
+                            }
+                        }
+
+                        // Counts Grid
+                        div { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin-bottom: 20px;",
+                            div { class: "stat-card",
+                                div { class: "stat-card-title", "Total" }
+                                div { class: "stat-card-value", "{total}" }
+                            }
+                            div { class: "stat-card",
+                                div { class: "stat-card-title", "Enriched" }
+                                div { class: "stat-card-value", style: "color: var(--color-success);", "{enriched}" }
+                            }
+                            div { class: "stat-card",
+                                div { class: "stat-card-title", "Pending" }
+                                div { class: "stat-card-value", style: "color: var(--color-warning);", "{pending}" }
+                            }
+                            div { class: "stat-card",
+                                div { class: "stat-card-title", "Failed" }
+                                div { class: "stat-card-value", style: "color: var(--color-error);", "{failed}" }
+                            }
+                            div { class: "stat-card",
+                                div { class: "stat-card-title", "Active" }
+                                div { class: "stat-card-value", style: "color: var(--color-brand-accent);", "{enriching}" }
+                            }
+                        }
+
+                        div { style: "border-top: 1px solid var(--color-hairline); padding-top: 16px; display: flex; flex-direction: column; gap: 12px;",
+                            div { style: "font-size: 13.5px; font-weight: 600; color: var(--color-ink);", "Background Status" }
+                            div { style: "background: var(--color-surface-dark); border: 1px solid var(--color-hairline); padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px; color: var(--color-on-dark-soft);",
+                                "{index_status()}"
+                            }
+                        }
+                    }
+
+                    div { class: "card",
+                        div { class: "card-title", "Pending or Failed Models Detail" }
+                        {
+                            let models_guard = scanned_models.read();
+                            let items: Vec<_> = models_guard.iter().enumerate()
+                                .filter(|(_, m)| m.status == "pending_enrichment" || m.status == "failed" || m.status == "enriching")
+                                .collect();
+
+                            if items.is_empty() {
+                                rsx! {
+                                    div { class: "log-empty", "No pending or failed models. All models successfully enriched!" }
+                                }
+                            } else {
+                                rsx! {
+                                    div { style: "overflow-x: auto;",
+                                        table { class: "model-table",
+                                            thead {
+                                                tr {
+                                                    th { "Filename" }
+                                                    th { "Family / Version" }
+                                                    th { "Status" }
+                                                    th { style: "text-align: right;", "Action" }
+                                                }
+                                            }
+                                            tbody {
+                                                for &(idx, m) in items.iter() {
+                                                    tr { key: "{m.path}",
+                                                        td { style: "font-family: monospace; color: var(--color-ink);", "{m.filename}" }
+                                                        td { style: "color: var(--color-muted);", "{m.family} - {m.version}" }
+                                                        td {
+                                                            span {
+                                                                style: {
+                                                                    let color = match m.status.as_str() {
+                                                                        "enriching" => "background: rgba(139, 92, 246, 0.08); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.15);",
+                                                                        "failed" => "background: rgba(239, 68, 68, 0.08); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.15);",
+                                                                        _ => "background: rgba(245, 158, 11, 0.08); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.15);"
+                                                                    };
+                                                                    format!("padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; {}", color)
+                                                                },
+                                                                "{m.status}"
+                                                            }
+                                                        }
+                                                        td { style: "padding: 10px 6px; text-align: right;",
+                                                            if m.status != "enriching" {
+                                                                button {
+                                                                    class: "btn-browse",
+                                                                    style: "font-size: 10.5px; padding: 2px 6px;",
+                                                                    onclick: {
+                                                                        let id = idx;
+                                                                        move |_| {
+                                                                            let mut current = scanned_models.read().clone();
+                                                                            current[id].status = "pending_enrichment".to_string();
+                                                                            let index_path = get_default_config_path().join("model_index.json");
+                                                                            let _ = library::save_index(&index_path.to_string_lossy(), &current);
+                                                                            scanned_models.set(current);
+                                                                        }
+                                                                    },
+                                                                    "\u{21BB} Retry"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct TargetItem {
+    name: String,
+    line: String,
+}
+
+fn parse_input_targets(input: &str) -> Vec<TargetItem> {
+    let mut targets = Vec::new();
+    let mut current_category = "mtp".to_string();
+
+    for line in input.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if trimmed.ends_with(':') {
+            current_category = trimmed[..trimmed.len() - 1].trim().to_string();
+            continue;
+        }
+
+        if trimmed.starts_with('-') {
+            continue;
+        }
+
+        // Parse target type
+        let name = if trimmed.ends_with(".git") || trimmed.starts_with("https://github") {
+            let mut repo_name = trimmed.split('/').last().unwrap_or("").to_string();
+            if repo_name.ends_with(".git") {
+                repo_name = repo_name[..repo_name.len() - 4].to_string();
+            }
+            format!("Git clone: {}", repo_name)
+        } else if trimmed.starts_with("http") {
+            let parts: Vec<&str> = trimmed.split('/').collect();
+            let repo = if parts.len() > 4 { parts[4] } else { "unknown" };
+            let filename = parts.last().unwrap_or(&"");
+
+            let target_name = if filename.starts_with("mmproj") {
+                let prefix = repo.to_lowercase().replace("-gguf", "");
+                format!("{}-{}", prefix, filename)
+            } else {
+                if let Some(last_dash) = filename.rfind('-') {
+                    format!("{}{}", filename[..last_dash].to_lowercase(), &filename[last_dash..])
+                } else {
+                    filename.to_lowercase()
+                }
+            };
+            format!("Aria2c download: {}", target_name)
+        } else {
+            let repo_name = trimmed.split('/').last().unwrap_or("");
+            format!("HF download: {}", repo_name)
+        };
+
+        targets.push(TargetItem {
+            name,
+            line: trimmed.to_string(),
+        });
+    }
+    targets
+}
+
+fn parse_tmux_progress(lines: &[String], targets: &[TargetItem]) -> (Option<usize>, f32, String, String) {
+    fn extract_percentage(line: &str) -> Option<f32> {
+        if let Some(pct_pos) = line.find('%') {
+            let mut start = pct_pos;
+            while start > 0 {
+                let prev_char = line[..start].chars().rev().next().unwrap();
+                if prev_char.is_ascii_digit() || prev_char == '.' {
+                    start -= prev_char.len_utf8();
+                } else {
+                    break;
+                }
+            }
+            let pct_str = line[start..pct_pos].trim();
+            return pct_str.parse::<f32>().ok();
+        }
+        None
+    }
+
+    fn extract_speed(line: &str) -> Option<String> {
+        let lower = line.to_lowercase();
+        if let Some(dl_idx) = lower.find("dl:") {
+            let sub = line[dl_idx + 3..].trim();
+            let end = sub.find(']').or_else(|| sub.find(' ')).unwrap_or(sub.len());
+            let speed = sub[..end].trim();
+            if !speed.is_empty() {
+                return Some(speed.to_string());
+            }
+        }
+
+        for token in line.split_whitespace().rev() {
+            let token = token.trim_end_matches(',');
+            if token.ends_with("/s") || token.ends_with("b/s") || token.ends_with("B/s") {
+                return Some(token.to_string());
+            }
+        }
+
+        None
+    }
+
+    fn extract_eta(line: &str) -> Option<String> {
+        let lower = line.to_lowercase();
+        if let Some(idx) = lower.find("eta") {
+            let after = line[idx + 3..].trim_start_matches(&[':', ' '][..]).trim();
+            if !after.is_empty() {
+                return Some(after.split_whitespace().next().unwrap_or("Unknown").to_string());
+            }
+        }
+
+        if let Some(start) = lower.find("remaining") {
+            let after = line[start..].split(':').nth(1).unwrap_or("").trim();
+            if !after.is_empty() {
+                return Some(after.split_whitespace().next().unwrap_or("Unknown").to_string());
+            }
+        }
+
+        None
+    }
+
+    let mut active_idx = None;
+    let mut percent = 0.0f32;
+    let mut speed = "Pending...".to_string();
+    let mut eta = "Unknown".to_string();
+
+    'outer: for line in lines.iter().rev() {
+        let lower_line = line.to_lowercase();
+        for (idx, target) in targets.iter().enumerate().rev() {
+            let keyword = target.line.to_lowercase();
+            let search_terms = vec![
+                keyword.clone(),
+                target.name.to_lowercase(),
+                target.line.rsplit('/').next().unwrap_or("").to_lowercase(),
+            ];
+
+            if search_terms.iter().any(|term| !term.is_empty() && lower_line.contains(term)) {
+                active_idx = Some(idx);
+                break 'outer;
+            }
+        }
+    }
+
+    for line in lines.iter().rev() {
+        if let Some(p) = extract_percentage(line) {
+            percent = p;
+            if let Some(found_speed) = extract_speed(line) {
+                speed = found_speed;
+            }
+            if let Some(found_eta) = extract_eta(line) {
+                eta = found_eta;
+            }
+            break;
+        }
+
+        if line.contains("Receiving objects:") || line.contains("Resolving deltas:") {
+            if let Some(p) = extract_percentage(line) {
+                percent = p;
+            }
+            if let Some(found_speed) = extract_speed(line) {
+                speed = found_speed;
+            }
+            eta = "Cloning...".to_string();
+            break;
+        }
+    }
+
+    (active_idx, percent, speed, eta)
+}
+
+fn generate_dw_script(input: &str) -> String {
+    let mut script = String::new();
+    script.push_str("#!/bin/bash\n");
+    script.push_str("export PATH=\"$HOME/.local/bin:$PATH\"\n\n");
+    script.push_str("# ==========================================\n");
+    script.push_str("# TMUX ENFORCEMENT\n");
+    script.push_str("# ==========================================\n");
+    script.push_str("if [ -z \"$TMUX\" ]; then\n");
+    script.push_str("    echo \"Not running in tmux. Starting a background tmux session named 'hf_downloads'...\"\n");
+    script.push_str("    SCRIPT_PATH=$(realpath \"$0\")\n");
+    script.push_str("    tmux new-session -d -s hf_downloads \"bash \\\"$SCRIPT_PATH\\\"\"\n");
+    script.push_str("    echo \"Downloads have started in the background!\"\n");
+    script.push_str("    echo \"To view progress, run: tmux attach -t hf_downloads\"\n");
+    script.push_str("    exit 0\n");
+    script.push_str("fi\n\n");
+    script.push_str("# ==========================================\n");
+    script.push_str("# DOWNLOAD COMMANDS\n");
+    script.push_str("# ==========================================\n");
+    script.push_str("MODELS_ROOT=/mnt/modelsext/models\n");
+    script.push_str("cd $MODELS_ROOT\n\n");
+
+    let mut current_category = "mtp".to_string();
+    let mut current_subfolder: Option<String> = None;
+
+    for line in input.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if trimmed.ends_with(':') {
+            current_category = trimmed[..trimmed.len() - 1].trim().to_string();
+            current_subfolder = None;
+            continue;
+        }
+
+        if trimmed.starts_with('-') {
+            current_subfolder = Some(trimmed[1..].trim().to_string());
+            continue;
+        }
+
+        let base_dir = match &current_subfolder {
+            Some(sub) => format!("{}/{}", current_category, sub),
+            None => current_category.clone(),
+        };
+
+        if trimmed.ends_with(".git") || trimmed.starts_with("https://github") {
+            let mut repo_name = trimmed.split('/').last().unwrap_or("").to_string();
+            if repo_name.ends_with(".git") {
+                repo_name = repo_name[..repo_name.len() - 4].to_string();
+            }
+            script.push_str(&format!("git clone {} ./{}/{}\n", trimmed, base_dir, repo_name));
+        } else if trimmed.starts_with("http") {
+            let parts: Vec<&str> = trimmed.split('/').collect();
+            let repo = if parts.len() > 4 { parts[4] } else { "unknown" };
+            let filename = parts.last().unwrap_or(&"");
+
+            let target_name = if filename.starts_with("mmproj") {
+                let prefix = repo.to_lowercase().replace("-gguf", "");
+                format!("{}-{}", prefix, filename)
+            } else {
+                if let Some(last_dash) = filename.rfind('-') {
+                    format!("{}{}", filename[..last_dash].to_lowercase(), &filename[last_dash..])
+                } else {
+                    filename.to_lowercase()
+                }
+            };
+
+            script.push_str(&format!("aria2c -c -x 16 -s 16 -o ./{}/{} {}\n", base_dir, target_name, trimmed));
+        } else {
+            let repo_name = trimmed.split('/').last().unwrap_or("");
+            let target_dir = repo_name.to_lowercase();
+            script.push_str(&format!("hf download {} --local-dir ./{}/{}\n", trimmed, base_dir, target_dir));
+        }
+    }
+
+    script.push_str("\n# Keep tmux window open for 10 seconds after completion to see the final logs\n");
+    script.push_str("sleep 10\n");
+    script
+}
+
+#[component]
+fn TabDownload() -> Element {
+    let mut input_text = use_signal(|| {
+        std::fs::read_to_string(get_default_config_path().join("t"))
+            .or_else(|_| std::fs::read_to_string("/home/notroot/Work/llama-manager/t"))
+            .unwrap_or_default()
+    });
+    let mut tmux_output = use_signal(Vec::<String>::new);
+    let mut is_downloading = use_signal(|| false);
+    let mut error_local = use_signal(|| None::<String>);
+    let mut show_raw_logs = use_signal(|| false);
+
+    let _tmux_poller = use_resource(move || {
+        async move {
+            loop {
+                // Check if session hf_downloads exists
+                let has_session = tokio::task::spawn_blocking(move || {
+                    std::process::Command::new("tmux")
+                        .current_dir(get_default_config_path())
+                        .args(&["has-session", "-t", "hf_downloads"])
+                        .status()
+                        .map(|status| status.success())
+                        .unwrap_or(false)
+                }).await.unwrap_or(false);
+
+                is_downloading.set(has_session);
+
+                if has_session {
+                    // Capture tmux pane output
+                    let output = tokio::task::spawn_blocking(move || {
+                        std::process::Command::new("tmux")
+                            .current_dir(get_default_config_path())
+                            .args(&["capture-pane", "-pt", "hf_downloads"])
+                            .output()
+                    }).await;
+
+                    if let Ok(Ok(out)) = output {
+                        if out.status.success() {
+                            let text = String::from_utf8_lossy(&out.stdout);
+                            let lines: Vec<String> = text.lines().map(|s| s.to_string()).collect();
+                            tmux_output.set(lines);
+                        }
+                    }
+                } else {
+                    tmux_output.set(Vec::new());
+                }
+
+                tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
+            }
+        }
+    });
+
+    let run_generate = move |_| {
+        let text_val = input_text.read().clone();
+        spawn(async move {
+            let config_dir = get_default_config_path();
+            if let Err(e) = std::fs::create_dir_all(&config_dir) {
+                error_local.set(Some(format!("Failed to create config directory: {}", e)));
+                return;
+            }
+
+            // Write input text to 't' under config directory
+            let t_path = config_dir.join("t");
+            if let Err(e) = std::fs::write(&t_path, &text_val) {
+                error_local.set(Some(format!("Failed to write file 't': {}", e)));
+                return;
+            }
+
+            // Generate script natively in Rust
+            let script_content = generate_dw_script(&text_val);
+            let dw_path = config_dir.join("dw.sh");
+            if let Err(e) = std::fs::write(&dw_path, script_content) {
+                error_local.set(Some(format!("Failed to write dw.sh: {}", e)));
+                return;
+            }
+
+            // Make dw.sh executable
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let _ = std::fs::set_permissions(&dw_path, std::fs::Permissions::from_mode(0o755));
+            }
+
+            // Execute dw.sh in background (which will auto-launch inside tmux)
+            let run_status = tokio::task::spawn_blocking(move || {
+                let dw_path = get_default_config_path().join("dw.sh");
+                std::process::Command::new("bash")
+                    .current_dir(get_default_config_path())
+                    .arg(dw_path)
+                    .status()
+            }).await;
+
+            match run_status {
+                Ok(Ok(status)) if status.success() => {
+                    error_local.set(None);
+                }
+                Ok(Ok(status)) => {
+                    error_local.set(Some(format!("dw.sh exited with status: {}", status)));
+                }
+                _ => {
+                    error_local.set(Some("Failed to execute dw.sh".to_string()));
+                }
+            }
+        });
+    };
+
+    let cancel_download = move |_| {
+        spawn(async move {
+            let kill_status = tokio::task::spawn_blocking(move || {
+                std::process::Command::new("tmux")
+                    .current_dir(get_default_config_path())
+                    .args(&["kill-session", "-t", "hf_downloads"])
+                    .status()
+            }).await;
+
+            match kill_status {
+                Ok(Ok(status)) if status.success() => {
+                    error_local.set(None);
+                }
+                _ => {
+                    error_local.set(Some("Failed to stop download".to_string()));
+                }
+            }
+        });
+    };
+
+    let targets = parse_input_targets(&input_text());
+    let (active_idx, percent, speed, eta) = parse_tmux_progress(&tmux_output(), &targets);
+
+    rsx! {
+        div { class: "section-title", "Download Manager" }
+        div { class: "section-desc", "Integrated model and repository downloader. Generates and runs download script under a persistent tmux session." }
+
+        if let Some(ref err) = *error_local.read() {
+            div { class: "error-toast", style: "margin-bottom: 12px;",
+                "\u{26A0}\u{FE0F} "
+                {err.clone()}
+            }
+        }
+
+        div { style: "display: flex; gap: 24px; flex-wrap: wrap;",
+            // Left Card: Input configuration editor
+            div { class: "card", style: "flex: 1 1 500px; display: flex; flex-direction: column;",
+                div { class: "card-title", "Download Targets Input (File 't' format)" }
+                div { class: "form-group", style: "flex-grow: 1;",
+                    label { r#for: "download-targets-input", class: "form-label", "Edit Targets List" }
+                    textarea {
+                        id: "download-targets-input",
+                        class: "form-textarea",
+                        style: "font-family: 'JetBrains Mono', monospace; font-size: 13px; min-height: 380px; flex-grow: 1; width: 100%;",
+                        disabled: is_downloading(),
+                        value: input_text(),
+                        placeholder: "category:\nhttps://github.com/...git\nrepo/model\n-subfolder\nhttps://huggingface.co/...",
+                        oninput: move |e: Event<FormData>| input_text.set(e.value()),
+                    }
+                }
+                div { style: "display: flex; gap: 12px; margin-top: 12px;",
+                    button {
+                        class: "btn btn-start",
+                        disabled: is_downloading(),
+                        onclick: run_generate,
+                        "\u{2913} Generate & Start Download"
+                    }
+                    if is_downloading() {
+                        button {
+                            class: "btn btn-stop",
+                            onclick: cancel_download,
+                            "\u{23F9} Cancel Download"
+                        }
+                    }
+                }
+            }
+
+            // Right Card: Dynamic progress bar monitor
+            div { class: "card", style: "flex: 1 1 400px; display: flex; flex-direction: column;",
+                div { class: "card-title", "Live Download Monitor" }
+                
+                div { style: "display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 13.5px;",
+                    div {
+                        class: if is_downloading() { "status-dot running" } else { "status-dot stopped" },
+                    }
+                    span { style: "font-weight: 600;", if is_downloading() { "Downloading in tmux session 'hf_downloads'" } else { "Idle / Completed" } }
+                }
+
+                if is_downloading() {
+                    div { class: "form-hint", style: "margin-bottom: 16px;",
+                        "Attach: "
+                        code { style: "background: var(--color-surface-soft); padding: 2px 6px; border-radius: 4px; font-weight: 600; color: var(--color-brand-accent);", "tmux attach -t hf_downloads" }
+                    }
+                }
+
+                // Parsed progress items list
+                div { style: "display: flex; flex-direction: column; gap: 12px; overflow-y: auto; max-height: 400px; padding-right: 4px;",
+                    if targets.is_empty() {
+                        div { style: "color: var(--color-muted); font-style: italic; padding: 20px 0; text-align: center;",
+                            "No targets defined. Please edit the list on the left."
+                        }
+                    } else {
+                        {targets.iter().enumerate().map(|(idx, target)| {
+                            let is_active = is_downloading() && Some(idx) == active_idx;
+                            let is_completed = if is_downloading() {
+                                match active_idx {
+                                    Some(active) => idx < active,
+                                    None => false,
+                                }
+                            } else {
+                                !tmux_output.read().is_empty()
+                            };
+
+                            rsx! {
+                                div {
+                                    key: "{idx}",
+                                    style: "background: var(--color-surface-soft); border: 1px solid var(--color-hairline); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px;",
+                                    
+                                    div { style: "display: flex; justify-content: space-between; align-items: center; font-size: 13px;",
+                                        span { style: "font-weight: 600; color: var(--color-ink); word-break: break-all;", "{target.name}" }
+                                        if is_active {
+                                            span { style: "color: var(--color-brand-accent); font-weight: 600; white-space: nowrap;", "{percent as u32}%" }
+                                        } else if is_completed {
+                                            span { style: "color: var(--color-success); font-weight: 600; white-space: nowrap;", "\u{2705} Done" }
+                                        } else {
+                                            span { style: "color: var(--color-muted); white-space: nowrap;", "\u{23F3} Pending" }
+                                        }
+                                    }
+
+                                    // Progress Bar
+                                    div {
+                                        style: "width: 100%; height: 6px; background: var(--color-surface-strong); border-radius: 9999px; overflow: hidden;",
+                                        div {
+                                            style: if is_active {
+                                                "height: 100%; width: {percent}%; background: var(--color-brand-accent); border-radius: 9999px; transition: width 0.3s ease-in-out;"
+                                            } else if is_completed {
+                                                "height: 100%; width: 100%; background: var(--color-success); border-radius: 9999px;"
+                                            } else {
+                                                "height: 100%; width: 0%; background: var(--color-surface-strong);"
+                                            }
+                                        }
+                                    }
+
+                                    if is_active {
+                                        div { style: "display: flex; justify-content: space-between; font-size: 11px; color: var(--color-muted);",
+                                            span { "Speed: {speed}" }
+                                            span { "ETA: {eta}" }
+                                        }
+                                    }
+                                }
+                            }
+                        })}
+                    }
+                }
+
+                // Collapsible Raw Log option
+                if is_downloading() {
+                    div { style: "margin-top: 16px;",
+                        button {
+                            class: "btn btn-outline",
+                            style: "width: 100%; padding: 6px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;",
+                            onclick: move |_| { let cur = show_raw_logs(); show_raw_logs.set(!cur); },
+                            if show_raw_logs() { "Hide Raw Terminal Logs" } else { "Show Raw Terminal Logs" }
+                        }
+                    }
+                    if show_raw_logs() {
+                        div {
+                            style: "background: #0f172a; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 12px; border-radius: 8px; overflow-y: auto; height: 180px; white-space: pre-wrap; word-break: break-all; border: 1px solid #1e293b; line-height: 1.4; text-align: left; margin-top: 8px;",
+                            for (i, line) in tmux_output.read().iter().enumerate() {
+                                div { key: "{i}", {line.clone()} }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn perform_send(
+    config: Signal<ServerConfig>,
+    mut messages: Signal<Vec<(String, String)>>,
+    mut current_input: Signal<String>,
+    mut is_generating: Signal<bool>,
+    mut chat_error: Signal<Option<String>>,
+) {
+    let text = current_input.read().trim().to_string();
+    if text.is_empty() || is_generating() {
+        return;
+    }
+
+    messages.write().push(("user".to_string(), text.clone()));
+    current_input.set(String::new());
+    is_generating.set(true);
+    chat_error.set(None);
+
+    let port = config.read().port;
+    let history = messages.read().clone();
+
+    spawn(async move {
+        let target_model = library::get_target_model(port, "").await;
+        let llm_url = format!("http://127.0.0.1:{}/v1/chat/completions", port);
+
+        let mut req_messages = Vec::new();
+        for (role, content) in &history {
+            req_messages.push(serde_json::json!({
+                "role": role,
+                "content": content
+            }));
+        }
+
+        let payload = serde_json::json!({
+            "model": target_model,
+            "messages": req_messages,
+            "temperature": 0.7,
+        });
+
+        let client = reqwest::Client::new();
+        match client.post(&llm_url).json(&payload).send().await {
+            Ok(res) => {
+                if res.status().is_success() {
+                    #[derive(serde::Deserialize, Clone)]
+                    struct ChatMessage {
+                        content: Option<String>,
+                    }
+                    #[derive(serde::Deserialize, Clone)]
+                    struct ChatChoice {
+                        message: Option<ChatMessage>,
+                    }
+                    #[derive(serde::Deserialize)]
+                    struct ChatResponse {
+                        choices: Option<Vec<ChatChoice>>,
+                    }
+
+                    if let Ok(chat_res) = res.json::<ChatResponse>().await {
+                        if let Some(content) = chat_res.choices
+                            .and_then(|c| c.first().cloned())
+                            .and_then(|c| c.message)
+                            .and_then(|m| m.content)
+                        {
+                            messages.write().push(("assistant".to_string(), content));
+                        } else {
+                            chat_error.set(Some("Invalid response format received from model server.".to_string()));
+                        }
+                    } else {
+                        chat_error.set(Some("Failed to parse JSON response from model server.".to_string()));
+                    }
+                } else {
+                    chat_error.set(Some(format!("Model server returned error status: {}", res.status())));
+                }
+            }
+            Err(e) => {
+                chat_error.set(Some(format!("Failed to connect to model server: {}", e)));
+            }
+        }
+        is_generating.set(false);
+    });
+}
+
+#[component]
+fn TabChat(config: Signal<ServerConfig>) -> Element {
+    let mut messages = use_signal(Vec::<(String, String)>::new);
+    let mut current_input = use_signal(String::new);
+    let is_generating = use_signal(|| false);
+    let mut chat_error = use_signal(|| None::<String>);
+    let mut server_status = use_signal(|| false);
+
+    let _server_checker = use_resource(move || {
+        async move {
+            loop {
+                let port = config.read().port;
+                let client = reqwest::Client::new();
+                let url = format!("http://127.0.0.1:{}/v1/models", port);
+                let online = match client.get(&url).timeout(std::time::Duration::from_secs(1)).send().await {
+                    Ok(res) => res.status().is_success(),
+                    Err(_) => false,
+                };
+                server_status.set(online);
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+        }
+    });
+
+    let clear_chat = move |_| {
+        messages.write().clear();
+        chat_error.set(None);
+    };
+
+    rsx! {
+        div { class: "section-title", "Interactive Model Chat" }
+        div { class: "section-desc", "Have live conversations with the loaded model. Start the model server from the Server tab to begin." }
+
+        if !server_status() {
+            div {
+                style: "background: var(--color-warning); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
+                span { "⚠️ Model server is offline. Please make sure a model is configured and click 'Start Server' in the Server tab to chat." }
+            }
+        }
+
+        if let Some(ref err) = *chat_error.read() {
+            div { class: "error-toast", style: "margin-bottom: 16px;",
+                "❌ {err}"
+            }
+        }
+
+        div {
+            style: "display: flex; flex-direction: column; height: 500px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;",
+            
+            div {
+                style: "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--color-canvas); border-bottom: 1px solid var(--color-hairline);",
+                span { style: "font-weight: 600; color: var(--color-ink);", "💬 Chat Session" }
+                button {
+                    class: "btn btn-outline",
+                    style: "padding: 4px 12px; font-size: 12px;",
+                    disabled: messages.read().is_empty(),
+                    onclick: clear_chat,
+                    "Clear Conversation"
+                }
+            }
+
+            div {
+                style: "flex-grow: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;",
+                if messages.read().is_empty() {
+                    div {
+                        style: "margin: auto; text-align: center; color: var(--color-muted); max-width: 320px;",
+                        div { style: "font-size: 32px; margin-bottom: 8px;", "💬" }
+                        div { style: "font-weight: 600; margin-bottom: 4px; color: var(--color-ink);", "Start a Conversation" }
+                        div { style: "font-size: 12.5px; line-height: 1.4;", "Type a message below to query the running Llama model server in real time." }
+                    }
+                } else {
+                    for (i, (role, text)) in messages.read().iter().enumerate() {
+                        div {
+                            key: "{i}",
+                            style: if role == "user" { "display: flex; justify-content: flex-end;" } else { "display: flex; justify-content: flex-start;" },
+                            div {
+                                style: if role == "user" {
+                                    "background: var(--color-brand-accent); color: #fff; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 80%; font-size: 13.5px; line-height: 1.4; text-align: left;"
+                                } else {
+                                    "background: var(--color-canvas); color: var(--color-ink); padding: 10px 14px; border-radius: 14px 14px 14px 2px; max-width: 80%; font-size: 13.5px; line-height: 1.4; text-align: left; border: 1px solid var(--color-hairline);"
+                                },
+                                {text.clone()}
+                            }
+                        }
+                    }
+                }
+                
+                if is_generating() {
+                    div {
+                        style: "display: flex; justify-content: flex-start;",
+                        div {
+                            style: "background: var(--color-canvas); color: var(--color-muted); padding: 10px 14px; border-radius: 14px; font-size: 13px; font-style: italic; border: 1px solid var(--color-hairline); display: flex; align-items: center; gap: 8px;",
+                            span { style: "border: 2px solid var(--color-hairline); border-top: 2px solid var(--color-brand-accent); border-radius: 50%; width: 12px; height: 12px; animation: spin 1s linear infinite;" }
+                            "Model is thinking..."
+                        }
+                    }
+                }
+            }
+
+            div {
+                style: "padding: 12px 16px; background: var(--color-canvas); border-top: 1px solid var(--color-hairline); display: flex; gap: 12px;",
+                input {
+                    r#type: "text",
+                    style: "flex-grow: 1; padding: 8px 12px; border: 1px solid var(--color-hairline); border-radius: 6px; font-size: 13.5px; outline: none; background: var(--color-canvas); color: var(--color-ink);",
+                    placeholder: if server_status() { "Type your message and press Enter..." } else { "Please start the server first..." },
+                    disabled: !server_status() || is_generating(),
+                    value: current_input(),
+                    oninput: move |e| current_input.set(e.value()),
+                    onkeydown: move |e: KeyboardEvent| {
+                        if e.key() == Key::Enter {
+                            perform_send(config, messages, current_input, is_generating, chat_error);
+                        }
+                    }
+                }
+                button {
+                    class: "btn btn-primary",
+                    style: "padding: 8px 20px;",
+                    disabled: !server_status() || is_generating() || current_input.read().trim().is_empty(),
+                    onclick: move |_| {
+                        perform_send(config, messages, current_input, is_generating, chat_error);
+                    },
+                    "Send"
                 }
             }
         }
