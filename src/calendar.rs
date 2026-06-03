@@ -29,6 +29,10 @@ pub struct CalendarEvent {
     pub title: String,
     pub time: String,   // Format: "YYYY-MM-DDTHH:MM:SS"
     pub prompt: String, // Prompt to fire when the event time is reached
+    #[serde(default)]
+    pub note: Option<String>, // Optional note/pin shown on the calendar view
+    #[serde(default)]
+    pub color: Option<String>, // Optional color tag for the event pill
     pub status: EventStatus,
     pub result: Option<String>,
 }

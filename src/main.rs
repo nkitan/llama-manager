@@ -11,6 +11,7 @@ mod todo;
 
 use config::*;
 use dioxus::prelude::*;
+use chrono::Datelike;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
@@ -572,7 +573,7 @@ fn config_search_entries() -> Vec<ConfigSearchEntry> {
             target_id: "form-ui-bg-color".into(),
         },
         ConfigSearchEntry {
-            label: "Backdrop Glass Blur".into(),
+            label: "Frosted Glass Panels".into(),
             section: "App Settings".into(),
             tab: Tab::AppSettings,
             target_id: "form-ui-blur".into(),
@@ -590,21 +591,16 @@ const CSS: &str = r#"
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
+    color-scheme: dark;
     --color-primary: var(--ui-accent-color);
     --color-primary-active: color-mix(in srgb, var(--ui-accent-color) 85%, #000000 15%);
-    --color-primary-disabled: color-mix(in srgb, var(--ui-text-color) 10%, transparent);
+    --color-primary-disabled: color-mix(in srgb, var(--ui-text-color) 12%, transparent);
     --color-ink: var(--ui-text-color);
-    --color-body: color-mix(in srgb, var(--ui-text-color) 80%, transparent);
-    --color-muted: color-mix(in srgb, var(--ui-text-color) 55%, transparent);
-    --color-muted-soft: color-mix(in srgb, var(--ui-text-color) 40%, transparent);
+    --color-body: color-mix(in srgb, var(--ui-text-color) 82%, transparent);
+    --color-muted: color-mix(in srgb, var(--ui-text-color) 58%, transparent);
+    --color-muted-soft: color-mix(in srgb, var(--ui-text-color) 42%, transparent);
     --color-hairline: var(--ui-border-color);
     --color-hairline-soft: color-mix(in srgb, var(--ui-border-color) 50%, transparent);
-    --color-canvas: var(--ui-bg-color);
-    --color-surface-soft: color-mix(in srgb, var(--ui-text-color) 4%, transparent);
-    --color-surface-card: var(--ui-card-bg);
-    --color-surface-strong: color-mix(in srgb, var(--ui-text-color) 10%, transparent);
-    --color-surface-dark: color-mix(in srgb, var(--ui-bg-color) 92%, var(--ui-text-color) 8%);
-    --color-surface-dark-elevated: color-mix(in srgb, var(--ui-bg-color) 86%, var(--ui-text-color) 14%);
     --color-on-primary: #ffffff;
     --color-on-dark: var(--ui-text-color);
     --color-on-dark-soft: color-mix(in srgb, var(--ui-text-color) 70%, transparent);
@@ -612,27 +608,54 @@ const CSS: &str = r#"
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
+
+    /* ── Uniform frosted-glass system ────────────────────────────────
+       ONE transparency for the whole window. --app-opacity (injected from the
+       Window Transparency slider) tints the entire .app uniformly, so the
+       desktop shows through sidebar, top-bar, content and log panel equally.
+       Panels are NOT separate opaque blocks — they're the same glass, gently
+       lifted by a faint frost (--panel-frost, from the Glass Frost control),
+       a soft specular sheen, a border and a shadow. No backdrop-filter: it
+       needs the GPU compositor that webkit2gtk renders unreliably on
+       transparent windows (the ghosting bug). */
+    --app-opacity: 86%;
+    --panel-frost: 7%;
+    --glass-frost: color-mix(in srgb, var(--ui-text-color) var(--panel-frost), transparent);
+    --glass-sheen: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.012) 50%, rgba(255,255,255,0.04) 100%);
+
+    /* readable "wells" (inputs, logs, nested surfaces) — translucent but solid
+       enough for text; they usually nest over a panel so opacity stacks. */
+    --color-canvas: color-mix(in srgb, var(--ui-bg-color) 62%, transparent);
+    --color-input-bg: color-mix(in srgb, var(--ui-text-color) 11%, transparent);
+    --color-surface-soft: color-mix(in srgb, var(--ui-text-color) 5%, transparent);
+    --color-surface-card: var(--ui-card-bg);
+    --color-surface-strong: color-mix(in srgb, var(--ui-text-color) 12%, transparent);
+    --color-surface-dark: color-mix(in srgb, var(--ui-bg-color) 92%, var(--ui-text-color) 8%);
+    --color-surface-dark-elevated: color-mix(in srgb, var(--ui-bg-color) 86%, var(--ui-text-color) 14%);
 }
 
+/* html and body stay fully transparent so the window's own alpha shows the
+   desktop; the tint lives on .app. */
+html {
+    background: transparent !important;
+    height: 100%;
+}
 body {
     font-family: var(--ui-font-family), 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: color-mix(in srgb, var(--ui-bg-color) calc((1 - var(--ui-transparency)) * 100%), transparent);
-    background-attachment: fixed;
+    background: transparent !important;
     color: var(--color-body);
     overflow: hidden;
-    height: 100vh;
-}
-html {
-    background: transparent;
+    height: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 .app {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    background: transparent;
-    backdrop-filter: var(--ui-window-blur);
-    -webkit-backdrop-filter: var(--ui-window-blur);
+    /* the single uniform window-transparency layer for the whole app */
+    background: color-mix(in srgb, var(--ui-bg-color) var(--app-opacity), transparent);
 }
 
 /* ── Focus States ────────────────────────────────────────────────── */
@@ -649,45 +672,50 @@ html {
 /* ── Top Bar ─────────────────────────────────────────────────────── */
 .top-bar {
     display: flex; align-items: center; justify-content: space-between;
-    flex-wrap: wrap; gap: 12px;
-    padding: 8px 16px;
-    background: var(--ui-sidebar-bg);
-    backdrop-filter: var(--ui-blur-topbar);
-    -webkit-backdrop-filter: var(--ui-blur-topbar);
+    flex-wrap: nowrap; gap: 8px;
+    padding: 8px 12px;
+    background: var(--ui-sidebar-bg), var(--glass-sheen), var(--glass-frost);
     border-bottom: 1px solid var(--color-hairline);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
     min-height: 52px;
     z-index: 20;
+    flex-shrink: 0;
 }
 .top-title {
     display: flex; align-items: center; gap: 8px;
     font-size: 15px; font-weight: 700; letter-spacing: -0.02em;
     color: var(--color-ink);
+    flex-shrink: 0;
 }
 .top-title span { font-size: 18px; }
-.top-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.top-right { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; flex-shrink: 0; }
 
 .search-group {
     position: relative;
     display: inline-flex;
     align-items: center;
-    width: min(320px, 100%);
+    flex: 1 1 0;
+    min-width: 80px;
+    max-width: 320px;
 }
 .search-input {
     width: 100%; padding: 6px 10px;
     border: 1px solid var(--color-hairline);
     border-radius: 8px;
-    background: rgba(15, 23, 42, 0.6);
+    background: var(--color-input-bg);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
     color: var(--color-ink);
     font-size: 12.5px;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
 }
 .search-input:focus {
     border-color: var(--color-brand-accent);
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
-    background: rgba(15, 23, 42, 0.8);
-    outline: none;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12), 0 0 0 2px color-mix(in srgb, var(--color-brand-accent) 22%, transparent);
+    background: color-mix(in srgb, var(--color-input-bg) 92%, var(--color-brand-accent) 8%);
 }
 .search-results {
     position: absolute;
@@ -695,12 +723,10 @@ html {
     left: 0;
     width: 100%;
     max-height: 300px;
-    background: rgba(15, 23, 42, 0.95);
-    backdrop-filter: var(--ui-blur-dropdown);
-    -webkit-backdrop-filter: var(--ui-blur-dropdown);
+    background: color-mix(in srgb, var(--ui-bg-color) 97%, transparent);
     border: 1px solid var(--color-hairline);
     border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
     overflow: hidden;
     z-index: 50;
 }
@@ -819,41 +845,48 @@ html {
 }
 
 .btn-ghost {
-    background: rgba(255, 255, 255, 0.04);
-    color: #f8fafc;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    color: var(--color-body);
+    border: 1px solid var(--color-hairline);
 }
 .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+    color: var(--color-ink);
+    border-color: color-mix(in srgb, var(--color-ink) 20%, transparent);
 }
 
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 
 .btn-browse {
-    padding: 6px 10px; background: rgba(255, 255, 255, 0.04); color: #f8fafc;
-    border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; cursor: pointer;
-    font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif;
+    padding: 6px 10px;
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    color: var(--color-body);
+    border: 1px solid var(--color-hairline);
+    border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 500; font-family: inherit;
     white-space: nowrap; transition: all 0.2s;
     outline: none;
 }
-.btn-browse:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.15); }
+.btn-browse:hover {
+    background: color-mix(in srgb, var(--color-ink) 10%, transparent);
+    color: var(--color-ink);
+    border-color: color-mix(in srgb, var(--color-ink) 20%, transparent);
+}
 
 /* ── Main area ───────────────────────────────────────────────────── */
-.main { display: flex; flex: 1; overflow: hidden; background: transparent; }
+.main { display: flex; flex: 1; min-height: 0; overflow: hidden; background: transparent; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar {
     width: 220px; min-width: 220px;
-    background: var(--ui-sidebar-bg);
-    backdrop-filter: var(--ui-blur-sidebar);
-    -webkit-backdrop-filter: var(--ui-blur-sidebar);
+    /* user gradient + specular sheen over the frosted-glass tint */
+    background: var(--ui-sidebar-bg), var(--glass-sheen), var(--glass-frost);
     border-right: 1px solid var(--color-hairline);
-    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05), 10px 0 30px rgba(0, 0, 0, 0.15);
+    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05), 10px 0 30px rgba(0, 0, 0, 0.2);
     display: flex; flex-direction: column;
     padding: 12px 8px;
     gap: 4px;
-    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1),
                 opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
                 padding 0.4s cubic-bezier(0.16, 1, 0.3, 1),
                 border-right-color 0.3s;
@@ -864,7 +897,7 @@ html {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 14px; cursor: pointer;
     border-radius: 10px;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--color-body);
     background: transparent;
     border: none;
     transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -876,8 +909,8 @@ html {
     user-select: none;
 }
 .sidebar-item:hover {
-    background: rgba(255, 255, 255, 0.07);
-    color: #ffffff;
+    background: color-mix(in srgb, var(--color-brand-accent) 10%, transparent);
+    color: var(--color-ink);
     transform: translateY(-0.5px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -885,14 +918,16 @@ html {
     transform: scale(0.97);
 }
 .sidebar-item.active {
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.1) 100%);
-    color: #c7d2fe;
+    background: color-mix(in srgb, var(--color-brand-accent) 22%, transparent);
+    color: var(--color-brand-accent);
     font-weight: 600;
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.4), 0 4px 15px rgba(99, 102, 241, 0.2);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-accent) 40%, transparent),
+                0 4px 15px color-mix(in srgb, var(--color-brand-accent) 18%, transparent);
 }
 .sidebar-item.active:hover {
-    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.6), 0 6px 20px rgba(99, 102, 241, 0.3);
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0.15) 100%);
+    background: color-mix(in srgb, var(--color-brand-accent) 28%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-accent) 55%, transparent),
+                0 6px 20px color-mix(in srgb, var(--color-brand-accent) 25%, transparent);
 }
 .sidebar-icon {
     font-size: 14px;
@@ -932,7 +967,7 @@ html {
     font-size: 12.5px;
 }
 .sidebar-section-header {
-    font-size: 11px; font-weight: 700; color: #64748b;
+    font-size: 11px; font-weight: 700; color: var(--color-muted);
     text-transform: uppercase; letter-spacing: 0.08em;
     padding: 12px 10px 4px 10px;
 }
@@ -1011,13 +1046,27 @@ html {
 
 /* ── Content ─────────────────────────────────────────────────────── */
 .content {
-    flex: 1; overflow-y: auto; padding: 20px;
-    display: flex; flex-direction: column; gap: 16px;
-    background: transparent;
+    flex: 1; min-height: 0; overflow-y: auto;
+    /* Use the app background color as base — prevents WebKit2GTK ghosting
+       when switching tabs on transparent windows. A truly transparent
+       content area causes the compositor to keep the previous tab's
+       paint layer visible until the next full repaint. */
+    background: color-mix(in srgb, var(--ui-bg-color) var(--app-opacity), transparent);
+    display: block;
+    padding: 20px;
+    /* Stacking context forces WebKit to composite this layer independently,
+       which fixes both ghosting and scroll tracking. */
+    isolation: isolate;
+    position: relative;
 }
+/* space between top-level children inside any tab */
+.content > * + * { margin-top: 16px; }
 .content::-webkit-scrollbar { width: 6px; }
 .content::-webkit-scrollbar-track { background: transparent; }
-.content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+.content::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-ink) 20%, transparent);
+    border-radius: 3px;
+}
 
 .section-title {
     font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-ink); margin-bottom: 2px;
@@ -1029,23 +1078,24 @@ html {
 
 /* ── Cards ────────────────────────────────────────────────────────── */
 .card {
-    background: var(--color-surface-card);
-    backdrop-filter: var(--ui-blur-card);
-    -webkit-backdrop-filter: var(--ui-blur-card);
+    /* user tint + specular sheen over the frosted-glass tint */
+    background: var(--ui-card-bg), var(--glass-sheen), var(--glass-frost);
     border: 1px solid var(--color-hairline);
     border-radius: 14px; padding: 18px;
     display: flex; flex-direction: column; gap: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .card:hover {
-    background: color-mix(in srgb, var(--color-surface-card) 94%, var(--color-brand-accent) 6%);
-    border-color: var(--color-brand-accent);
-    box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15);
-    transform: translateY(-2px);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--color-brand-accent) 9%, transparent), transparent 55%),
+        var(--ui-card-bg), var(--glass-sheen), var(--glass-frost);
+    border-color: color-mix(in srgb, var(--color-brand-accent) 45%, var(--color-hairline));
+    box-shadow: 0 16px 44px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08);
+    transform: translateY(-1px);
 }
 .card-title {
-    font-size: 11px; font-weight: 700; color: #64748b;
+    font-size: 11px; font-weight: 700; color: var(--color-muted);
     text-transform: uppercase; letter-spacing: 0.08em;
     margin-bottom: 2px;
 }
@@ -1061,27 +1111,95 @@ html {
 
 .form-input, .form-select {
     width: 100%; padding: 6px 10px;
-    background: var(--color-canvas); border: 1px solid var(--color-hairline);
-    border-radius: 4px; color: var(--color-ink); font-size: 12.5px;
-    transition: border-color 0.2s, box-shadow 0.2s; outline: none;
-    font-family: 'Inter', sans-serif;
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-hairline);
+    border-radius: 6px; color: var(--color-ink); font-size: 12.5px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; outline: none;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+/* custom chevron arrow for selects */
+select.form-input, select.form-select {
+    padding-right: 28px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--color-muted) 50%),
+        linear-gradient(135deg, var(--color-muted) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    cursor: pointer;
 }
 .form-input:focus, .form-select:focus, .tag-input-container:focus-within {
     border-color: var(--color-brand-accent);
-    box-shadow: 0 0 0 2px rgba(37,99,235,0.08);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12), 0 0 0 2px color-mix(in srgb, var(--color-brand-accent) 22%, transparent);
+    background: color-mix(in srgb, var(--color-input-bg) 92%, var(--color-brand-accent) 8%);
 }
 .form-input::placeholder { color: var(--color-muted-soft); }
 
+/* ── Range sliders ────────────────────────────────────────────────────
+   The global appearance:none above strips the native slider, so range
+   inputs need an explicit track + thumb or they render invisible. */
+input[type="range"].form-input {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 26px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    cursor: pointer;
+}
+input[type="range"].form-input::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 999px;
+    background:
+        linear-gradient(90deg,
+            color-mix(in srgb, var(--color-brand-accent) 60%, transparent),
+            color-mix(in srgb, var(--color-brand-accent) 26%, transparent)),
+        color-mix(in srgb, var(--color-ink) 16%, transparent);
+}
+input[type="range"].form-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    margin-top: -5px;
+    border-radius: 50%;
+    background: var(--color-brand-accent);
+    border: 2px solid color-mix(in srgb, var(--ui-bg-color) 70%, #ffffff 30%);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="range"].form-input::-webkit-slider-thumb:hover {
+    transform: scale(1.18);
+}
+input[type="range"].form-input:focus { outline: none; box-shadow: none; }
+input[type="range"].form-input:focus::-webkit-slider-thumb {
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45), 0 0 0 4px color-mix(in srgb, var(--color-brand-accent) 25%, transparent);
+}
+
 .form-textarea {
     width: 100%; padding: 6px 10px; min-height: 80px; resize: vertical;
-    background: var(--color-canvas); border: 1px solid var(--color-hairline);
-    border-radius: 4px; color: var(--color-ink); font-size: 12.5px;
+    background: var(--color-input-bg);
+    border: 1px solid var(--color-hairline);
+    border-radius: 6px; color: var(--color-ink); font-size: 12.5px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
     font-family: 'JetBrains Mono', monospace;
     outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
 }
 .form-textarea:focus {
     border-color: var(--color-brand-accent);
-    box-shadow: 0 0 0 2px rgba(37,99,235,0.08);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.12), 0 0 0 2px color-mix(in srgb, var(--color-brand-accent) 22%, transparent);
 }
 .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .form-row > * { flex: 1; min-width: 200px; }
@@ -1181,11 +1299,11 @@ html {
 /* ── Log Panel ────────────────────────────────────────────────────── */
 .log-panel {
     min-height: 160px; display: flex; flex-direction: column;
-    background: var(--color-surface-card);
+    background: var(--glass-sheen), var(--glass-frost);
     border: 1px solid var(--color-hairline);
     border-radius: 14px;
     overflow: hidden;
-    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.05);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .log-panel .log-header {
     display: flex; align-items: center; justify-content: space-between;
@@ -1371,7 +1489,8 @@ html {
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-left: 12px;
+    margin-left: 8px;
+    flex-shrink: 0;
 }
 .menu-item-container {
     position: relative;
@@ -1396,13 +1515,11 @@ html {
     position: absolute;
     top: calc(100% + 4px);
     left: 0;
-    background: color-mix(in srgb, var(--ui-bg-color) 92%, #ffffff 8%);
-    backdrop-filter: var(--ui-blur-card);
-    -webkit-backdrop-filter: var(--ui-blur-card);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: color-mix(in srgb, var(--ui-bg-color) 97%, var(--ui-text-color) 3%);
+    border: 1px solid var(--color-hairline);
     border-radius: 8px;
     min-width: 180px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     z-index: 1000;
     padding: 4px;
     display: flex;
@@ -1442,7 +1559,8 @@ html {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin-left: 12px;
+    margin-left: 8px;
+    flex-shrink: 0;
 }
 .window-control-btn {
     background: transparent;
@@ -1474,14 +1592,30 @@ html {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn main() {
+    // webkit2gtk's GPU compositor mishandles dirty-region clearing on transparent
+    // windows: when a panel changes, stale pixels from the previous frame are not
+    // cleared and "ghost" through (old tab visible behind the new one, glitches that
+    // only clear on hover). Forcing WebKit's CPU paint path repaints the full surface
+    // cleanly and fixes the ghosting. Window-level alpha transparency is unaffected —
+    // it is applied at the window/RGBA layer, independent of the WebKit compositor.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        std::env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+    }
+
     dioxus::LaunchBuilder::new()
         .with_cfg(
-            dioxus::desktop::Config::new().with_window(
-                dioxus::desktop::WindowBuilder::new()
-                    .with_title("Llama-Manager")
-                    .with_transparent(true)
-                    .with_decorations(false),
-            ),
+            dioxus::desktop::Config::new()
+                .with_background_color((0, 0, 0, 0))
+                .with_disable_dma_buf_on_wayland(true)
+                .with_window(
+                    dioxus::desktop::WindowBuilder::new()
+                        .with_title("Llama-Manager")
+                        .with_transparent(true)
+                        .with_decorations(false)
+                        .with_resizable(true)
+                        .with_inner_size(dioxus::desktop::LogicalSize::new(1400.0_f64, 900.0_f64)),
+                ),
         )
         .launch(App);
 }
@@ -1499,7 +1633,8 @@ fn load_default_config() -> ServerConfig {
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("config.json");
     if path.exists() {
-        if let Ok(cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
+        if let Ok(mut cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
+            migrate_preset_to_ui_fields(&mut cfg);
             return cfg;
         }
     }
@@ -1527,62 +1662,150 @@ struct ThemePreset {
     font_family: &'static str,
     transparency: f32,
     blur: bool,
+    blur_intensity: u32,
 }
 
 const THEME_PRESETS: &[ThemePreset] = &[
     ThemePreset {
-        name: "glass_light",
-        label: "Glass Light (iOS White)",
-        background_color: "#f8fafc",
-        text_color: "#0f172a",
-        accent_color: "#0284c7",
-        card_bg: "rgba(15, 23, 42, 0.03)",
-        sidebar_bg: "linear-gradient(135deg, rgba(15, 23, 42, 0.04) 0%, rgba(15, 23, 42, 0.01) 100%)",
-        border_color: "rgba(15, 23, 42, 0.08)",
+        name: "midnight",
+        label: "Midnight Indigo",
+        background_color: "#0f172a",
+        text_color: "#f1f5f9",
+        accent_color: "#6366f1",
+        card_bg: "linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(99,102,241,0) 60%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(15,23,42,0) 100%)",
+        border_color: "rgba(148, 163, 184, 0.18)",
         font_family: "Inter",
-        transparency: 0.45,
+        transparency: 0.14,
         blur: true,
+        blur_intensity: 34,
     },
     ThemePreset {
-        name: "cyberpunk",
-        label: "Cyberpunk Neon (80s)",
-        background_color: "#03001e",
-        text_color: "#39ff14",
-        accent_color: "#ff007f",
-        card_bg: "rgba(255, 0, 127, 0.03)",
-        sidebar_bg: "linear-gradient(180deg, rgba(3, 0, 30, 0.6) 0%, rgba(255, 0, 127, 0.08) 100%)",
-        border_color: "rgba(255, 0, 127, 0.25)",
+        name: "tokyo_night",
+        label: "Tokyo Night",
+        background_color: "#1a1b26",
+        text_color: "#c0caf5",
+        accent_color: "#7aa2f7",
+        card_bg: "linear-gradient(135deg, rgba(122,162,247,0.06) 0%, rgba(122,162,247,0) 60%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(122,162,247,0.08) 0%, rgba(26,27,38,0) 100%)",
+        border_color: "rgba(122, 162, 247, 0.2)",
         font_family: "JetBrains Mono",
-        transparency: 0.35,
+        transparency: 0.18,
         blur: true,
+        blur_intensity: 40,
+    },
+    ThemePreset {
+        name: "nord",
+        label: "Nord Frost",
+        background_color: "#2e3440",
+        text_color: "#eceff4",
+        accent_color: "#88c0d0",
+        card_bg: "linear-gradient(135deg, rgba(136,192,208,0.07) 0%, rgba(136,192,208,0) 60%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(136,192,208,0.08) 0%, rgba(46,52,64,0) 100%)",
+        border_color: "rgba(136, 192, 208, 0.2)",
+        font_family: "Inter",
+        transparency: 0.16,
+        blur: true,
+        blur_intensity: 38,
     },
     ThemePreset {
         name: "emerald",
         label: "Emerald Forest",
-        background_color: "#062f21",
-        text_color: "#a7f3d0",
-        accent_color: "#10b981",
-        card_bg: "rgba(16, 185, 129, 0.04)",
-        sidebar_bg: "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 47, 33, 0.5) 100%)",
-        border_color: "rgba(16, 185, 129, 0.15)",
+        background_color: "#052e23",
+        text_color: "#d1fae5",
+        accent_color: "#34d399",
+        card_bg: "linear-gradient(135deg, rgba(52,211,153,0.07) 0%, rgba(52,211,153,0) 60%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(52,211,153,0.09) 0%, rgba(5,46,35,0) 100%)",
+        border_color: "rgba(52, 211, 153, 0.2)",
         font_family: "Inter",
-        transparency: 0.4,
+        transparency: 0.16,
         blur: true,
+        blur_intensity: 40,
     },
     ThemePreset {
         name: "dracula",
-        label: "Dracula Vampire",
+        label: "Dracula",
         background_color: "#282a36",
         text_color: "#f8f8f2",
         accent_color: "#bd93f9",
-        card_bg: "rgba(255, 255, 255, 0.03)",
-        sidebar_bg: "linear-gradient(135deg, rgba(40, 42, 54, 0.8) 0%, rgba(98, 114, 164, 0.1) 100%)",
-        border_color: "rgba(98, 114, 164, 0.3)",
+        card_bg: "linear-gradient(135deg, rgba(189,147,249,0.07) 0%, rgba(189,147,249,0) 60%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(189,147,249,0.08) 0%, rgba(40,42,54,0) 100%)",
+        border_color: "rgba(189, 147, 249, 0.22)",
         font_family: "JetBrains Mono",
-        transparency: 0.3,
+        transparency: 0.16,
         blur: true,
+        blur_intensity: 38,
+    },
+    ThemePreset {
+        name: "cyberpunk",
+        label: "Cyberpunk Neon",
+        background_color: "#0a0118",
+        text_color: "#f5d0fe",
+        accent_color: "#ff2d95",
+        card_bg: "linear-gradient(135deg, rgba(255,45,149,0.06) 0%, rgba(0,229,255,0.04) 100%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(255,45,149,0.1) 0%, rgba(10,1,24,0) 100%)",
+        border_color: "rgba(255, 45, 149, 0.3)",
+        font_family: "JetBrains Mono",
+        transparency: 0.2,
+        blur: true,
+        blur_intensity: 44,
+    },
+    ThemePreset {
+        name: "glass_light",
+        label: "Glass Light",
+        background_color: "#eef2f7",
+        text_color: "#0f172a",
+        accent_color: "#2563eb",
+        card_bg: "linear-gradient(135deg, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.15) 100%)",
+        sidebar_bg: "linear-gradient(180deg, rgba(255,255,255,0.45) 0%, rgba(238,242,247,0) 100%)",
+        border_color: "rgba(15, 23, 42, 0.12)",
+        font_family: "Inter",
+        transparency: 0.12,
+        blur: true,
+        blur_intensity: 48,
     },
 ];
+
+fn apply_preset_to_config(cfg: &mut ServerConfig, preset: &ThemePreset) {
+    cfg.ui_background_color = preset.background_color.to_string();
+    cfg.ui_text_color = preset.text_color.to_string();
+    cfg.ui_accent_color = preset.accent_color.to_string();
+    cfg.ui_card_bg = preset.card_bg.to_string();
+    cfg.ui_sidebar_bg = preset.sidebar_bg.to_string();
+    cfg.ui_border_color = preset.border_color.to_string();
+    cfg.ui_font_family = preset.font_family.to_string();
+    cfg.ui_transparency = preset.transparency;
+    cfg.ui_blur = preset.blur;
+    cfg.ui_blur_intensity = preset.blur_intensity;
+}
+
+fn apply_custom_to_config(cfg: &mut ServerConfig, custom: &crate::config::CustomTheme) {
+    cfg.ui_background_color = custom.background_color.clone();
+    cfg.ui_text_color = custom.text_color.clone();
+    cfg.ui_accent_color = custom.accent_color.clone();
+    cfg.ui_card_bg = custom.card_bg.clone();
+    cfg.ui_sidebar_bg = custom.sidebar_bg.clone();
+    cfg.ui_border_color = custom.border_color.clone();
+    cfg.ui_font_family = custom.font_family.clone();
+    cfg.ui_transparency = custom.transparency;
+    cfg.ui_blur = custom.blur;
+    cfg.ui_blur_intensity = custom.blur_intensity;
+}
+
+fn migrate_preset_to_ui_fields(cfg: &mut ServerConfig) {
+    let name = cfg.theme_name.clone();
+    if name == "default" || name == "custom" {
+        return;
+    }
+    if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == name) {
+        apply_preset_to_config(cfg, preset);
+    } else {
+        let custom = cfg.custom_themes.iter().find(|t| t.name == name).cloned();
+        if let Some(custom) = custom {
+            apply_custom_to_config(cfg, &custom);
+        }
+    }
+}
 
 #[component]
 fn App() -> Element {
@@ -1608,7 +1831,8 @@ fn App() -> Element {
                 let dir = get_default_config_path();
                 let path = dir.join("config.json");
                 if path.exists() {
-                    if let Ok(disk_cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
+                    if let Ok(mut disk_cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
+                        migrate_preset_to_ui_fields(&mut disk_cfg);
                         let current_cfg = config.read().clone();
                         let current_str = serde_json::to_string(&current_cfg).unwrap_or_default();
                         let disk_str = serde_json::to_string(&disk_cfg).unwrap_or_default();
@@ -2149,7 +2373,7 @@ fn App() -> Element {
 
     let search_matches = search_results.read().clone();
 
-    // Resolve theme-specific variables
+    // Resolve theme-specific variables — always use ui_* working copy
     let (
         bg_color,
         text_color,
@@ -2162,55 +2386,17 @@ fn App() -> Element {
         blur,
     ) = {
         let cfg = config.read();
-        if cfg.theme_name == "default" || cfg.theme_name == "custom" {
-            (
-                cfg.ui_background_color.clone(),
-                cfg.ui_text_color.clone(),
-                cfg.ui_accent_color.clone(),
-                cfg.ui_card_bg.clone(),
-                cfg.ui_sidebar_bg.clone(),
-                cfg.ui_border_color.clone(),
-                cfg.ui_font_family.clone(),
-                cfg.ui_transparency,
-                cfg.ui_blur,
-            )
-        } else if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == cfg.theme_name) {
-            (
-                preset.background_color.to_string(),
-                preset.text_color.to_string(),
-                preset.accent_color.to_string(),
-                preset.card_bg.to_string(),
-                preset.sidebar_bg.to_string(),
-                preset.border_color.to_string(),
-                preset.font_family.to_string(),
-                preset.transparency,
-                preset.blur,
-            )
-        } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == cfg.theme_name) {
-            (
-                custom.background_color.clone(),
-                custom.text_color.clone(),
-                custom.accent_color.clone(),
-                custom.card_bg.clone(),
-                custom.sidebar_bg.clone(),
-                custom.border_color.clone(),
-                custom.font_family.clone(),
-                custom.transparency,
-                custom.blur,
-            )
-        } else {
-            (
-                cfg.ui_background_color.clone(),
-                cfg.ui_text_color.clone(),
-                cfg.ui_accent_color.clone(),
-                cfg.ui_card_bg.clone(),
-                cfg.ui_sidebar_bg.clone(),
-                cfg.ui_border_color.clone(),
-                cfg.ui_font_family.clone(),
-                cfg.ui_transparency,
-                cfg.ui_blur,
-            )
-        }
+        (
+            cfg.ui_background_color.clone(),
+            cfg.ui_text_color.clone(),
+            cfg.ui_accent_color.clone(),
+            cfg.ui_card_bg.clone(),
+            cfg.ui_sidebar_bg.clone(),
+            cfg.ui_border_color.clone(),
+            cfg.ui_font_family.clone(),
+            cfg.ui_transparency,
+            cfg.ui_blur,
+        )
     };
 
     let render_sidebar_item = move |tab: Tab, is_sub: bool| {
@@ -2274,7 +2460,6 @@ fn App() -> Element {
             {format!(
                 r#"
                 :root {{
-                    --ui-transparency: {};
                     --ui-bg-color: {};
                     --ui-text-color: {};
                     --ui-accent-color: {};
@@ -2282,14 +2467,10 @@ fn App() -> Element {
                     --ui-sidebar-bg: {};
                     --ui-border-color: {};
                     --ui-font-family: '{}';
-                    --ui-blur-topbar: {};
-                    --ui-blur-sidebar: {};
-                    --ui-blur-dropdown: {};
-                    --ui-blur-card: {};
-                    --ui-window-blur: {};
+                    --app-opacity: {};
+                    --panel-frost: {};
                 }}
                 "#,
-                transparency,
                 bg_color,
                 text_color,
                 accent_color,
@@ -2297,31 +2478,22 @@ fn App() -> Element {
                 sidebar_bg,
                 border_color,
                 font_family,
+                // Window Transparency → uniform opacity of the whole window.
+                format!("{}%", ((1.0 - transparency) * 100.0).round() as i32),
                 {
+                    // Glass Frost → how much panels are lifted above the transparent base.
                     let intensity = config.read().ui_blur_intensity;
-                    if blur { format!("blur({}px)", intensity) } else { "none".to_string() }
-                },
-                {
-                    let intensity = config.read().ui_blur_intensity;
-                    if blur { format!("blur({}px)", intensity) } else { "none".to_string() }
-                },
-                {
-                    let intensity = config.read().ui_blur_intensity;
-                    if blur { format!("blur({}px)", intensity * 2 / 3) } else { "none".to_string() }
-                },
-                {
-                    let intensity = config.read().ui_blur_intensity;
-                    if blur { format!("blur({}px)", intensity * 4 / 5) } else { "none".to_string() }
-                },
-                {
-                    let intensity = config.read().ui_blur_intensity;
-                    if blur { format!("blur({}px)", intensity * 2 / 5) } else { "none".to_string() }
+                    if blur {
+                        format!("{}%", (4.0 + (intensity as f32 / 64.0) * 9.0).round() as i32)
+                    } else {
+                        "2%".to_string()
+                    }
                 },
             )}
         }
         if show_config_modal() {
             div {
-                style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 5, 8, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000;",
+                style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 5, 8, 0.78); display: flex; align-items: center; justify-content: center; z-index: 1000;",
                 onclick: move |_| show_config_modal.set(false),
                 div {
                     style: "background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 12px; width: 80%; max-width: 650px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15);",
@@ -2811,6 +2983,7 @@ fn App() -> Element {
                 // ── Content area ────────────────────────────────────
                 div {
                     class: "content",
+                    key: "{active_tab().as_str()}",
                     style: if active_tab() == Tab::Chat {
                         if immersive_mode() {
                             "height: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0;"
@@ -7939,14 +8112,23 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
     let title = use_signal(String::new);
     let datetime = use_signal(String::new);
     let prompt = use_signal(String::new);
+    let note = use_signal(String::new);
+    let color_tag = use_signal(|| "#6366f1".to_string());
     let state = use_signal(|| calendar::CalendarState::load());
-    let expanded_event = use_signal(|| None::<String>);
+    let mut expanded_event = use_signal(|| None::<String>);
+    let calendar_view = use_signal(|| "month".to_string()); // "month" | "list"
+
+    // Current calendar month/year
+    let today = chrono::Local::now();
+    let view_year = use_signal(|| today.year());
+    let view_month = use_signal(|| today.month()); // 1-12
 
     let add_event = move |_| {
         let mut state = state;
         let mut title = title;
         let mut datetime = datetime;
         let mut prompt = prompt;
+        let mut note = note;
         let t = title.read().trim().to_string();
         let dt = datetime.read().trim().to_string();
         let p = prompt.read().trim().to_string();
@@ -7954,7 +8136,6 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
             return;
         }
 
-        // Validate and normalize datetime input
         let dt_normalized = match calendar::parse_datetime(&dt) {
             Ok(parsed) => parsed.format("%Y-%m-%dT%H:%M:%S").to_string(),
             Err(e) => {
@@ -7964,11 +8145,15 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
         };
 
         let id = format!("cal-{}", chrono::Local::now().timestamp_millis());
+        let n_val = note.read().trim().to_string();
+        let c_val = color_tag.read().clone();
         let ev = calendar::CalendarEvent {
             id,
             title: t,
             time: dt_normalized,
             prompt: p,
+            note: if n_val.is_empty() { None } else { Some(n_val) },
+            color: Some(c_val),
             status: calendar::EventStatus::Pending,
             result: None,
         };
@@ -7977,6 +8162,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
             title.set(String::new());
             datetime.set(String::new());
             prompt.set(String::new());
+            note.set(String::new());
         }
     };
 
@@ -7997,16 +8183,339 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
         }
     });
 
+    // Helper: days in month
+    let days_in_month = |year: i32, month: u32| -> u32 {
+        chrono::NaiveDate::from_ymd_opt(year, month + 1, 1)
+            .unwrap_or_else(|| chrono::NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap())
+            .pred_opt()
+            .unwrap()
+            .day()
+    };
+
+    let year = view_year();
+    let month = view_month();
+    let days_count = days_in_month(year, month);
+    // weekday of first day (0=Mon … 6=Sun)
+    let first_weekday = chrono::NaiveDate::from_ymd_opt(year, month, 1)
+        .map(|d| d.weekday().num_days_from_monday() as usize)
+        .unwrap_or(0);
+
+    let month_names = ["", "January", "February", "March", "April", "May", "June",
+                       "July", "August", "September", "October", "November", "December"];
+    let month_label = month_names.get(month as usize).copied().unwrap_or("");
+
+    // Events for this month
+    let month_prefix = format!("{}-{:02}", year, month);
+    let month_events: Vec<calendar::CalendarEvent> = state.read().events.iter()
+        .filter(|e| e.time.starts_with(&month_prefix))
+        .cloned()
+        .collect();
+
+    // Get events for a specific day
+    let events_for_day = |day: u32| -> Vec<calendar::CalendarEvent> {
+        let day_str = format!("{}-{:02}-{:02}", year, month, day);
+        month_events.iter().filter(|e| e.time.starts_with(&day_str)).cloned().collect()
+    };
+
     rsx! {
         div { class: "section-title", "Calendar & AI Triggers" }
-        div { class: "section-desc", "Schedule events with prompt triggers that execute autonomously when reached. The AI can also schedule events." }
+        div { class: "section-desc", "Schedule events with prompt triggers that fire autonomously. The AI can also schedule events." }
+
+        // View toggle
+        div {
+            style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;",
+            div {
+                style: "display: flex; border: 1px solid var(--color-hairline); border-radius: 20px; overflow: hidden; background: var(--color-surface-soft); padding: 2px;",
+                button {
+                    class: if calendar_view() == "month" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                    style: "border-radius: 18px;",
+                    onclick: move |_| { let mut cv = calendar_view; cv.set("month".to_string()); },
+                    "\u{1F4C5} Month View"
+                }
+                button {
+                    class: if calendar_view() == "list" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                    style: "border-radius: 18px;",
+                    onclick: move |_| { let mut cv = calendar_view; cv.set("list".to_string()); },
+                    "\u{1F4CB} List View"
+                }
+            }
+            div { style: "font-size: 12.5px; color: var(--color-muted);",
+                "{state.read().events.len()} event(s) total"
+            }
+        }
 
         div {
             style: "display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;",
 
-            // Left column: Schedule form
+            // LEFT: Calendar Grid or List + Schedule Form
             div {
-                style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
+                style: "flex: 3; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
+
+                if calendar_view() == "month" {
+                    // Month Calendar Grid
+                    div { class: "card", style: "padding: 16px;",
+                        // Month navigation header
+                        div {
+                            style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;",
+                            button {
+                                class: "btn btn-ghost btn-sm",
+                                onclick: move |_| {
+                                    let mut view_month = view_month;
+                                    let mut view_year = view_year;
+                                    let m = view_month();
+                                    let y = view_year();
+                                    if m == 1 { view_month.set(12); view_year.set(y - 1); }
+                                    else { view_month.set(m - 1); }
+                                },
+                                "\u{2039} Prev"
+                            }
+                            div {
+                                style: "font-size: 16px; font-weight: 700; color: var(--color-ink);",
+                                "{month_label} {year}"
+                            }
+                            button {
+                                class: "btn btn-ghost btn-sm",
+                                onclick: move |_| {
+                                    let mut view_month = view_month;
+                                    let mut view_year = view_year;
+                                    let m = view_month();
+                                    let y = view_year();
+                                    if m == 12 { view_month.set(1); view_year.set(y + 1); }
+                                    else { view_month.set(m + 1); }
+                                },
+                                "Next \u{203a}"
+                            }
+                        }
+
+                        // Weekday headers
+                        div {
+                            style: "display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 8px;",
+                            for day_name in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] {
+                                div {
+                                    style: "text-align: center; font-size: 11px; font-weight: 700; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 4px;",
+                                    {day_name}
+                                }
+                            }
+                        }
+
+                        // Day cells
+                        div {
+                            style: "display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;",
+
+                            // Empty cells before first day
+                            for _ in 0..first_weekday {
+                                div { style: "min-height: 70px; border-radius: 6px;" }
+                            }
+
+                            // Actual day cells
+                            for day in 1..=days_count {
+                                {
+                                    let day_events = events_for_day(day);
+                                    let is_today = today.day() == day && today.month() == month && today.year() == year;
+                                    rsx! {
+                                        div {
+                                            key: "{day}",
+                                            style: format!("min-height: 70px; border-radius: 6px; padding: 4px; border: 1px solid {}; background: {}; transition: background 0.15s;",
+                                                if is_today { "var(--color-brand-accent)" } else { "var(--color-hairline)" },
+                                                if is_today { "color-mix(in srgb, var(--color-brand-accent) 12%, transparent)" } else { "var(--color-canvas)" }
+                                            ),
+
+                                            div {
+                                                style: format!("font-size: 12px; font-weight: {}; color: {}; margin-bottom: 3px;",
+                                                    if is_today { "800" } else { "500" },
+                                                    if is_today { "var(--color-brand-accent)" } else { "var(--color-ink)" }
+                                                ),
+                                                "{day}"
+                                            }
+
+                                            // Event pills
+                                            div {
+                                                style: "display: flex; flex-direction: column; gap: 2px; overflow: hidden;",
+                                                for ev in day_events.iter().take(3) {
+                                                    div {
+                                                        key: "{ev.id}",
+                                                        title: "{ev.title}",
+                                                        style: format!("font-size: 10px; padding: 2px 5px; border-radius: 3px; color: white; background: {}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;",
+                                                            ev.color.as_deref().unwrap_or("#6366f1")
+                                                        ),
+                                                        onclick: {
+                                                            let id = ev.id.clone();
+                                                            let mut expanded_event = expanded_event;
+                                                            move |_| {
+                                                                if expanded_event.read().as_ref() == Some(&id) {
+                                                                    expanded_event.set(None);
+                                                                } else {
+                                                                    expanded_event.set(Some(id.clone()));
+                                                                }
+                                                            }
+                                                        },
+                                                        "{ev.title}"
+                                                    }
+                                                }
+                                                if day_events.len() > 3 {
+                                                    div { style: "font-size: 9px; color: var(--color-muted); padding-left: 2px;",
+                                                        { format!("+{} more", day_events.len() - 3) }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Expanded event detail
+                    if let Some(ref eid) = *expanded_event.read() {
+                        if let Some(ev) = state.read().events.iter().find(|e| &e.id == eid).cloned() {
+                            div { class: "card", style: format!("border-left: 4px solid {};", ev.color.as_deref().unwrap_or("#6366f1")),
+                                div { style: "display: flex; justify-content: space-between; align-items: flex-start;",
+                                    div {
+                                        div { style: "font-weight: 700; font-size: 15px; color: var(--color-ink);", "{ev.title}" }
+                                        div { style: "font-size: 12px; color: var(--color-muted); margin-top: 2px;", "\u{1F551} {ev.time}" }
+                                        if let Some(ref n) = ev.note {
+                                            div { style: "margin-top: 8px; font-size: 13px; color: var(--color-body); font-style: italic; background: var(--color-surface-soft); padding: 8px; border-radius: 6px;",
+                                                "\u{1F4CC} {n}"
+                                            }
+                                        }
+                                    }
+                                    div { style: "display: flex; gap: 8px;",
+                                        span {
+                                            style: match ev.status {
+                                                calendar::EventStatus::Completed => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Firing => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Failed => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Pending => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                            },
+                                            "{ev.status}"
+                                        }
+                                        button {
+                                            class: "btn btn-ghost btn-sm",
+                                            style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                            onclick: {
+                                                let id = ev.id.clone();
+                                                let delete_event = delete_event.clone();
+                                                move |_| { expanded_event.set(None); delete_event(id.clone()); }
+                                            },
+                                            "Delete"
+                                        }
+                                    }
+                                }
+
+                                div { style: "margin-top: 10px; padding: 8px; background: var(--color-surface-card); border-radius: 6px; font-size: 12.5px;",
+                                    strong { "Prompt: " }
+                                    span { style: "color: var(--color-body);", "{ev.prompt}" }
+                                }
+
+                                if let Some(ref res) = ev.result {
+                                    pre { style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;",
+                                        "{res}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                } else {
+                    // List view of all events
+                    div { class: "card",
+                        div { class: "card-title", "All Scheduled Events" }
+
+                        if state.read().events.is_empty() {
+                            div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 40px;",
+                                "No events scheduled yet."
+                            }
+                        } else {
+                            div { style: "display: flex; flex-direction: column; gap: 12px;",
+                                for ev in state.read().events.iter() {
+                                    div {
+                                        key: "{ev.id}",
+                                        style: format!("border-left: 4px solid {}; border: 1px solid var(--color-hairline); border-left: 4px solid {}; border-radius: 6px; padding: 12px; background: var(--color-canvas);",
+                                            ev.color.as_deref().unwrap_or("#6366f1"),
+                                            ev.color.as_deref().unwrap_or("#6366f1")
+                                        ),
+
+                                        div {
+                                            style: "display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px;",
+                                            div {
+                                                div { style: "font-weight: 600; color: var(--color-ink); font-size: 14px;", "{ev.title}" }
+                                                div { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 2px;",
+                                                    "Trigger: {ev.time}"
+                                                }
+                                                if let Some(ref n) = ev.note {
+                                                    div { style: "font-size: 12px; color: var(--color-body); font-style: italic; margin-top: 4px;",
+                                                        "\u{1F4CC} {n}"
+                                                    }
+                                                }
+                                            }
+                                            div { style: "display: flex; align-items: center; gap: 8px; flex-shrink: 0;",
+                                                span {
+                                                    style: match ev.status {
+                                                        calendar::EventStatus::Completed => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Firing => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Failed => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Pending => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    },
+                                                    "{ev.status}"
+                                                }
+                                                button {
+                                                    class: "btn btn-ghost btn-sm",
+                                                    style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                                    onclick: {
+                                                        let id = ev.id.clone();
+                                                        let delete_event = delete_event.clone();
+                                                        move |_| delete_event(id.clone())
+                                                    },
+                                                    "Delete"
+                                                }
+                                            }
+                                        }
+
+                                        div {
+                                            style: "font-size: 12.5px; background: var(--color-surface-card); border: 1px solid var(--color-hairline); border-radius: 4px; padding: 8px; margin-bottom: 6px; color: var(--color-body); word-break: break-all;",
+                                            strong { "Prompt: " }
+                                            "{ev.prompt}"
+                                        }
+
+                                        if let Some(ref res) = ev.result {
+                                            div {
+                                                style: "margin-top: 10px;",
+                                                button {
+                                                    class: "btn btn-ghost btn-sm",
+                                                    onclick: {
+                                                        let id = ev.id.clone();
+                                                        let expanded_event = expanded_event;
+                                                        move |_| {
+                                                            let mut expanded_event = expanded_event;
+                                                            if expanded_event.read().as_ref() == Some(&id) {
+                                                                expanded_event.set(None);
+                                                            } else {
+                                                                expanded_event.set(Some(id.clone()));
+                                                            }
+                                                        }
+                                                    },
+                                                    if expanded_event.read().as_ref() == Some(&ev.id) { "Hide Output" } else { "Show Output" }
+                                                }
+
+                                                if expanded_event.read().as_ref() == Some(&ev.id) {
+                                                    pre {
+                                                        style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;",
+                                                        "{res}"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // RIGHT: Schedule Form
+            div {
+                style: "flex: 1; min-width: 280px; display: flex; flex-direction: column; gap: 16px;",
                 div { class: "card",
                     div { class: "card-title", "Schedule Trigger Event" }
 
@@ -8014,12 +8523,9 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                         label { class: "form-label", "Event Title" }
                         input {
                             class: "form-input",
-                            placeholder: "e.g., Run daily optimization...",
+                            placeholder: "e.g., Daily optimization...",
                             value: title(),
-                            oninput: move |e| {
-                                let mut title = title;
-                                title.set(e.value());
-                            },
+                            oninput: move |e| { let mut title = title; title.set(e.value()); },
                         }
                     }
 
@@ -8029,122 +8535,63 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                             class: "form-input",
                             placeholder: "e.g., 2026-06-03T23:00:00",
                             value: datetime(),
-                            oninput: move |e| {
-                                let mut datetime = datetime;
-                                datetime.set(e.value());
-                            },
+                            oninput: move |e| { let mut datetime = datetime; datetime.set(e.value()); },
                         }
-                        div { class: "form-hint", "Note: Local time format. The runner checks this time continuously." }
+                        div { class: "form-hint", "Local time. Checked every 5 seconds." }
+                    }
+
+                    div { class: "form-group",
+                        label { class: "form-label", "Event Color" }
+                        div { style: "display: flex; gap: 8px; align-items: center;",
+                            input {
+                                class: "form-input",
+                                r#type: "color",
+                                style: "width: 48px; height: 36px; padding: 2px;",
+                                value: color_tag(),
+                                oninput: move |e| { let mut color_tag = color_tag; color_tag.set(e.value()); },
+                            }
+                            for color in ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#ec4899"] {
+                                div {
+                                    key: "{color}",
+                                    style: format!("width: 24px; height: 24px; border-radius: 50%; background: {}; cursor: pointer; border: 2px solid {}; flex-shrink: 0;",
+                                        color,
+                                        if color_tag() == color { "white" } else { "transparent" }
+                                    ),
+                                    onclick: {
+                                        let c = color.to_string();
+                                        move |_| { let mut color_tag = color_tag; color_tag.set(c.clone()); }
+                                    },
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "form-group",
+                        label { class: "form-label", "Pin / Note (Optional)" }
+                        input {
+                            class: "form-input",
+                            placeholder: "e.g., Remember to check the GPU logs first...",
+                            value: note(),
+                            oninput: move |e| { let mut note = note; note.set(e.value()); },
+                        }
+                        div { class: "form-hint", "Shown as a pin on the calendar day cell." }
                     }
 
                     div { class: "form-group",
                         label { class: "form-label", "Agent Prompt to Fire" }
                         textarea {
                             class: "form-input",
-                            style: "height: 100px; font-family: inherit;",
-                            placeholder: "e.g., Optimize my local server GPU layers and compile a report...",
+                            style: "height: 80px; font-family: inherit;",
+                            placeholder: "e.g., Optimize my local server GPU layers...",
                             value: prompt(),
-                            oninput: move |e| {
-                                let mut prompt = prompt;
-                                prompt.set(e.value());
-                            },
+                            oninput: move |e| { let mut prompt = prompt; prompt.set(e.value()); },
                         }
                     }
 
                     button {
                         class: "btn btn-start",
                         onclick: add_event,
-                        "Schedule Event"
-                    }
-                }
-            }
-
-            // Right column: Event List
-            div {
-                style: "flex: 2; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
-                div { class: "card",
-                    div { class: "card-title", "Scheduled Events" }
-
-                    if state.read().events.is_empty() {
-                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 40px;",
-                            "No events scheduled yet."
-                        }
-                    } else {
-                        div {
-                            style: "display: flex; flex-direction: column; gap: 12px;",
-                            for ev in state.read().events.iter() {
-                                div {
-                                    key: "{ev.id}",
-                                    style: "border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: var(--color-canvas);",
-
-                                    div {
-                                        style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;",
-                                        div {
-                                            div { style: "font-weight: 600; color: var(--color-ink); font-size: 14px;", "{ev.title}" }
-                                            div { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 2px;",
-                                                "Trigger: {ev.time}"
-                                            }
-                                        }
-                                        div { style: "display: flex; align-items: center; gap: 8px;",
-                                            span {
-                                                style: match ev.status {
-                                                    calendar::EventStatus::Completed => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                    calendar::EventStatus::Firing => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                    calendar::EventStatus::Failed => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                    calendar::EventStatus::Pending => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                },
-                                                "{ev.status}"
-                                            }
-                                            button {
-                                                class: "btn btn-ghost btn-sm",
-                                                style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
-                                                onclick: {
-                                                    let id = ev.id.clone();
-                                                    let delete_event = delete_event.clone();
-                                                    move |_| delete_event(id.clone())
-                                                },
-                                                "Delete"
-                                            }
-                                        }
-                                    }
-
-                                    div {
-                                        style: "font-size: 12.5px; background: var(--color-surface-card); border: 1px solid var(--color-hairline); border-radius: 4px; padding: 8px; margin-bottom: 6px; color: var(--color-body); word-break: break-all;",
-                                        strong { "Prompt: " }
-                                        "{ev.prompt}"
-                                    }
-
-                                    if let Some(ref res) = ev.result {
-                                        div {
-                                            style: "margin-top: 10px;",
-                                            button {
-                                                class: "btn btn-ghost btn-sm",
-                                                onclick: {
-                                                    let id = ev.id.clone();
-                                                    let expanded_event = expanded_event;
-                                                    move |_| {
-                                                        let mut expanded_event = expanded_event;
-                                                        if expanded_event.read().as_ref() == Some(&id) {
-                                                            expanded_event.set(None);
-                                                        } else {
-                                                            expanded_event.set(Some(id.clone()));
-                                                        }
-                                                    }
-                                                },
-                                                if expanded_event.read().as_ref() == Some(&ev.id) { "Hide Run Output" } else { "Show Run Output" }
-                                            }
-
-                                            if expanded_event.read().as_ref() == Some(&ev.id) {
-                                                pre {
-                                                    style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;",
-                                                    "{res}"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        "\u{1F4C5} Schedule Event"
                     }
                 }
             }
@@ -8394,458 +8841,614 @@ fn TabTodos() -> Element {
 #[component]
 fn TabQuickNotes() -> Element {
     let scope = use_signal(|| "project".to_string());
-    let content = use_signal(|| notes::load_notes("project", get_default_config_path()));
-    let last_saved = use_signal(|| "Not saved yet during this session".to_string());
+    let mut store = use_signal(|| notes::NotesStore::load("project", get_default_config_path()));
+    let mut active_note_idx = use_signal(|| 0usize);
+    let mut last_saved = use_signal(|| "Not saved yet during this session".to_string());
+    let mut new_note_name = use_signal(String::new);
+    let mut show_rename = use_signal(|| None::<usize>);
+    let mut rename_value = use_signal(String::new);
 
-    let load_scope_notes = move |s: String| {
-        let mut scope = scope;
-        let mut content = content;
-        scope.set(s.clone());
-        content.set(notes::load_notes(&s, get_default_config_path()));
+    let load_scope = move |s: String| {
+        let mut store = store;
+        let mut active_note_idx = active_note_idx;
+        store.set(notes::NotesStore::load(&s, get_default_config_path()));
+        active_note_idx.set(0);
     };
 
-    let save_notes = move |_| {
+    let save_current = move |_| {
         let sc = scope.read().clone();
-        let text = content.read().clone();
-        match notes::save_notes(&sc, &text, get_default_config_path()) {
+        let st = store.read().clone();
+        match st.save(&sc, get_default_config_path()) {
             Ok(_) => {
-                let mut last_saved = last_saved;
                 let now = chrono::Local::now().format("%H:%M:%S").to_string();
-                last_saved.set(format!("Saved successfully at {}", now));
+                last_saved.set(format!("Saved at {}", now));
             }
-            Err(_) => {}
+            Err(e) => {
+                last_saved.set(format!("Error: {}", e));
+            }
         }
     };
 
-    // Auto-refresh notes to see AI edits
+    // Auto-refresh notes every 3s to pick up AI edits
     let _refresh = use_resource(move || {
         let scope = scope;
-        let mut content = content;
+        let mut store = store;
         async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-                let text = notes::load_notes(&scope.read(), get_default_config_path());
-                if *content.read() != text {
-                    content.set(text);
+                let fresh = notes::NotesStore::load(&scope.read(), get_default_config_path());
+                if *store.read() != fresh {
+                    store.set(fresh);
                 }
             }
         }
     });
 
+    let notes_list = store.read().notes.clone();
+    let note_count = notes_list.len();
+    let safe_idx = if active_note_idx() >= note_count && note_count > 0 {
+        note_count - 1
+    } else {
+        active_note_idx()
+    };
+    let current_content = notes_list.get(safe_idx).map(|n| n.content.clone()).unwrap_or_default();
+
     rsx! {
         div { class: "section-title", "Quick Notes" }
-        div { class: "section-desc", "Jot down notes or scratchpad text. The AI can read and update these files to store persistent context." }
+        div { class: "section-desc", "Multiple named notes per scope. The AI can read and edit these files to store persistent context." }
 
-        div { class: "card",
-            div {
-                style: "display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--color-hairline); padding-bottom: 12px;",
-                button {
-                    class: if scope() == "project" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
-                    onclick: {
-                        let load_scope_notes = load_scope_notes.clone();
-                        move |_| load_scope_notes("project".to_string())
-                    },
-                    "Project Notes"
-                }
-                button {
-                    class: if scope() == "global" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
-                    onclick: {
-                        let load_scope_notes = load_scope_notes.clone();
-                        move |_| load_scope_notes("global".to_string())
-                    },
-                    "Global Notes"
-                }
+        // Scope selector
+        div {
+            style: "display: flex; gap: 8px; margin-bottom: 16px;",
+            button {
+                class: if scope() == "project" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                onclick: {
+                    let load_scope = load_scope.clone();
+                    let mut scope = scope;
+                    move |_| { scope.set("project".to_string()); load_scope("project".to_string()); }
+                },
+                "📂 Project Notes"
             }
+            button {
+                class: if scope() == "global" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                onclick: {
+                    let load_scope = load_scope.clone();
+                    let mut scope = scope;
+                    move |_| { scope.set("global".to_string()); load_scope("global".to_string()); }
+                },
+                "🌐 Global Notes"
+            }
+        }
 
-            div { class: "form-group",
-                label { class: "form-label",
-                    "Edit Notes ({scope} scope) - "
-                    span { style: "font-size: 11px; font-weight: normal; color: var(--color-muted);", "File: "
-                        if scope() == "global" { "~/.local/share/llama-manager/global_notes.txt" } else { "./.llama-manager-notes.txt" }
+        div {
+            style: "display: flex; gap: 16px; align-items: flex-start;",
+
+            // Notes sidebar panel
+            div {
+                class: "card",
+                style: "width: 200px; flex-shrink: 0; padding: 12px; display: flex; flex-direction: column; gap: 8px;",
+
+                div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;",
+                    span { class: "card-title", "Notes" }
+                    button {
+                        class: "btn btn-ghost btn-sm",
+                        style: "padding: 2px 8px; font-size: 11px;",
+                        title: "Add a new note",
+                        onclick: move |_| {
+                            let name = if new_note_name.read().trim().is_empty() {
+                                format!("Note {}", store.read().notes.len() + 1)
+                            } else {
+                                new_note_name.read().trim().to_string()
+                            };
+                            let new_idx = store.write().add_note(name);
+                            active_note_idx.set(new_idx);
+                            new_note_name.set(String::new());
+                            let sc = scope.read().clone();
+                            let st = store.read().clone();
+                            let _ = st.save(&sc, get_default_config_path());
+                        },
+                        "➕"
                     }
                 }
-                textarea {
-                    class: "form-textarea",
-                    style: "height: 380px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; padding: 12px; background: var(--color-canvas); width: 100%; border: 1px solid var(--color-hairline); border-radius: 6px;",
-                    placeholder: "Type notes here...",
-                    value: content(),
-                    oninput: move |e| {
-                        let mut content = content;
-                        content.set(e.value());
-                    },
+
+                // New note name input
+                input {
+                    class: "form-input",
+                    style: "font-size: 11.5px; padding: 4px 8px; height: 28px;",
+                    placeholder: "New note name...",
+                    value: new_note_name(),
+                    oninput: move |e| new_note_name.set(e.value()),
+                    onkeydown: move |e| {
+                        if e.key() == Key::Enter {
+                            let name = if new_note_name.read().trim().is_empty() {
+                                format!("Note {}", store.read().notes.len() + 1)
+                            } else {
+                                new_note_name.read().trim().to_string()
+                            };
+                            let new_idx = store.write().add_note(name);
+                            active_note_idx.set(new_idx);
+                            new_note_name.set(String::new());
+                            let sc = scope.read().clone();
+                            let st = store.read().clone();
+                            let _ = st.save(&sc, get_default_config_path());
+                        }
+                    }
+                }
+
+                // List of notes
+                div {
+                    style: "display: flex; flex-direction: column; gap: 4px; overflow-y: auto; max-height: 400px;",
+                    for (idx, note) in notes_list.iter().enumerate() {
+                        div {
+                            key: "{idx}",
+                            style: format!("display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 6px; cursor: pointer; transition: background 0.15s; {}",
+                                if idx == safe_idx { "background: color-mix(in srgb, var(--color-brand-accent) 18%, transparent); color: var(--color-brand-accent); font-weight: 600;" } else { "color: var(--color-body);" }
+                            ),
+                            onclick: {
+                                let mut active_note_idx = active_note_idx;
+                                move |_| active_note_idx.set(idx)
+                            },
+
+                            if show_rename.read().as_ref() == Some(&idx) {
+                                input {
+                                    class: "form-input",
+                                    style: "font-size: 11.5px; padding: 2px 4px; height: 22px; flex: 1;",
+                                    value: rename_value(),
+                                    autofocus: true,
+                                    oninput: move |e| rename_value.set(e.value()),
+                                    onkeydown: move |e| {
+                                        if e.key() == Key::Enter {
+                                            let new_name = rename_value.read().trim().to_string();
+                                            if !new_name.is_empty() {
+                                                store.write().rename_note(idx, new_name);
+                                                let sc = scope.read().clone();
+                                                let st = store.read().clone();
+                                                let _ = st.save(&sc, get_default_config_path());
+                                            }
+                                            show_rename.set(None);
+                                        } else if e.key() == Key::Escape {
+                                            show_rename.set(None);
+                                        }
+                                    },
+                                    onblur: move |_| show_rename.set(None),
+                                }
+                            } else {
+                                span {
+                                    style: "font-size: 12.5px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+                                    ondoubleclick: {
+                                        let note_name = note.name.clone();
+                                        move |_| {
+                                            rename_value.set(note_name.clone());
+                                            show_rename.set(Some(idx));
+                                        }
+                                    },
+                                    "📝 {note.name}"
+                                }
+                            }
+
+                            if note_count > 1 {
+                                button {
+                                    style: "background: none; border: none; cursor: pointer; color: var(--color-muted); font-size: 12px; padding: 0 2px; opacity: 0.6; flex-shrink: 0;",
+                                    title: "Delete this note",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        store.write().delete_note(idx);
+                                        let new_idx = if safe_idx >= store.read().notes.len() { store.read().notes.len().saturating_sub(1) } else { safe_idx };
+                                        active_note_idx.set(new_idx);
+                                        let sc = scope.read().clone();
+                                        let st = store.read().clone();
+                                        let _ = st.save(&sc, get_default_config_path());
+                                    },
+                                    "🗑"
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            div {
-                style: "display: flex; justify-content: space-between; align-items: center;",
-                button {
-                    class: "btn btn-start",
-                    onclick: save_notes,
-                    "Save Notes"
+            // Note editor
+            div { class: "card", style: "flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0;",
+                div { style: "display: flex; justify-content: space-between; align-items: center;",
+                    div { style: "display: flex; flex-direction: column; gap: 2px;",
+                        div { class: "card-title",
+                            {notes_list.get(safe_idx).map(|n| n.name.clone()).unwrap_or_else(|| "Note".into())}
+                        }
+                        div { class: "form-hint",
+                            "File: "
+                            if scope() == "global" { "~/.local/share/llama-manager/global_notes.json" } else { "./.llama-manager-notes.json" }
+                        }
+                    }
+                    div { style: "display: flex; align-items: center; gap: 10px;",
+                        span { style: "font-size: 11px; color: var(--color-muted); font-style: italic;", "{last_saved}" }
+                        button {
+                            class: "btn btn-start",
+                            onclick: save_current,
+                            "💾 Save"
+                        }
+                    }
                 }
-                span { style: "font-size: 12px; color: var(--color-muted); font-style: italic;", "{last_saved}" }
+
+                textarea {
+                    class: "form-textarea",
+                    style: "height: 420px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6; padding: 14px; width: 100%; resize: vertical;",
+                    placeholder: "Start writing here... (double-click note name in the list to rename)",
+                    value: current_content,
+                    oninput: move |e| {
+                        let idx = safe_idx;
+                        if idx < store.read().notes.len() {
+                            store.write().notes[idx].content = e.value();
+                        }
+                    },
+                }
             }
         }
     }
 }
 
-// ── Compare View (Blind Evaluations) ─────────────────────────────────────────
+// ── Compare View (Blind Evaluations + llama-benchy Benchmarking) ──────────────
 
 #[component]
 fn TabCompare(config: Signal<ServerConfig>) -> Element {
+    // ── Blind Evaluation ─────────────────────────────────────────────────────
     let prompt = use_signal(String::new);
     let model_a_url = use_signal(|| "http://127.0.0.1:8080/v1".to_string());
     let model_a_name = use_signal(|| "local-model".to_string());
     let model_b_url = use_signal(|| "http://127.0.0.1:11434/v1".to_string());
     let model_b_name = use_signal(|| "ollama-model".to_string());
-
     let loading = use_signal(|| false);
     let alpha_response = use_signal(String::new);
     let beta_response = use_signal(String::new);
     let error = use_signal(|| None::<String>);
-
     let alpha_is_a = use_signal(|| true);
-    let revealed = use_signal(|| false);
-    let vote_result = use_signal(String::new);
-    let votes_log = use_signal(Vec::<String>::new);
+    let mut revealed = use_signal(|| false);
+    let mut vote_result = use_signal(String::new);
+    let mut votes_log = use_signal(Vec::<String>::new);
 
-    let run_eval = move |_| {
-        let mut loading = loading;
-        let mut revealed = revealed;
-        let mut vote_result = vote_result;
-        let mut alpha_response = alpha_response;
-        let mut beta_response = beta_response;
-        let mut error = error;
-        let mut alpha_is_a = alpha_is_a;
+    // ── llama-benchy Performance Benchmarking ─────────────────────────────────
+    let bench_mode = use_signal(|| "blind".to_string());
+    let bench_url = use_signal(|| "http://127.0.0.1:8080".to_string());
+    let bench_model = use_signal(|| "local-model".to_string());
+    let bench_pp = use_signal(|| "512 1024".to_string());
+    let bench_tg = use_signal(|| "128 256".to_string());
+    let bench_runs = use_signal(|| "3".to_string());
+    let bench_running = use_signal(|| false);
+    let bench_output = use_signal(String::new);
+    let bench_error = use_signal(|| None::<String>);
+    let bench_results = use_signal(Vec::<(String, String, String, String)>::new);
 
-        let pr = prompt.read().clone();
-        if pr.trim().is_empty() {
+    let run_bench = move |_| {
+        let url = bench_url.read().trim().to_string();
+        let model = bench_model.read().trim().to_string();
+        let pp_str = bench_pp.read().trim().to_string();
+        let tg_str = bench_tg.read().trim().to_string();
+        let runs = bench_runs.read().trim().to_string();
+
+        if url.is_empty() || model.is_empty() {
+            let mut bench_error = bench_error;
+            bench_error.set(Some("Please specify a base URL and model name.".to_string()));
             return;
         }
 
-        loading.set(true);
-        revealed.set(false);
-        vote_result.set(String::new());
+        let mut bench_running = bench_running;
+        let mut bench_output = bench_output;
+        let mut bench_error = bench_error;
+        let mut bench_results = bench_results;
+
+        bench_running.set(true);
+        bench_output.set("Running llama-benchy benchmark...\n".to_string());
+        bench_error.set(None);
+        bench_results.set(Vec::new());
+
+        spawn(async move {
+            let mut cmd = tokio::process::Command::new("llama-benchy");
+            cmd.arg("--base-url").arg(&url)
+               .arg("--model").arg(&model)
+               .arg("--runs").arg(&runs);
+            for pp in pp_str.split_whitespace() { cmd.arg("--pp").arg(pp); }
+            for tg in tg_str.split_whitespace() { cmd.arg("--tg").arg(tg); }
+            cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+
+            match cmd.output().await {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+                    let combined = if stderr.is_empty() { stdout.clone() } else { format!("{}\n\nSTDERR:\n{}", stdout, stderr) };
+                    bench_output.set(combined);
+
+                    let mut results = Vec::new();
+                    for line in stdout.lines() {
+                        let l = line.trim();
+                        if l.contains("pp=") && l.contains("tg_speed") {
+                            let extract = |prefix: &str| -> String {
+                                l.split_whitespace().find(|s| s.starts_with(prefix))
+                                    .map(|s| s.trim_start_matches(prefix).to_string())
+                                    .unwrap_or_else(|| "?".to_string())
+                            };
+                            results.push((extract("pp="), extract("tg="), extract("pp_speed="), extract("tg_speed=")));
+                        }
+                    }
+                    bench_results.set(results);
+                    if !output.status.success() {
+                        bench_error.set(Some("llama-benchy exited with non-zero status.".to_string()));
+                    }
+                }
+                Err(e) => {
+                    let msg = if e.kind() == std::io::ErrorKind::NotFound {
+                        "llama-benchy not found. Install with: pip install llama-benchy".to_string()
+                    } else {
+                        format!("Failed to run llama-benchy: {}", e)
+                    };
+                    bench_error.set(Some(msg.clone()));
+                    bench_output.set(msg);
+                }
+            }
+            bench_running.set(false);
+        });
+    };
+
+    let run_eval = move |_| {
+        let mut loading = loading; let mut revealed = revealed; let mut vote_result = vote_result;
+        let mut alpha_response = alpha_response; let mut beta_response = beta_response; let mut error = error;
+        let mut alpha_is_a = alpha_is_a;
+        let pr = prompt.read().clone();
+        if pr.trim().is_empty() { return; }
+        loading.set(true); revealed.set(false); vote_result.set(String::new());
         alpha_response.set("Generating response...".to_string());
         beta_response.set("Generating response...".to_string());
         error.set(None);
-
         let is_a = chrono::Local::now().timestamp_nanos_opt().unwrap_or(0) % 2 == 0;
         alpha_is_a.set(is_a);
-
-        let url_a = model_a_url.read().clone();
-        let name_a = model_a_name.read().clone();
-        let url_b = model_b_url.read().clone();
-        let name_b = model_b_name.read().clone();
-
+        let url_a = model_a_url.read().clone(); let name_a = model_a_name.read().clone();
+        let url_b = model_b_url.read().clone(); let name_b = model_b_name.read().clone();
         spawn(async move {
-            let (url_alpha, name_alpha, url_beta, name_beta) = if is_a {
-                (url_a, name_a, url_b, name_b)
-            } else {
-                (url_b, name_b, url_a, name_a)
-            };
-
+            let (url_alpha, name_alpha, url_beta, name_beta) = if is_a { (url_a, name_a, url_b, name_b) } else { (url_b, name_b, url_a, name_a) };
             let client = reqwest::Client::new();
-
             let alpha_res = async {
                 let url = format!("{}/chat/completions", url_alpha.trim_end_matches('/'));
-                let payload = serde_json::json!({
-                    "model": name_alpha,
-                    "messages": [{"role": "user", "content": pr.clone()}],
-                    "temperature": 0.7,
-                });
-                let res = client.post(&url).json(&payload).send().await;
-                match res {
-                    Ok(r) => {
-                        if r.status().is_success() {
-                            if let Ok(json) = r.json::<serde_json::Value>().await {
-                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str()
-                                {
-                                    return Ok(txt.to_string());
-                                }
-                            }
-                            Err("Failed to parse chat response".to_string())
-                        } else {
-                            Err(format!("Status code: {}", r.status()))
-                        }
-                    }
+                let payload = serde_json::json!({"model": name_alpha, "messages": [{"role": "user", "content": pr.clone()}], "temperature": 0.7});
+                match client.post(&url).json(&payload).send().await {
+                    Ok(r) if r.status().is_success() => { if let Ok(json) = r.json::<serde_json::Value>().await { if let Some(txt) = json["choices"][0]["message"]["content"].as_str() { return Ok(txt.to_string()); } } Err("Failed to parse".to_string()) }
+                    Ok(r) => Err(format!("Status: {}", r.status())),
                     Err(e) => Err(format!("Request failed: {}", e)),
                 }
             };
-
             let beta_res = async {
                 let url = format!("{}/chat/completions", url_beta.trim_end_matches('/'));
-                let payload = serde_json::json!({
-                    "model": name_beta,
-                    "messages": [{"role": "user", "content": pr.clone()}],
-                    "temperature": 0.7,
-                });
-                let res = client.post(&url).json(&payload).send().await;
-                match res {
-                    Ok(r) => {
-                        if r.status().is_success() {
-                            if let Ok(json) = r.json::<serde_json::Value>().await {
-                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str()
-                                {
-                                    return Ok(txt.to_string());
-                                }
-                            }
-                            Err("Failed to parse chat response".to_string())
-                        } else {
-                            Err(format!("Status code: {}", r.status()))
-                        }
-                    }
+                let payload = serde_json::json!({"model": name_beta, "messages": [{"role": "user", "content": pr.clone()}], "temperature": 0.7});
+                match client.post(&url).json(&payload).send().await {
+                    Ok(r) if r.status().is_success() => { if let Ok(json) = r.json::<serde_json::Value>().await { if let Some(txt) = json["choices"][0]["message"]["content"].as_str() { return Ok(txt.to_string()); } } Err("Failed to parse".to_string()) }
+                    Ok(r) => Err(format!("Status: {}", r.status())),
                     Err(e) => Err(format!("Request failed: {}", e)),
                 }
             };
-
             let (a_text, b_text) = tokio::join!(alpha_res, beta_res);
-
-            match a_text {
-                Ok(txt) => {
-                    let mut alpha_response = alpha_response;
-                    alpha_response.set(txt);
-                }
-                Err(e) => {
-                    let mut alpha_response = alpha_response;
-                    let mut error = error;
-                    alpha_response.set(format!("Error: {}", e));
-                    error.set(Some(format!("Alpha Model Error: {}", e)));
-                }
-            }
-
-            match b_text {
-                Ok(txt) => {
-                    let mut beta_response = beta_response;
-                    beta_response.set(txt);
-                }
-                Err(e) => {
-                    let mut beta_response = beta_response;
-                    let mut error = error;
-                    beta_response.set(format!("Error: {}", e));
-                    error.set(Some(format!("Beta Model Error: {}", e)));
-                }
-            }
-
-            let mut loading = loading;
+            match a_text { Ok(txt) => { alpha_response.set(txt); } Err(e) => { alpha_response.set(format!("Error: {}", e)); error.set(Some(format!("Alpha Error: {}", e))); } }
+            match b_text { Ok(txt) => { beta_response.set(txt); } Err(e) => { beta_response.set(format!("Error: {}", e)); error.set(Some(format!("Beta Error: {}", e))); } }
             loading.set(false);
         });
     };
 
     let cast_vote = move |voted_alpha: bool| {
-        let mut vote_result = vote_result;
-        let mut votes_log = votes_log;
-        let mut revealed = revealed;
-
-        let is_a = alpha_is_a.read().clone();
-        let name_a = model_a_name.read().clone();
-        let name_b = model_b_name.read().clone();
-
-        let winning_model = if voted_alpha {
-            if is_a { name_a.clone() } else { name_b.clone() }
-        } else {
-            if is_a { name_b.clone() } else { name_a.clone() }
-        };
-
-        let losing_model = if voted_alpha {
-            if is_a { name_b } else { name_a }
-        } else {
-            if is_a { name_a } else { name_b }
-        };
-
-        let choice_text = if voted_alpha {
-            "Model Alpha"
-        } else {
-            "Model Beta"
-        };
-        vote_result.set(format!(
-            "You voted for {}! True identity: {} (Winner) vs {} (Loser)",
-            choice_text, winning_model, losing_model
-        ));
-
-        let log_msg = format!(
-            "Winner: {} | Loser: {} | Selected: {}",
-            winning_model, losing_model, choice_text
-        );
-        votes_log.write().push(log_msg);
+        let is_a = *alpha_is_a.read();
+        let name_a = model_a_name.read().clone(); let name_b = model_b_name.read().clone();
+        let winning_model = if voted_alpha { if is_a { name_a.clone() } else { name_b.clone() } } else { if is_a { name_b.clone() } else { name_a.clone() } };
+        let losing_model = if voted_alpha { if is_a { name_b } else { name_a } } else { if is_a { name_a } else { name_b } };
+        let choice_text = if voted_alpha { "Alpha" } else { "Beta" };
+        vote_result.set(format!("Voted {}! Winner: {} | Loser: {}", choice_text, winning_model, losing_model));
+        votes_log.write().push(format!("Winner: {} | Loser: {} | Voted: {}", winning_model, losing_model, choice_text));
         revealed.set(true);
     };
 
     rsx! {
-        div { class: "section-title", "Blind Model Evaluation & Comparison" }
-        div { class: "section-desc", "Evaluate model quality blindly, side-by-side. Removes naming and brand bias so you can judge raw inference capabilities." }
+        div { class: "section-title", "Model Comparison & Benchmarking" }
+        div { class: "section-desc", "Blind quality evaluation and quantitative performance benchmarking via llama-benchy." }
 
-        div { class: "card",
-            style: "margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;",
-            div { class: "card-title", "Blind Evaluation Setup" }
-
-            div {
-                style: "display: flex; gap: 16px; flex-wrap: wrap;",
-
-                // Model A Config
-                div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
-                    div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model A Config" }
-                    div { class: "form-group", style: "margin: 0;",
-                        label { class: "form-label", "Base API URL" }
-                        input {
-                            class: "form-input",
-                            value: model_a_url(),
-                            oninput: move |e| {
-                                let mut model_a_url = model_a_url;
-                                model_a_url.set(e.value());
-                            }
-                        }
-                    }
-                    div { class: "form-group", style: "margin: 0;",
-                        label { class: "form-label", "Model Identifier" }
-                        input {
-                            class: "form-input",
-                            value: model_a_name(),
-                            oninput: move |e| {
-                                let mut model_a_name = model_a_name;
-                                model_a_name.set(e.value());
-                            }
-                        }
-                    }
-                }
-
-                // Model B Config
-                div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
-                    div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model B Config" }
-                    div { class: "form-group", style: "margin: 0;",
-                        label { class: "form-label", "Base API URL" }
-                        input {
-                            class: "form-input",
-                            value: model_b_url(),
-                            oninput: move |e| {
-                                let mut model_b_url = model_b_url;
-                                model_b_url.set(e.value());
-                            }
-                        }
-                    }
-                    div { class: "form-group", style: "margin: 0;",
-                        label { class: "form-label", "Model Identifier" }
-                        input {
-                            class: "form-input",
-                            value: model_b_name(),
-                            oninput: move |e| {
-                                let mut model_b_name = model_b_name;
-                                model_b_name.set(e.value());
-                            }
-                        }
-                    }
-                }
-            }
-
-            div { class: "form-group",
-                label { class: "form-label", "Evaluation Prompt" }
-                textarea {
-                    class: "form-textarea",
-                    style: "height: 80px;",
-                    placeholder: "e.g., Write a rust function that parses JSON without external crates and explain it...",
-                    value: prompt(),
-                    oninput: move |e| {
-                        let mut prompt = prompt;
-                        prompt.set(e.value());
-                    },
-                }
-            }
-
+        div {
+            style: "display: flex; border: 1px solid var(--color-hairline); border-radius: 20px; overflow: hidden; background: var(--color-surface-soft); padding: 2px; width: fit-content; margin-bottom: 20px;",
             button {
-                class: "btn btn-start",
-                onclick: run_eval,
-                disabled: loading(),
-                if loading() { "Evaluating..." } else { "Run Blind Evaluation" }
+                class: if bench_mode() == "blind" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                style: "border-radius: 18px;",
+                onclick: move |_| { let mut bench_mode = bench_mode; bench_mode.set("blind".to_string()); },
+                "\u{1F3AF} Blind Evaluation"
+            }
+            button {
+                class: if bench_mode() == "bench" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                style: "border-radius: 18px;",
+                onclick: move |_| { let mut bench_mode = bench_mode; bench_mode.set("bench".to_string()); },
+                "\u{26A1} llama-benchy"
             }
         }
 
-        if !alpha_response.read().is_empty() || !beta_response.read().is_empty() {
-            div {
-                style: "display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;",
+        if bench_mode() == "bench" {
+            div { class: "card", style: "margin-bottom: 20px;",
+                div { class: "card-title", "\u{26A1} llama-benchy Performance Benchmark" }
+                div { class: "form-hint", style: "margin-bottom: 16px;",
+                    "Measures Prompt Processing (PP) and Token Generation (TG) throughput. Install: "
+                    code { style: "background: var(--color-surface-soft); padding: 2px 6px; border-radius: 3px;", "pip install llama-benchy" }
+                }
 
-                // Alpha response
-                div { style: "flex: 1; min-width: 300px;",
-                    div { class: "card",
-                        style: "height: 100%; border-top: 4px solid var(--color-brand-accent);",
-                        div { class: "card-title", "Model Alpha" }
-                        pre {
-                            style: "white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--color-body); line-height: 1.5; height: 350px; overflow-y: auto;",
-                            "{alpha_response}"
+                div { style: "display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;",
+                    div { style: "flex: 2; min-width: 220px; display: flex; flex-direction: column; gap: 10px;",
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Server Base URL" }
+                            input { class: "form-input", placeholder: "http://127.0.0.1:8080", value: bench_url(),
+                                oninput: move |e| { let mut bench_url = bench_url; bench_url.set(e.value()); }
+                            }
+                        }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Model Identifier" }
+                            input { class: "form-input", placeholder: "e.g., local-model", value: bench_model(),
+                                oninput: move |e| { let mut bench_model = bench_model; bench_model.set(e.value()); }
+                            }
+                        }
+                    }
+                    div { style: "flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 10px;",
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "PP sizes (space-sep)" }
+                            input { class: "form-input", placeholder: "512 1024 2048", value: bench_pp(),
+                                oninput: move |e| { let mut bench_pp = bench_pp; bench_pp.set(e.value()); }
+                            }
+                        }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "TG sizes (space-sep)" }
+                            input { class: "form-input", placeholder: "128 256", value: bench_tg(),
+                                oninput: move |e| { let mut bench_tg = bench_tg; bench_tg.set(e.value()); }
+                            }
+                        }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Runs per test" }
+                            input { class: "form-input", placeholder: "3", value: bench_runs(),
+                                oninput: move |e| { let mut bench_runs = bench_runs; bench_runs.set(e.value()); }
+                            }
                         }
                     }
                 }
 
-                // Beta response
-                div { style: "flex: 1; min-width: 300px;",
-                    div { class: "card",
-                        style: "height: 100%; border-top: 4px solid var(--color-brand-accent);",
-                        div { class: "card-title", "Model Beta" }
-                        pre {
-                            style: "white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--color-body); line-height: 1.5; height: 350px; overflow-y: auto;",
-                            "{beta_response}"
+                button {
+                    class: "btn btn-start",
+                    disabled: bench_running(),
+                    onclick: run_bench,
+                    if bench_running() { "\u{23F3} Running..." } else { "\u{26A1} Run Benchmark" }
+                }
+
+                if let Some(ref err) = *bench_error.read() {
+                    div { class: "error-toast", style: "margin-top: 12px;", "{err}" }
+                }
+            }
+
+            if !bench_results.read().is_empty() {
+                div { class: "card", style: "margin-bottom: 20px;",
+                    div { class: "card-title", "\u{1F4CA} Results" }
+                    div { style: "overflow-x: auto;",
+                        table { style: "width: 100%; border-collapse: collapse; font-size: 13px;",
+                            thead {
+                                tr { style: "border-bottom: 2px solid var(--color-hairline);",
+                                    th { style: "padding: 8px 12px; font-weight: 600; color: var(--color-muted); text-align: left;", "PP" }
+                                    th { style: "padding: 8px 12px; font-weight: 600; color: var(--color-muted); text-align: left;", "TG" }
+                                    th { style: "padding: 8px 12px; font-weight: 600; color: var(--color-muted); text-align: left;", "PP Speed" }
+                                    th { style: "padding: 8px 12px; font-weight: 600; color: var(--color-muted); text-align: left;", "TG Speed" }
+                                }
+                            }
+                            tbody {
+                                for (pp, tg, pp_spd, tg_spd) in bench_results.read().iter() {
+                                    tr { style: "border-bottom: 1px solid var(--color-hairline);",
+                                        td { style: "padding: 8px 12px; font-weight: 500;", "{pp}" }
+                                        td { style: "padding: 8px 12px; font-weight: 500;", "{tg}" }
+                                        td { style: "padding: 8px 12px;",
+                                            span { style: "background: color-mix(in srgb, var(--color-success) 15%, transparent); color: var(--color-success); padding: 2px 8px; border-radius: 4px; font-weight: 600;", "{pp_spd}" }
+                                        }
+                                        td { style: "padding: 8px 12px;",
+                                            span { style: "background: color-mix(in srgb, var(--color-brand-accent) 15%, transparent); color: var(--color-brand-accent); padding: 2px 8px; border-radius: 4px; font-weight: 600;", "{tg_spd}" }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if !loading() && (!alpha_response.read().is_empty() || !beta_response.read().is_empty()) {
-            div { class: "card",
-                style: "text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;",
-                div { class: "card-title", "Submit Your Blind Vote" }
-
-                div { style: "display: flex; gap: 12px; margin-top: 6px;",
-                    button {
-                        class: "btn btn-start",
-                        onclick: {
-                            let cast_vote = cast_vote.clone();
-                            move |_| cast_vote(true)
-                        },
-                        "Vote Model Alpha Better"
-                    }
-                    button {
-                        class: "btn btn-start",
-                        onclick: {
-                            let cast_vote = cast_vote.clone();
-                            move |_| cast_vote(false)
-                        },
-                        "Vote Model Beta Better"
-                    }
-                    button {
-                        class: "btn btn-ghost",
-                        onclick: {
-                            let mut revealed = revealed;
-                            move |_| revealed.set(true)
-                        },
-                        "Reveal True Identities Only"
-                    }
-                }
-
-                if revealed() {
-                    div {
-                        style: "margin-top: 12px; font-weight: 600; font-size: 14.5px; color: var(--color-brand-accent); background: var(--color-surface-soft); padding: 10px 20px; border-radius: 6px; border: 1px solid var(--color-hairline);",
-                        "True Identities: Model Alpha is "
-                        strong { if alpha_is_a() { "{model_a_name()}" } else { "{model_b_name()}" } }
-                        " | Model Beta is "
-                        strong { if alpha_is_a() { "{model_b_name()}" } else { "{model_a_name()}" } }
-                    }
-                }
-
-                if !vote_result.read().is_empty() {
-                    div { style: "font-size: 13px; color: var(--color-success); font-weight: 500;",
-                        "{vote_result}"
+            if !bench_output.read().is_empty() {
+                div { class: "card",
+                    div { class: "card-title", "Raw Output" }
+                    pre { style: "white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e2e8f0; background: #1e293b; padding: 14px; border-radius: 6px; max-height: 340px; overflow-y: auto;",
+                        "{bench_output}"
                     }
                 }
             }
-        }
+        } else {
+            div { class: "card", style: "margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;",
+                div { class: "card-title", "Blind Evaluation Setup" }
 
-        if !votes_log.read().is_empty() {
-            div { class: "card",
-                style: "margin-top: 20px;",
-                div { class: "card-title", "Evaluation History" }
-                ul { style: "list-style-type: decimal; margin-left: 20px;",
-                    for log in votes_log.read().iter() {
-                        li { style: "font-size: 12.5px; color: var(--color-body); margin-bottom: 4px;", "{log}" }
+                div { style: "display: flex; gap: 16px; flex-wrap: wrap;",
+                    div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
+                        div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model A" }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Base API URL" }
+                            input { class: "form-input", value: model_a_url(), oninput: move |e| { let mut model_a_url = model_a_url; model_a_url.set(e.value()); } }
+                        }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Model Identifier" }
+                            input { class: "form-input", value: model_a_name(), oninput: move |e| { let mut model_a_name = model_a_name; model_a_name.set(e.value()); } }
+                        }
+                    }
+                    div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
+                        div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model B" }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Base API URL" }
+                            input { class: "form-input", value: model_b_url(), oninput: move |e| { let mut model_b_url = model_b_url; model_b_url.set(e.value()); } }
+                        }
+                        div { class: "form-group", style: "margin: 0;",
+                            label { class: "form-label", "Model Identifier" }
+                            input { class: "form-input", value: model_b_name(), oninput: move |e| { let mut model_b_name = model_b_name; model_b_name.set(e.value()); } }
+                        }
+                    }
+                }
+
+                div { class: "form-group",
+                    label { class: "form-label", "Evaluation Prompt" }
+                    textarea { class: "form-textarea", style: "height: 80px;",
+                        placeholder: "e.g., Write a rust function that parses JSON without external crates...",
+                        value: prompt(),
+                        oninput: move |e| { let mut prompt = prompt; prompt.set(e.value()); }
+                    }
+                }
+
+                if let Some(ref err) = *error.read() { div { class: "error-toast", "{err}" } }
+
+                button {
+                    class: "btn btn-start",
+                    onclick: run_eval,
+                    disabled: loading(),
+                    if loading() { "Evaluating..." } else { "\u{1F3AF} Run Blind Evaluation" }
+                }
+            }
+
+            if !alpha_response.read().is_empty() || !beta_response.read().is_empty() {
+                div { style: "display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;",
+                    div { style: "flex: 1; min-width: 300px;",
+                        div { class: "card", style: "height: 100%; border-top: 4px solid var(--color-brand-accent);",
+                            div { class: "card-title", "Model Alpha" }
+                            pre { style: "white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--color-body); line-height: 1.5; height: 350px; overflow-y: auto;", "{alpha_response}" }
+                        }
+                    }
+                    div { style: "flex: 1; min-width: 300px;",
+                        div { class: "card", style: "height: 100%; border-top: 4px solid var(--color-brand-accent);",
+                            div { class: "card-title", "Model Beta" }
+                            pre { style: "white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--color-body); line-height: 1.5; height: 350px; overflow-y: auto;", "{beta_response}" }
+                        }
+                    }
+                }
+            }
+
+            if !loading() && (!alpha_response.read().is_empty() || !beta_response.read().is_empty()) {
+                div { class: "card", style: "text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;",
+                    div { class: "card-title", "Submit Your Vote" }
+                    div { style: "display: flex; gap: 12px; margin-top: 6px;",
+                        button { class: "btn btn-start", onclick: { let mut cast_vote = cast_vote.clone(); move |_| cast_vote(true) }, "Alpha is Better" }
+                        button { class: "btn btn-start", onclick: { let mut cast_vote = cast_vote.clone(); move |_| cast_vote(false) }, "Beta is Better" }
+                        button { class: "btn btn-ghost", onclick: { let mut revealed = revealed; move |_| revealed.set(true) }, "Reveal Identities" }
+                    }
+                    if revealed() {
+                        div { style: "margin-top: 12px; font-weight: 600; color: var(--color-brand-accent); background: var(--color-surface-soft); padding: 10px 20px; border-radius: 6px; border: 1px solid var(--color-hairline);",
+                            "Alpha = " strong { if alpha_is_a() { "{model_a_name()}" } else { "{model_b_name()}" } }
+                            " | Beta = " strong { if alpha_is_a() { "{model_b_name()}" } else { "{model_a_name()}" } }
+                        }
+                    }
+                    if !vote_result.read().is_empty() {
+                        div { style: "font-size: 13px; color: var(--color-success); font-weight: 500;", "{vote_result}" }
+                    }
+                }
+            }
+
+            if !votes_log.read().is_empty() {
+                div { class: "card", style: "margin-top: 20px;",
+                    div { class: "card-title", "Evaluation History" }
+                    ul { style: "list-style-type: decimal; margin-left: 20px;",
+                        for log in votes_log.read().iter() {
+                            li { style: "font-size: 12.5px; color: var(--color-body); margin-bottom: 4px;", "{log}" }
+                        }
                     }
                 }
             }
@@ -9613,96 +10216,58 @@ fn TabAppSettings(
         });
     };
 
-    // Helper to get active styling values
+    // Always reads directly from ui_* working copy
     let get_resolved_values = |cfg: &ServerConfig| {
-        if cfg.theme_name == "default" || cfg.theme_name == "custom" {
-            (
-                cfg.ui_background_color.clone(),
-                cfg.ui_text_color.clone(),
-                cfg.ui_accent_color.clone(),
-                cfg.ui_card_bg.clone(),
-                cfg.ui_sidebar_bg.clone(),
-                cfg.ui_border_color.clone(),
-                cfg.ui_font_family.clone(),
-                cfg.ui_transparency,
-                cfg.ui_blur,
-                cfg.ui_blur_intensity,
-            )
-        } else if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == cfg.theme_name) {
-            (
-                preset.background_color.to_string(),
-                preset.text_color.to_string(),
-                preset.accent_color.to_string(),
-                preset.card_bg.to_string(),
-                preset.sidebar_bg.to_string(),
-                preset.border_color.to_string(),
-                preset.font_family.to_string(),
-                preset.transparency,
-                preset.blur,
-                cfg.ui_blur_intensity,
-            )
-        } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == cfg.theme_name) {
-            (
-                custom.background_color.clone(),
-                custom.text_color.clone(),
-                custom.accent_color.clone(),
-                custom.card_bg.clone(),
-                custom.sidebar_bg.clone(),
-                custom.border_color.clone(),
-                custom.font_family.clone(),
-                custom.transparency,
-                custom.blur,
-                custom.blur_intensity,
-            )
-        } else {
-            (
-                cfg.ui_background_color.clone(),
-                cfg.ui_text_color.clone(),
-                cfg.ui_accent_color.clone(),
-                cfg.ui_card_bg.clone(),
-                cfg.ui_sidebar_bg.clone(),
-                cfg.ui_border_color.clone(),
-                cfg.ui_font_family.clone(),
-                cfg.ui_transparency,
-                cfg.ui_blur,
-                cfg.ui_blur_intensity,
-            )
-        }
+        (
+            cfg.ui_background_color.clone(),
+            cfg.ui_text_color.clone(),
+            cfg.ui_accent_color.clone(),
+            cfg.ui_card_bg.clone(),
+            cfg.ui_sidebar_bg.clone(),
+            cfg.ui_border_color.clone(),
+            cfg.ui_font_family.clone(),
+            cfg.ui_transparency,
+            cfg.ui_blur,
+            cfg.ui_blur_intensity,
+        )
     };
 
-    // Helper to copy selected preset/custom-theme values into custom overrides before making modifications
-    let prepare_custom_overrides = |cfg: &mut ServerConfig| {
-        let theme = cfg.theme_name.clone();
-        if theme != "default" && theme != "custom" {
-            if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == theme) {
-                cfg.ui_background_color = preset.background_color.to_string();
-                cfg.ui_text_color = preset.text_color.to_string();
-                cfg.ui_accent_color = preset.accent_color.to_string();
-                cfg.ui_card_bg = preset.card_bg.to_string();
-                cfg.ui_sidebar_bg = preset.sidebar_bg.to_string();
-                cfg.ui_border_color = preset.border_color.to_string();
-                cfg.ui_font_family = preset.font_family.to_string();
-                cfg.ui_transparency = preset.transparency;
-                cfg.ui_blur = preset.blur;
-            } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == theme) {
-                cfg.ui_background_color = custom.background_color.clone();
-                cfg.ui_text_color = custom.text_color.clone();
-                cfg.ui_accent_color = custom.accent_color.clone();
-                cfg.ui_card_bg = custom.card_bg.clone();
-                cfg.ui_sidebar_bg = custom.sidebar_bg.clone();
-                cfg.ui_border_color = custom.border_color.clone();
-                cfg.ui_font_family = custom.font_family.clone();
-                cfg.ui_transparency = custom.transparency;
-                cfg.ui_blur = custom.blur;
-                cfg.ui_blur_intensity = custom.blur_intensity;
-            }
-            cfg.theme_name = "custom".to_string();
+    // Check if current ui_* values differ from the named theme (unsaved edits indicator)
+    let theme_is_modified = {
+        let cfg = config.read();
+        let name = cfg.theme_name.clone();
+        if name == "default" || name == "custom" {
+            false
+        } else if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == name) {
+            cfg.ui_background_color != preset.background_color
+                || cfg.ui_text_color != preset.text_color
+                || cfg.ui_accent_color != preset.accent_color
+                || cfg.ui_card_bg != preset.card_bg
+                || cfg.ui_sidebar_bg != preset.sidebar_bg
+                || cfg.ui_border_color != preset.border_color
+                || cfg.ui_font_family != preset.font_family
+                || (cfg.ui_transparency - preset.transparency).abs() > 0.001
+                || cfg.ui_blur != preset.blur
+                || cfg.ui_blur_intensity != preset.blur_intensity
+        } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == name) {
+            cfg.ui_background_color != custom.background_color
+                || cfg.ui_text_color != custom.text_color
+                || cfg.ui_accent_color != custom.accent_color
+                || cfg.ui_card_bg != custom.card_bg
+                || cfg.ui_sidebar_bg != custom.sidebar_bg
+                || cfg.ui_border_color != custom.border_color
+                || cfg.ui_font_family != custom.font_family
+                || (cfg.ui_transparency - custom.transparency).abs() > 0.001
+                || cfg.ui_blur != custom.blur
+                || cfg.ui_blur_intensity != custom.blur_intensity
+        } else {
+            false
         }
     };
 
     rsx! {
         div { class: "section-title", "App Settings" }
-        div { class: "section-desc", "Configure Llama-Manager client settings, custom theme styling, window transparency, backdrop blur, search engine integration, and model scan paths." }
+        div { class: "section-desc", "Configure Llama-Manager client settings, custom theme styling, window transparency, frosted glass panels, search engine integration, and model scan paths." }
 
         // Card 1: UI Theme & Aesthetics
         div { class: "card",
@@ -9719,17 +10284,45 @@ fn TabAppSettings(
                             let theme = e.value();
                             let mut cfg = config.write();
                             cfg.theme_name = theme.clone();
+                            if theme == "default" {
+                                let defaults = ServerConfig::default();
+                                cfg.ui_background_color = defaults.ui_background_color;
+                                cfg.ui_text_color = defaults.ui_text_color;
+                                cfg.ui_accent_color = defaults.ui_accent_color;
+                                cfg.ui_card_bg = defaults.ui_card_bg;
+                                cfg.ui_sidebar_bg = defaults.ui_sidebar_bg;
+                                cfg.ui_border_color = defaults.ui_border_color;
+                                cfg.ui_font_family = defaults.ui_font_family;
+                                cfg.ui_transparency = defaults.ui_transparency;
+                                cfg.ui_blur = defaults.ui_blur;
+                                cfg.ui_blur_intensity = defaults.ui_blur_intensity;
+                            } else if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == theme) {
+                                apply_preset_to_config(&mut cfg, preset);
+                            } else {
+                                let custom = cfg.custom_themes.iter().find(|t| t.name == theme).cloned();
+                                if let Some(custom) = custom {
+                                    apply_custom_to_config(&mut cfg, &custom);
+                                }
+                            }
                         },
                         option { value: "default", "Default Theme" }
                         for preset in THEME_PRESETS {
                             option { value: preset.name, "{preset.label}" }
                         }
                         for custom in config.read().custom_themes.iter() {
-                            option { value: "{custom.name}", "Custom: {custom.name}" }
+                            option { value: "{custom.name}", "Saved: {custom.name}" }
                         }
-                        option { value: "custom", "Custom Theme (Unsaved Changes)" }
+                        if config.read().theme_name == "custom" {
+                            option { value: "custom", "Custom (Unsaved)" }
+                        }
                     }
-                    div { class: "form-hint", "Select a preset visual theme or choose your custom themes." }
+                    if theme_is_modified {
+                        div { style: "margin-top: 6px; display: flex; align-items: center; gap: 6px;",
+                            span { style: "width: 6px; height: 6px; border-radius: 50%; background: var(--color-brand-accent); display: inline-block; flex-shrink: 0;" }
+                            span { style: "font-size: 11px; color: var(--color-brand-accent); font-weight: 600;", "Unsaved changes — save below to keep" }
+                        }
+                    }
+                    div { class: "form-hint", "Select a preset or your saved theme. Editing any value customizes it without losing the preset name." }
                 }
 
                 div { class: "form-group",
@@ -9741,7 +10334,6 @@ fn TabAppSettings(
                         onchange: move |e: Event<FormData>| {
                             let font = e.value();
                             let mut cfg = config.write();
-                            prepare_custom_overrides(&mut cfg);
                             cfg.ui_font_family = font;
                         },
                         option { value: "Inter", "Inter" }
@@ -9767,27 +10359,25 @@ fn TabAppSettings(
                         oninput: move |e: Event<FormData>| {
                             if let Ok(v) = e.value().parse::<f32>() {
                                 let mut cfg = config.write();
-                                prepare_custom_overrides(&mut cfg);
-                                cfg.ui_transparency = v;
+                                                cfg.ui_transparency = v;
                             }
                         }
                     }
-                    div { class: "form-hint", "Controls window opacity. Transparency works beautifully with desktop backdrop blur." }
+                    div { class: "form-hint", "How much of the desktop shows through the whole window." }
                 }
 
                 div { class: "form-group", style: "display: flex; flex-direction: column; justify-content: center;",
                     div { class: "toggle-row",
                         div { class: "toggle-info",
-                            div { class: "toggle-name", "Backdrop Glass Blur" }
-                            div { class: "toggle-desc", "Apply smooth depth blur underneath panels and the main window." }
+                            div { class: "toggle-name", "Frosted Glass Panels" }
+                            div { class: "toggle-desc", "Give panels a frosted translucent surface. Off = thin see-through glass." }
                         }
                         div {
                             id: "form-ui-blur",
                             class: if config.read().ui_blur { "toggle-switch on" } else { "toggle-switch" },
                             onclick: move |_| {
                                 let mut cfg = config.write();
-                                prepare_custom_overrides(&mut cfg);
-                                let current = cfg.ui_blur;
+                                                let current = cfg.ui_blur;
                                 cfg.ui_blur = !current;
                             },
                             div { class: "toggle-thumb" }
@@ -9798,7 +10388,7 @@ fn TabAppSettings(
 
             div { class: "form-row", style: "margin-top: 12px;",
                 div { class: "form-group",
-                    label { r#for: "form-ui-blur-intensity", class: "form-label", "Backdrop Blur Intensity ({config.read().ui_blur_intensity}px)" }
+                    label { r#for: "form-ui-blur-intensity", class: "form-label", "Glass Frost Strength ({config.read().ui_blur_intensity}/64)" }
                     input {
                         id: "form-ui-blur-intensity",
                         class: "form-input",
@@ -9810,12 +10400,11 @@ fn TabAppSettings(
                         oninput: move |e: Event<FormData>| {
                             if let Ok(v) = e.value().parse::<u32>() {
                                 let mut cfg = config.write();
-                                prepare_custom_overrides(&mut cfg);
-                                cfg.ui_blur_intensity = v;
+                                                cfg.ui_blur_intensity = v;
                             }
                         }
                     }
-                    div { class: "form-hint", "Adjust the pixel radius of the backdrop depth blur. Only active if Backdrop Glass Blur is enabled." }
+                    div { class: "form-hint", "How opaque/frosted the panels are. Only active if Frosted Glass Panels is enabled." }
                 }
 
                 div { class: "form-group",
@@ -9836,9 +10425,12 @@ fn TabAppSettings(
                 }
             }
 
-            // Custom Theme Color Pickers Row
+            // Theme Color Pickers Row
             div { style: "margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-hairline);",
-                div { class: "card-title", style: "font-size: 13px; margin-bottom: 12px;", "Theme Colors (Overrides active if Custom/Default theme is chosen)" }
+                div { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;",
+                    div { class: "card-title", style: "font-size: 13px; margin: 0;", "Customize Colors" }
+                    div { style: "font-size: 11px; color: var(--color-muted);", "Editing: {config.read().theme_name}" }
+                }
 
                 div { class: "form-row",
                     div { class: "form-group",
@@ -9851,8 +10443,7 @@ fn TabAppSettings(
                                 value: config.read().ui_background_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_background_color = e.value();
+                                                        cfg.ui_background_color = e.value();
                                 }
                             }
                             input {
@@ -9862,8 +10453,7 @@ fn TabAppSettings(
                                 value: config.read().ui_background_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_background_color = e.value();
+                                                        cfg.ui_background_color = e.value();
                                 }
                             }
                         }
@@ -9879,8 +10469,7 @@ fn TabAppSettings(
                                 value: config.read().ui_text_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_text_color = e.value();
+                                                        cfg.ui_text_color = e.value();
                                 }
                             }
                             input {
@@ -9890,8 +10479,7 @@ fn TabAppSettings(
                                 value: config.read().ui_text_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_text_color = e.value();
+                                                        cfg.ui_text_color = e.value();
                                 }
                             }
                         }
@@ -9907,8 +10495,7 @@ fn TabAppSettings(
                                 value: config.read().ui_accent_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_accent_color = e.value();
+                                                        cfg.ui_accent_color = e.value();
                                 }
                             }
                             input {
@@ -9918,8 +10505,7 @@ fn TabAppSettings(
                                 value: config.read().ui_accent_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_accent_color = e.value();
+                                                        cfg.ui_accent_color = e.value();
                                 }
                             }
                         }
@@ -9937,8 +10523,7 @@ fn TabAppSettings(
                                 value: if config.read().ui_border_color.starts_with("rgba") { "#475569".to_string() } else { config.read().ui_border_color.clone() },
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_border_color = e.value();
+                                                        cfg.ui_border_color = e.value();
                                 }
                             }
                             input {
@@ -9948,8 +10533,7 @@ fn TabAppSettings(
                                 value: config.read().ui_border_color.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_border_color = e.value();
+                                                        cfg.ui_border_color = e.value();
                                 }
                             }
                         }
@@ -9965,8 +10549,7 @@ fn TabAppSettings(
                                 value: if config.read().ui_card_bg.starts_with("rgba") { "#1e293b".to_string() } else { config.read().ui_card_bg.clone() },
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_card_bg = e.value();
+                                                        cfg.ui_card_bg = e.value();
                                 }
                             }
                             input {
@@ -9976,8 +10559,7 @@ fn TabAppSettings(
                                 value: config.read().ui_card_bg.clone(),
                                 oninput: move |e: Event<FormData>| {
                                     let mut cfg = config.write();
-                                    prepare_custom_overrides(&mut cfg);
-                                    cfg.ui_card_bg = e.value();
+                                                        cfg.ui_card_bg = e.value();
                                 }
                             }
                         }
@@ -9993,28 +10575,44 @@ fn TabAppSettings(
                         value: config.read().ui_sidebar_bg.clone(),
                         oninput: move |e: Event<FormData>| {
                             let mut cfg = config.write();
-                            prepare_custom_overrides(&mut cfg);
-                            cfg.ui_sidebar_bg = e.value();
+                                        cfg.ui_sidebar_bg = e.value();
                         }
                     }
                     div { class: "form-hint", "Accepts solid color hex or CSS gradient formats (e.g. linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%))" }
                 }
             }
 
-            // Save custom theme sub-card
-            div { style: "margin-top: 18px; padding: 14px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px;",
-                div { class: "card-title", style: "font-size: 12px; margin-bottom: 8px; color: var(--color-brand-accent);", "Save Theme Preset" }
+            // Save theme sub-card
+            div { style: "margin-top: 18px; padding: 16px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px;",
+                div { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;",
+                    div { class: "card-title", style: "font-size: 12px; margin: 0; color: var(--color-brand-accent);", "Save as Named Theme" }
+                    if theme_is_modified {
+                        span { style: "font-size: 11px; background: rgba(var(--accent-rgb, 99,102,241),0.12); color: var(--color-brand-accent); padding: 2px 8px; border-radius: 20px; font-weight: 600;", "Modified" }
+                    }
+                }
+                div { style: "font-size: 11.5px; color: var(--color-muted); margin-bottom: 12px;",
+                    "Give your current customization a name to save it. You can overwrite existing names."
+                }
                 div { style: "display: flex; gap: 10px; align-items: center;",
                     input {
                         class: "form-input",
                         style: "flex: 1;",
-                        placeholder: "Type a name for your custom theme...",
+                        placeholder: "e.g. My Cyberpunk, Dark Office...",
                         value: new_theme_name(),
+                        onfocus: move |_| {
+                            if new_theme_name.read().is_empty() {
+                                let current = config.read().theme_name.clone();
+                                if current != "default" && current != "custom" {
+                                    new_theme_name.set(current);
+                                }
+                            }
+                        },
                         oninput: move |e: Event<FormData>| new_theme_name.set(e.value()),
                     }
                     button {
                         class: "btn btn-start",
-                        style: "padding: 8px 16px; min-height: 38px; margin: 0;",
+                        style: "padding: 8px 18px; min-height: 38px; margin: 0; white-space: nowrap;",
+                        disabled: new_theme_name.read().trim().is_empty() || new_theme_name.read().trim() == "default" || new_theme_name.read().trim() == "custom",
                         onclick: move |_| {
                             let name = new_theme_name.read().trim().to_string();
                             if !name.is_empty() && name != "default" && name != "custom" {
@@ -10045,32 +10643,67 @@ fn TabAppSettings(
                         "Save Theme"
                     }
                 }
-                
-                // List custom themes if any
+
+                // List saved custom themes
                 if !config.read().custom_themes.is_empty() {
-                    div { style: "margin-top: 14px; display: flex; flex-direction: column; gap: 8px;",
-                        div { style: "font-size: 11px; color: var(--color-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;", "My Custom Themes" }
+                    div { style: "margin-top: 16px; display: flex; flex-direction: column; gap: 8px;",
+                        div { style: "font-size: 10.5px; color: var(--color-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 2px;", "Saved Themes" }
                         for custom in config.read().custom_themes.clone().iter() {
                             div {
                                 key: "{custom.name}",
-                                style: "display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.01); border-radius: 8px; border: 1px solid var(--color-hairline);",
-                                span { style: "font-size: 13.5px; font-weight: 600; color: var(--color-ink);", "{custom.name}" }
-                                button {
-                                    style: "background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; color: #f87171; font-size: 11.5px; padding: 4px 10px; border-radius: 6px; transition: all 0.2s;",
-                                    onclick: {
-                                        let name = custom.name.clone();
-                                        move |e| {
-                                            e.stop_propagation();
-                                            let mut cfg = config.write();
-                                            if let Some(pos) = cfg.custom_themes.iter().position(|t| t.name == name) {
-                                                cfg.custom_themes.remove(pos);
-                                            }
-                                            if cfg.theme_name == name {
-                                                cfg.theme_name = "default".to_string();
-                                            }
+                                style: "display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid var(--color-hairline); cursor: pointer;",
+                                onclick: {
+                                    let name = custom.name.clone();
+                                    move |_| {
+                                        let mut cfg = config.write();
+                                        cfg.theme_name = name.clone();
+                                        let custom = cfg.custom_themes.iter().find(|t| t.name == name).cloned();
+                                        if let Some(custom) = custom {
+                                            apply_custom_to_config(&mut cfg, &custom);
                                         }
-                                    },
-                                    "Delete"
+                                    }
+                                },
+                                div { style: "display: flex; align-items: center; gap: 10px;",
+                                    // Color swatches
+                                    div { style: "display: flex; gap: 3px;",
+                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.background_color}; border: 1px solid rgba(255,255,255,0.15);" }
+                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.accent_color}; border: 1px solid rgba(255,255,255,0.15);" }
+                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.text_color}; border: 1px solid rgba(255,255,255,0.15);" }
+                                    }
+                                    span { style: "font-size: 13px; font-weight: 600; color: var(--color-ink);", "{custom.name}" }
+                                    if config.read().theme_name == custom.name {
+                                        span { style: "font-size: 10px; background: rgba(var(--accent-rgb,99,102,241),0.15); color: var(--color-brand-accent); padding: 1px 7px; border-radius: 20px; font-weight: 700;", "Active" }
+                                    }
+                                }
+                                div { style: "display: flex; gap: 6px;",
+                                    button {
+                                        style: "background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; color: #f87171; font-size: 11px; padding: 3px 10px; border-radius: 6px; transition: all 0.2s;",
+                                        onclick: {
+                                            let name = custom.name.clone();
+                                            move |e| {
+                                                e.stop_propagation();
+                                                let mut cfg = config.write();
+                                                if let Some(pos) = cfg.custom_themes.iter().position(|t| t.name == name) {
+                                                    cfg.custom_themes.remove(pos);
+                                                }
+                                                if cfg.theme_name == name {
+                                                    cfg.theme_name = "default".to_string();
+                                                    let defaults = ServerConfig::default();
+                                                    cfg.ui_background_color = defaults.ui_background_color;
+                                                    cfg.ui_text_color = defaults.ui_text_color;
+                                                    cfg.ui_accent_color = defaults.ui_accent_color;
+                                                    cfg.ui_card_bg = defaults.ui_card_bg;
+                                                    cfg.ui_sidebar_bg = defaults.ui_sidebar_bg;
+                                                    cfg.ui_border_color = defaults.ui_border_color;
+                                                    cfg.ui_font_family = defaults.ui_font_family;
+                                                    cfg.ui_transparency = defaults.ui_transparency;
+                                                    cfg.ui_blur = defaults.ui_blur;
+                                                    cfg.ui_blur_intensity = defaults.ui_blur_intensity;
+                                                }
+                                            }
+                                        },
+                                        "Delete"
+                                    }
                                 }
                             }
                         }

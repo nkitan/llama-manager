@@ -1154,6 +1154,8 @@ pub async fn run_agent_task(
                                     title,
                                     time,
                                     prompt,
+                                    note: None,
+                                    color: None,
                                     status: EventStatus::Pending,
                                     result: None,
                                 };
