@@ -517,7 +517,7 @@ pub fn merge_indexes(scanned: Vec<ScannedModel>, existing: Vec<ScannedModel>) ->
             s.use_case = ext.use_case.clone();
             s.hf_link = ext.hf_link.clone();
             s.github_link = ext.github_link.clone();
-            if ext.status == "enriched" || ext.status == "failed" {
+            if ext.status == "enriched" || ext.status == "failed" || ext.status == "enriching" {
                 s.status = ext.status.clone();
                 s.size_info = ext.size_info.clone();
             }

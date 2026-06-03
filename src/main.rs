@@ -242,11 +242,21 @@ body {
     outline: none;
 }
 .search-results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    width: 100%;
+    max-height: 340px;
     background: var(--color-surface-card);
     border: 1px solid var(--color-hairline);
     border-radius: 16px;
     box-shadow: 0 20px 40px rgba(15, 23, 42, 0.07);
     overflow: hidden;
+    z-index: 50;
+}
+.search-results-list {
+    max-height: 300px;
+    overflow-y: auto;
 }
 .search-results-header {
     padding: 16px 18px;
@@ -258,14 +268,16 @@ body {
 }
 .search-result-item {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 14px;
-    padding: 14px 18px;
+    gap: 12px;
+    padding: 10px 14px;
     text-decoration: none;
     color: inherit;
-    transition: background 0.15s;
+    transition: background 0.15s, transform 0.08s;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
 }
 .search-result-item:hover {
-    background: var(--color-surface-soft);
+    background: rgba(100,116,139,0.04);
+    transform: translateY(-1px);
 }
 .search-result-label {
     display: flex; flex-direction: column;
@@ -281,8 +293,9 @@ body {
 .search-chip {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 6px 10px; border-radius: 9999px;
-    background: var(--color-surface-soft); color: var(--color-muted);
+    background: rgba(255,255,255,0.03); color: var(--color-muted);
     font-size: 12px; white-space: nowrap;
+    border: 1px solid rgba(255,255,255,0.02);
 }
 
 .status-badge {
@@ -841,6 +854,7 @@ fn App() -> Element {
 
     let mut search_query = use_signal(|| String::new());
     let mut search_results = use_signal(|| Vec::<ConfigSearchEntry>::new());
+    let mut search_target = use_signal(|| String::new());
     let search_entries = config_search_entries();
 
     let mut scanned_models = use_signal(|| {
@@ -848,7 +862,7 @@ fn App() -> Element {
         library::load_index(&index_path.to_string_lossy())
     });
     let mut index_status = use_signal(|| "Idle".to_string());
-    let scan_trigger = use_signal(|| 0u64);
+    let mut scan_trigger = use_signal(|| 0u64);
 
     // Server process + shared log buffer
     let mut server_child: Signal<Option<Arc<Mutex<Child>>>> = use_signal(|| None);
@@ -938,6 +952,10 @@ fn App() -> Element {
                         let index_path = get_default_config_path().join("model_index.json");
                         let _ = library::save_index(&index_path.to_string_lossy(), &updated);
                         scanned_models.set(updated);
+                    }
+
+                    if trigger_val > 0 {
+                        *scan_trigger.write() = 0;
                     }
                     
                     last_scan_time = std::time::Instant::now();
@@ -1265,6 +1283,41 @@ fn App() -> Element {
                         value: search_query(),
                         oninput: on_search_input,
                     }
+                    if !search_matches.is_empty() {
+                        div { class: "search-results",
+                            div { class: "search-results-header", "Search results" }
+                            div { class: "search-results-list",
+                                for result in search_matches.into_iter() {
+                                    button {
+                                        class: "search-result-item",
+                                        r#type: "button",
+                                        onclick: move |e: MouseEvent| {
+                                            e.stop_propagation();
+                                            e.prevent_default();
+
+                                            let tgt = result.target_id.clone();
+                                            active_tab.set(result.tab);
+                                            // clear UI first so autofocus will trigger when we re-set
+                                            search_results.set(Vec::new());
+                                            search_query.set(String::new());
+                                            search_target.set(String::new());
+
+                                            let mut st = search_target.clone();
+                                            spawn(async move {
+                                                tokio::time::sleep(std::time::Duration::from_millis(70)).await;
+                                                st.set(tgt);
+                                            });
+                                        },
+                                        div { class: "search-result-label",
+                                            div { class: "search-result-title", "{result.label}" }
+                                            div { class: "search-result-meta", "{result.section}" }
+                                        }
+                                        div { class: "search-chip", "{result.tab.label()}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 div { class: "top-right",
                     // Save / Load
@@ -1331,42 +1384,18 @@ fn App() -> Element {
                         }
                     }
 
-                    if !search_matches.is_empty() {
-                        div { class: "search-results",
-                            div { class: "search-results-header", "Search results" }
-                            div { class: "search-results-list",
-                                for result in search_matches.into_iter() {
-                                    a {
-                                        class: "search-result-item",
-                                        href: format!("#{}", result.target_id),
-                                        onclick: move |_| {
-                                            active_tab.set(result.tab);
-                                            search_results.set(Vec::new());
-                                            search_query.set(String::new());
-                                        },
-                                        div { class: "search-result-label",
-                                            div { class: "search-result-title", "{result.label}" }
-                                            div { class: "search-result-meta", "{result.section}" }
-                                        }
-                                        div { class: "search-chip", "{result.tab.label()}" }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     match active_tab() {
-                        Tab::Chat        => rsx! { TabChat        { config } },
-                        Tab::Model       => rsx! { TabModel       { config } },
-                        Tab::Library     => rsx! { TabLibrary     { config, scanned_models, index_status, scan_trigger } },
-                        Tab::Download    => rsx! { TabDownload    { } },
-                        Tab::Server      => rsx! { TabServer      { config } },
-                        Tab::Context     => rsx! { TabContext      { config } },
-                        Tab::Gpu         => rsx! { TabGpu         { config } },
-                        Tab::Performance => rsx! { TabPerformance { config } },
-                        Tab::Sampling    => rsx! { TabSampling    { config } },
-                        Tab::Advanced    => rsx! { TabAdvanced    { config } },
-                        Tab::Api         => rsx! { TabApi         { config } },
+                        Tab::Chat        => rsx! { TabChat        { config, search_target } },
+                        Tab::Model       => rsx! { TabModel       { config, search_target } },
+                        Tab::Library     => rsx! { TabLibrary     { config, scanned_models, index_status, scan_trigger, search_target } },
+                        Tab::Download    => rsx! { TabDownload    { search_target } },
+                        Tab::Server      => rsx! { TabServer      { config, search_target } },
+                        Tab::Context     => rsx! { TabContext      { config, search_target } },
+                        Tab::Gpu         => rsx! { TabGpu         { config, search_target } },
+                        Tab::Performance => rsx! { TabPerformance { config, search_target } },
+                        Tab::Sampling    => rsx! { TabSampling    { config, search_target } },
+                        Tab::Advanced    => rsx! { TabAdvanced    { config, search_target } },
+                        Tab::Api         => rsx! { TabApi         { config, search_target } },
                     }
 
                     // Command preview
@@ -1386,6 +1415,7 @@ fn App() -> Element {
                                     label { r#for: "form-select-a-model-to-load-1", class: "form-label", "Select a model to load" }
                                     select {
                     id: "form-select-a-model-to-load-1",
+                    autofocus: search_target.read().as_str() == "form-select-a-model-to-load-1",
                                         class: "form-input",
                                         value: selected_model(),
                                         onchange: move |e: Event<FormData>| {
@@ -1477,7 +1507,7 @@ fn App() -> Element {
 // ── Model ────────────────────────────────────────────────────────────────────
 
 #[component]
-fn TabModel(config: Signal<ServerConfig>) -> Element {
+fn TabModel(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let pick_model = move |_| {
         spawn(async move {
             if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
@@ -1533,6 +1563,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-llama-server-path-1",
+                    autofocus: search_target.read().as_str() == "form-llama-server-path-1",
                         class: "form-input",
                         value: config.read().exe_path.clone(),
                         placeholder: "llama-server",
@@ -1552,6 +1583,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-model-file-gguf-1",
+                    autofocus: search_target.read().as_str() == "form-model-file-gguf-1",
                         class: "form-input",
                         value: config.read().model_path.clone(),
                         placeholder: "C:\\models\\my-model.gguf",
@@ -1564,6 +1596,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-model-alias-1", class: "form-label", "Model Alias" }
                 input {
                     id: "form-model-alias-1",
+                    autofocus: search_target.read().as_str() == "form-model-alias-1",
                     class: "form-input",
                     value: config.read().model_alias.clone(),
                     placeholder: "Optional friendly name",
@@ -1580,6 +1613,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-model-directory-models-dir-1",
+                    autofocus: search_target.read().as_str() == "form-model-directory-models-dir-1",
                         class: "form-input",
                         value: config.read().model_dir.clone(),
                         placeholder: "C:\\models",
@@ -1598,6 +1632,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-model-url-1", class: "form-label", "Model URL" }
                 input {
                     id: "form-model-url-1",
+                    autofocus: search_target.read().as_str() == "form-model-url-1",
                     class: "form-input",
                     value: config.read().model_url.clone(),
                     placeholder: "https://example.com/model.gguf",
@@ -1609,6 +1644,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-huggingface-repo-1", class: "form-label", "HuggingFace Repo" }
                     input {
                     id: "form-huggingface-repo-1",
+                    autofocus: search_target.read().as_str() == "form-huggingface-repo-1",
                         class: "form-input",
                         value: config.read().hf_repo.clone(),
                         placeholder: "org/model-name-GGUF",
@@ -1619,6 +1655,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-huggingface-file-1", class: "form-label", "HuggingFace File" }
                     input {
                     id: "form-huggingface-file-1",
+                    autofocus: search_target.read().as_str() == "form-huggingface-file-1",
                         class: "form-input",
                         value: config.read().hf_file.clone(),
                         placeholder: "model-Q4_K_M.gguf",
@@ -1630,6 +1667,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-huggingface-token-1", class: "form-label", "HuggingFace Token" }
                 input {
                     id: "form-huggingface-token-1",
+                    autofocus: search_target.read().as_str() == "form-huggingface-token-1",
                     class: "form-input",
                     r#type: "password",
                     value: config.read().hf_token.clone(),
@@ -1647,6 +1685,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-chat-template-1", class: "form-label", "Chat Template" }
                 input {
                     id: "form-chat-template-1",
+                    autofocus: search_target.read().as_str() == "form-chat-template-1",
                     class: "form-input",
                     value: config.read().chat_template.clone(),
                     placeholder: "e.g. chatml, llama3, gemma\u{2026}",
@@ -1658,6 +1697,7 @@ fn TabModel(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-system-prompt-1", class: "form-label", "System Prompt" }
                 textarea {
                     id: "form-system-prompt-1",
+                    autofocus: search_target.read().as_str() == "form-system-prompt-1",
                     class: "form-textarea",
                     value: config.read().system_prompt.clone(),
                     placeholder: "You are a helpful assistant.",
@@ -1808,7 +1848,7 @@ fn apply_server_optimization(cfg: &mut ServerConfig, key: &str, value: &str) {
 }
 
 #[component]
-fn TabServer(config: Signal<ServerConfig>) -> Element {
+fn TabServer(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let mut suggestions = use_signal(Vec::<OptimizationSuggestion>::new);
     let analyze = move |_| {
         suggestions.set(suggest_server_optimizations(&config.read().clone()));
@@ -1842,6 +1882,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-host-1", class: "form-label", "Host" }
                     input {
                         id: "form-host-1",
+                        autofocus: search_target.read().as_str() == "form-host-1",
                         class: "form-input",
                         value: config.read().host.clone(),
                         placeholder: "127.0.0.1",
@@ -1853,6 +1894,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-port-1", class: "form-label", "Port" }
                     input {
                         id: "form-port-1",
+                        autofocus: search_target.read().as_str() == "form-port-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().port.to_string(),
@@ -1867,6 +1909,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-server-timeout-s-1", class: "form-label", "Server Timeout (s)" }
                     input {
                         id: "form-server-timeout-s-1",
+                        autofocus: search_target.read().as_str() == "form-server-timeout-s-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().timeout.to_string(),
@@ -1880,6 +1923,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-http-threads-1", class: "form-label", "HTTP Threads" }
                     input {
                         id: "form-http-threads-1",
+                        autofocus: search_target.read().as_str() == "form-http-threads-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads_http.to_string(),
@@ -1952,7 +1996,7 @@ fn TabServer(config: Signal<ServerConfig>) -> Element {
 // ── Context & Batching ───────────────────────────────────────────────────────
 
 #[component]
-fn TabContext(config: Signal<ServerConfig>) -> Element {
+fn TabContext(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     rsx! {
         div { class: "section-title", "Context & Batching" }
         div { class: "section-desc", "Control context window size, batch processing, and parallel request handling." }
@@ -1964,6 +2008,7 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-context-size-c-1", class: "form-label", "Context Size (-c)" }
                     input {
                     id: "form-context-size-c-1",
+                    autofocus: search_target.read().as_str() == "form-context-size-c-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().ctx_size.to_string(),
@@ -1977,6 +2022,7 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-max-predict-n-1", class: "form-label", "Max Predict (-n)" }
                     input {
                     id: "form-max-predict-n-1",
+                    autofocus: search_target.read().as_str() == "form-max-predict-n-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().predict.to_string(),
@@ -1996,6 +2042,7 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-batch-size-b-1", class: "form-label", "Batch Size (-b)" }
                     input {
                     id: "form-batch-size-b-1",
+                    autofocus: search_target.read().as_str() == "form-batch-size-b-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().batch_size.to_string(),
@@ -2009,6 +2056,7 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-micro-batch-size-ub-1", class: "form-label", "Micro-Batch Size (-ub)" }
                     input {
                     id: "form-micro-batch-size-ub-1",
+                    autofocus: search_target.read().as_str() == "form-micro-batch-size-ub-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().ubatch_size.to_string(),
@@ -2027,6 +2075,7 @@ fn TabContext(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-parallel-sequences-np-1", class: "form-label", "Parallel Sequences (-np)" }
                 input {
                     id: "form-parallel-sequences-np-1",
+                    autofocus: search_target.read().as_str() == "form-parallel-sequences-np-1",
                     class: "form-input",
                     r#type: "number",
                     value: config.read().parallel.to_string(),
@@ -2067,7 +2116,7 @@ pub struct GpuInfo {
 }
 
 #[component]
-fn TabGpu(config: Signal<ServerConfig>) -> Element {
+fn TabGpu(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let mut gpu_info = use_signal(|| None::<GpuInfo>);
 
     let _gpu_poller = use_resource(move || {
@@ -2176,6 +2225,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-gpu-layers-ngl-1", class: "form-label", "GPU Layers (-ngl)" }
                     input {
                     id: "form-gpu-layers-ngl-1",
+                    autofocus: search_target.read().as_str() == "form-gpu-layers-ngl-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().gpu_layers.to_string(),
@@ -2189,6 +2239,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-main-gpu-mg-1", class: "form-label", "Main GPU (-mg)" }
                     input {
                     id: "form-main-gpu-mg-1",
+                    autofocus: search_target.read().as_str() == "form-main-gpu-mg-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().main_gpu.to_string(),
@@ -2204,6 +2255,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-split-mode-sm-1", class: "form-label", "Split Mode (-sm)" }
                     select {
                     id: "form-split-mode-sm-1",
+                    autofocus: search_target.read().as_str() == "form-split-mode-sm-1",
                         class: "form-select",
                         value: config.read().split_mode.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().split_mode = SplitMode::from_str(&e.value()),
@@ -2216,6 +2268,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-tensor-split-ts-1", class: "form-label", "Tensor Split (-ts)" }
                     input {
                     id: "form-tensor-split-ts-1",
+                    autofocus: search_target.read().as_str() == "form-tensor-split-ts-1",
                         class: "form-input",
                         value: config.read().tensor_split.clone(),
                         placeholder: "e.g. 3,2 for 60/40 split",
@@ -2280,6 +2333,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-k-cache-type-ctk-1", class: "form-label", "K Cache Type (-ctk)" }
                     select {
                     id: "form-k-cache-type-ctk-1",
+                    autofocus: search_target.read().as_str() == "form-k-cache-type-ctk-1",
                         class: "form-select",
                         value: config.read().cache_type_k.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().cache_type_k = CacheType::from_str(&e.value()),
@@ -2292,6 +2346,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-v-cache-type-ctv-1", class: "form-label", "V Cache Type (-ctv)" }
                     select {
                     id: "form-v-cache-type-ctv-1",
+                    autofocus: search_target.read().as_str() == "form-v-cache-type-ctv-1",
                         class: "form-select",
                         value: config.read().cache_type_v.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().cache_type_v = CacheType::from_str(&e.value()),
@@ -2309,7 +2364,7 @@ fn TabGpu(config: Signal<ServerConfig>) -> Element {
 // ── Performance ──────────────────────────────────────────────────────────────
 
 #[component]
-fn TabPerformance(config: Signal<ServerConfig>) -> Element {
+fn TabPerformance(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     rsx! {
         div { class: "section-title", "Performance" }
         div { class: "section-desc", "Threading, Flash Attention, and other performance knobs." }
@@ -2321,6 +2376,7 @@ fn TabPerformance(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-threads-t-1", class: "form-label", "Threads (-t)" }
                     input {
                     id: "form-threads-t-1",
+                    autofocus: search_target.read().as_str() == "form-threads-t-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads.to_string(),
@@ -2334,6 +2390,7 @@ fn TabPerformance(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-batch-threads-tb-1", class: "form-label", "Batch Threads (-tb)" }
                     input {
                     id: "form-batch-threads-tb-1",
+                    autofocus: search_target.read().as_str() == "form-batch-threads-tb-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().threads_batch.to_string(),
@@ -2388,7 +2445,7 @@ fn TabPerformance(config: Signal<ServerConfig>) -> Element {
 // ── Sampling ─────────────────────────────────────────────────────────────────
 
 #[component]
-fn TabSampling(config: Signal<ServerConfig>) -> Element {
+fn TabSampling(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     rsx! {
         div { class: "section-title", "Sampling Parameters" }
         div { class: "section-desc", "Default sampling configuration. Clients can override these per-request via the API." }
@@ -2400,6 +2457,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-temperature-temp-1", class: "form-label", "Temperature (--temp)" }
                     input {
                     id: "form-temperature-temp-1",
+                    autofocus: search_target.read().as_str() == "form-temperature-temp-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -2414,6 +2472,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-seed-s-1", class: "form-label", "Seed (-s)" }
                     input {
                     id: "form-seed-s-1",
+                    autofocus: search_target.read().as_str() == "form-seed-s-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().seed.to_string(),
@@ -2429,6 +2488,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-top-k-top-k-1", class: "form-label", "Top-K (--top-k)" }
                     input {
                     id: "form-top-k-top-k-1",
+                    autofocus: search_target.read().as_str() == "form-top-k-top-k-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().top_k.to_string(),
@@ -2442,6 +2502,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-top-p-top-p-1", class: "form-label", "Top-P (--top-p)" }
                     input {
                     id: "form-top-p-top-p-1",
+                    autofocus: search_target.read().as_str() == "form-top-p-top-p-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -2457,6 +2518,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-min-p-min-p-1", class: "form-label", "Min-P (--min-p)" }
                 input {
                     id: "form-min-p-min-p-1",
+                    autofocus: search_target.read().as_str() == "form-min-p-min-p-1",
                     class: "form-input",
                     r#type: "number",
                     step: "0.01",
@@ -2476,6 +2538,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-repeat-penalty-1", class: "form-label", "Repeat Penalty" }
                     input {
                     id: "form-repeat-penalty-1",
+                    autofocus: search_target.read().as_str() == "form-repeat-penalty-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -2490,6 +2553,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-presence-penalty-1", class: "form-label", "Presence Penalty" }
                     input {
                     id: "form-presence-penalty-1",
+                    autofocus: search_target.read().as_str() == "form-presence-penalty-1",
                         class: "form-input",
                         r#type: "number",
                         step: "0.05",
@@ -2504,6 +2568,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-frequency-penalty-1", class: "form-label", "Frequency Penalty" }
                 input {
                     id: "form-frequency-penalty-1",
+                    autofocus: search_target.read().as_str() == "form-frequency-penalty-1",
                     class: "form-input",
                     r#type: "number",
                     step: "0.05",
@@ -2521,6 +2586,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-grammar-bnf-1", class: "form-label", "Grammar (BNF)" }
                 textarea {
                     id: "form-grammar-bnf-1",
+                    autofocus: search_target.read().as_str() == "form-grammar-bnf-1",
                     class: "form-textarea",
                     value: config.read().grammar.clone(),
                     placeholder: "root ::=\u{2026}",
@@ -2532,6 +2598,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-grammar-file-1",
+                    autofocus: search_target.read().as_str() == "form-grammar-file-1",
                         class: "form-input",
                         value: config.read().grammar_file.clone(),
                         placeholder: "Path to .gbnf file",
@@ -2565,7 +2632,7 @@ fn TabSampling(config: Signal<ServerConfig>) -> Element {
 // ── Advanced ─────────────────────────────────────────────────────────────────
 
 #[component]
-fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
+fn TabAdvanced(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     rsx! {
         div { class: "section-title", "Advanced" }
         div { class: "section-desc", "RoPE scaling, LoRA adapters, speculative decoding, and embeddings." }
@@ -2577,6 +2644,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-scaling-type-1", class: "form-label", "Scaling Type" }
                 select {
                     id: "form-scaling-type-1",
+                    autofocus: search_target.read().as_str() == "form-scaling-type-1",
                     class: "form-select",
                     value: config.read().rope_scaling.as_str().to_string(),
                     onchange: move |e: Event<FormData>| config.write().rope_scaling = RopeScaling::from_str(&e.value()),
@@ -2590,6 +2658,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-freq-base-1", class: "form-label", "Freq Base" }
                     input {
                     id: "form-freq-base-1",
+                    autofocus: search_target.read().as_str() == "form-freq-base-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().rope_freq_base.to_string(),
@@ -2603,6 +2672,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-freq-scale-1", class: "form-label", "Freq Scale" }
                     input {
                     id: "form-freq-scale-1",
+                    autofocus: search_target.read().as_str() == "form-freq-scale-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().rope_freq_scale.to_string(),
@@ -2618,6 +2688,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         label { r#for: "form-yarn-orig-ctx-1", class: "form-label", "YaRN Orig Ctx" }
                         input {
                     id: "form-yarn-orig-ctx-1",
+                    autofocus: search_target.read().as_str() == "form-yarn-orig-ctx-1",
                             class: "form-input",
                             r#type: "number",
                             value: config.read().yarn_orig_ctx.to_string(),
@@ -2630,6 +2701,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         label { r#for: "form-extension-factor-1", class: "form-label", "Extension Factor" }
                         input {
                     id: "form-extension-factor-1",
+                    autofocus: search_target.read().as_str() == "form-extension-factor-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.1",
@@ -2645,6 +2717,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         label { r#for: "form-attention-factor-1", class: "form-label", "Attention Factor" }
                         input {
                     id: "form-attention-factor-1",
+                    autofocus: search_target.read().as_str() == "form-attention-factor-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.1",
@@ -2658,6 +2731,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         label { r#for: "form-beta-fast-1", class: "form-label", "Beta Fast" }
                         input {
                     id: "form-beta-fast-1",
+                    autofocus: search_target.read().as_str() == "form-beta-fast-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.5",
@@ -2671,6 +2745,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                         label { r#for: "form-beta-slow-1", class: "form-label", "Beta Slow" }
                         input {
                     id: "form-beta-slow-1",
+                    autofocus: search_target.read().as_str() == "form-beta-slow-1",
                             class: "form-input",
                             r#type: "number",
                             step: "0.1",
@@ -2695,6 +2770,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                             div { class: "input-group",
                                 input {
                     id: "form-adapter-path-1",
+                    autofocus: search_target.read().as_str() == "form-adapter-path-1",
                                     class: "form-input",
                                     value: config.read().lora_adapters[i].path.clone(),
                                     placeholder: "path/to/lora.gguf",
@@ -2733,6 +2809,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                             label { r#for: "form-scale-1", class: "form-label", "Scale" }
                             input {
                     id: "form-scale-1",
+                    autofocus: search_target.read().as_str() == "form-scale-1",
                                 class: "form-input",
                                 r#type: "number",
                                 step: "0.1",
@@ -2781,6 +2858,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-draft-model-md-1",
+                    autofocus: search_target.read().as_str() == "form-draft-model-md-1",
                         class: "form-input",
                         value: config.read().draft_model.clone(),
                         placeholder: "Path to smaller draft model.gguf",
@@ -2813,6 +2891,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-draft-gpu-layers-ngld-1", class: "form-label", "Draft GPU Layers (-ngld)" }
                     input {
                     id: "form-draft-gpu-layers-ngld-1",
+                    autofocus: search_target.read().as_str() == "form-draft-gpu-layers-ngld-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().draft_gpu_layers.to_string(),
@@ -2825,6 +2904,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-draft-tokens-draft-1", class: "form-label", "Draft Tokens (--draft)" }
                     input {
                     id: "form-draft-tokens-draft-1",
+                    autofocus: search_target.read().as_str() == "form-draft-tokens-draft-1",
                         class: "form-input",
                         r#type: "number",
                         value: config.read().draft_tokens.to_string(),
@@ -2855,6 +2935,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
                     label { r#for: "form-pooling-type-1", class: "form-label", "Pooling Type" }
                     select {
                     id: "form-pooling-type-1",
+                    autofocus: search_target.read().as_str() == "form-pooling-type-1",
                         class: "form-select",
                         value: config.read().pooling.as_str().to_string(),
                         onchange: move |e: Event<FormData>| config.write().pooling = PoolingType::from_str(&e.value()),
@@ -2872,7 +2953,7 @@ fn TabAdvanced(config: Signal<ServerConfig>) -> Element {
 // ── API & Security ───────────────────────────────────────────────────────────
 
 #[component]
-fn TabApi(config: Signal<ServerConfig>) -> Element {
+fn TabApi(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     rsx! {
         div { class: "section-title", "API & Security" }
         div { class: "section-desc", "Authentication, monitoring endpoints, and logging configuration." }
@@ -2883,6 +2964,7 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-api-key-api-key-1", class: "form-label", "API Key (--api-key)" }
                 input {
                     id: "form-api-key-api-key-1",
+                    autofocus: search_target.read().as_str() == "form-api-key-api-key-1",
                     class: "form-input",
                     r#type: "password",
                     value: config.read().api_key.clone(),
@@ -2896,6 +2978,7 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-api-key-file-api-key-file-1",
+                    autofocus: search_target.read().as_str() == "form-api-key-file-api-key-file-1",
                         class: "form-input",
                         value: config.read().api_key_file.clone(),
                         placeholder: "Path to file containing API key",
@@ -2950,6 +3033,7 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                 div { class: "input-group",
                     input {
                     id: "form-slot-save-path-1",
+                    autofocus: search_target.read().as_str() == "form-slot-save-path-1",
                         class: "form-input",
                         value: config.read().slot_save_path.clone(),
                         placeholder: "Directory for slot snapshots",
@@ -2981,6 +3065,7 @@ fn TabApi(config: Signal<ServerConfig>) -> Element {
                 label { r#for: "form-log-format-1", class: "form-label", "Log Format" }
                 select {
                     id: "form-log-format-1",
+                    autofocus: search_target.read().as_str() == "form-log-format-1",
                     class: "form-select",
                     value: config.read().log_format.as_str().to_string(),
                     onchange: move |e: Event<FormData>| config.write().log_format = LogFormat::from_str(&e.value()),
@@ -3011,6 +3096,7 @@ fn TabLibrary(
     scanned_models: Signal<Vec<library::ScannedModel>>,
     index_status: Signal<String>,
     scan_trigger: Signal<u64>,
+    search_target: Signal<String>,
 ) -> Element {
     let mut input_text = use_signal(String::new);
     let mut error_local = use_signal(|| None::<String>);
@@ -3161,6 +3247,7 @@ fn TabLibrary(
                         }
                         input {
                             id: "form-scan-directories-1",
+                            autofocus: search_target.read().as_str() == "form-scan-directories-1",
                             r#type: "text",
                             style: "border: none; outline: none; background: transparent; color: var(--color-ink); font-size: 14px; flex: 1; min-width: 150px; padding: 2px 0;",
                             value: input_text(),
@@ -3244,6 +3331,7 @@ fn TabLibrary(
                 label { r#for: "form-searxng-service-url-1", class: "form-label", "SearXNG Service URL" }
                 input {
                     id: "form-searxng-service-url-1",
+                    autofocus: search_target.read().as_str() == "form-searxng-service-url-1",
                     class: "form-input",
                     value: config.read().searxng_url.clone(),
                     placeholder: "http://localhost:8888",
@@ -3910,7 +3998,7 @@ fn generate_dw_script(input: &str) -> String {
 }
 
 #[component]
-fn TabDownload() -> Element {
+fn TabDownload(search_target: Signal<String>) -> Element {
     let mut input_text = use_signal(|| {
         std::fs::read_to_string(get_default_config_path().join("t"))
             .or_else(|_| std::fs::read_to_string("/home/notroot/Work/llama-manager/t"))
@@ -4265,7 +4353,7 @@ fn perform_send(
 }
 
 #[component]
-fn TabChat(config: Signal<ServerConfig>) -> Element {
+fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let mut messages = use_signal(Vec::<(String, String)>::new);
     let mut current_input = use_signal(String::new);
     let is_generating = use_signal(|| false);
