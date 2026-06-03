@@ -1,0 +1,22 @@
+{
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Optimize Llama Server Parameters",
+      "summary": "Tune micro-batch size and GPU layers for hardware acceleration",
+      "assigned_agent": "ConfigOptimizer",
+      "status": "Todo",
+      "priority": "High",
+      "created_at": "2026-06-03"
+    },
+    {
+      "id": "task-2",
+      "title": "Internet Research on Hermes-Agent",
+      "summary": "Search repositories and documentation for core implementation examples",
+      "assigned_agent": "WebResearcher",
+      "status": "InProgress",
+      "priority": "Medium",
+      "created_at": "2026-06-03"
+    }
+  ]
+}

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use crate::todo::{TodoList, TodoEntry};
-use crate::calendar::{CalendarState, CalendarEvent};
+use crate::todo::{TodoList, TodoEntry, TodoScope, TodoStatus};
+use crate::calendar::{CalendarState, CalendarEvent, EventStatus};
 use crate::notes;
 
 // ── Memory System ────────────────────────────────────────────────────────────
@@ -514,11 +514,11 @@ pub async fn run_agent_task(
     let mut todos_context = String::new();
     todos_context.push_str("\nActive Todo Items:\n");
     todos_context.push_str("Global Todos:\n");
-    for item in global_todos.items.iter().filter(|i| i.status == "pending") {
+    for item in global_todos.items.iter().filter(|i| i.status == TodoStatus::Pending) {
         todos_context.push_str(&format!("  - [{}] (ID: {}): {}\n", item.scope, item.id, item.text));
     }
     todos_context.push_str("Project Todos:\n");
-    for item in project_todos.items.iter().filter(|i| i.status == "pending") {
+    for item in project_todos.items.iter().filter(|i| i.status == TodoStatus::Pending) {
         todos_context.push_str(&format!("  - [{}] (ID: {}): {}\n", item.scope, item.id, item.text));
     }
 
@@ -646,41 +646,23 @@ pub async fn run_agent_task(
                             }
                             "add_todo" => {
                                 let text = arguments.get("text").cloned().unwrap_or_default();
-                                let scope = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
+                                let scope_str = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
+                                let scope = if scope_str == "global" { TodoScope::Global } else { TodoScope::Project };
                                 let now = chrono::Local::now().to_rfc3339();
                                 let id = format!("todo-{}", chrono::Local::now().timestamp_millis());
-                                if scope == "global" {
-                                    let mut list = TodoList::load_global();
-                                    list.items.push(TodoEntry { id: id.clone(), text, scope, status: "pending".to_string(), created_at: now });
-                                    let _ = list.save_global();
-                                } else {
-                                    let mut list = TodoList::load_project(memory_manager.project_path.parent().unwrap().to_path_buf());
-                                    list.items.push(TodoEntry { id: id.clone(), text, scope, status: "pending".to_string(), created_at: now });
-                                    let _ = list.save_project(memory_manager.project_path.parent().unwrap().to_path_buf());
+                                let entry = TodoEntry { id: id.clone(), text, scope, status: TodoStatus::Pending, created_at: now };
+                                match TodoList::add_todo(entry, memory_manager.project_path.parent().unwrap().to_path_buf()) {
+                                    Ok(_) => Ok(format!("Added todo item with ID: {}", id)),
+                                    Err(e) => Err(format!("Failed to add todo: {}", e)),
                                 }
-                                Ok(format!("Added todo item with ID: {}", id))
                             }
                             "complete_todo" => {
                                 let id = arguments.get("id").cloned().unwrap_or_default();
-                                let scope = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                if scope == "global" {
-                                    let mut list = TodoList::load_global();
-                                    if let Some(item) = list.items.iter_mut().find(|i| i.id == id) {
-                                        item.status = "completed".to_string();
-                                        let _ = list.save_global();
-                                        Ok(format!("Completed global todo: {}", id))
-                                    } else {
-                                        Err(format!("Global todo ID {} not found", id))
-                                    }
-                                } else {
-                                    let mut list = TodoList::load_project(memory_manager.project_path.parent().unwrap().to_path_buf());
-                                    if let Some(item) = list.items.iter_mut().find(|i| i.id == id) {
-                                        item.status = "completed".to_string();
-                                        let _ = list.save_project(memory_manager.project_path.parent().unwrap().to_path_buf());
-                                        Ok(format!("Completed project todo: {}", id))
-                                    } else {
-                                        Err(format!("Project todo ID {} not found", id))
-                                    }
+                                let scope_str = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
+                                let scope = if scope_str == "global" { TodoScope::Global } else { TodoScope::Project };
+                                match TodoList::complete_todo(&id, scope, memory_manager.project_path.parent().unwrap().to_path_buf()) {
+                                    Ok(_) => Ok(format!("Completed todo: {}", id)),
+                                    Err(e) => Err(format!("Failed to complete todo: {}", e)),
                                 }
                             }
                             "read_notes" => {
@@ -700,18 +682,19 @@ pub async fn run_agent_task(
                                 let title = arguments.get("title").cloned().unwrap_or_default();
                                 let time = arguments.get("time").cloned().unwrap_or_default();
                                 let prompt = arguments.get("prompt").cloned().unwrap_or_default();
-                                let mut state = CalendarState::load();
                                 let id = format!("cal-{}", chrono::Local::now().timestamp_millis());
-                                state.events.push(CalendarEvent {
+                                let ev = CalendarEvent {
                                     id: id.clone(),
                                     title,
                                     time,
                                     prompt,
-                                    status: "pending".to_string(),
+                                    status: EventStatus::Pending,
                                     result: None,
-                                });
-                                let _ = state.save();
-                                Ok(format!("Added calendar event with ID: {}", id))
+                                };
+                                match CalendarState::add_event(ev) {
+                                    Ok(_) => Ok(format!("Added calendar event with ID: {}", id)),
+                                    Err(e) => Err(format!("Failed to add calendar event: {}", e)),
+                                }
                             }
                             "list_calendar_events" => {
                                 let state = CalendarState::load();

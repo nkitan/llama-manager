@@ -911,20 +911,10 @@ fn App() -> Element {
         async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                let mut state = calendar::CalendarState::load();
                 let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
-                let mut to_fire = Vec::new();
-
-                for ev in state.events.iter_mut() {
-                    if ev.status == "pending" && ev.time <= now {
-                        ev.status = "firing".to_string();
-                        to_fire.push(ev.clone());
-                    }
-                }
+                let to_fire = calendar::CalendarState::checkout_firing_events(&now);
 
                 if !to_fire.is_empty() {
-                    let _ = state.save();
-                    
                     for ev in to_fire {
                         let host = "127.0.0.1".to_string();
                         let port = load_default_config().port;
@@ -958,12 +948,10 @@ fn App() -> Element {
                                 }
                             };
 
-                            let mut inner_state = calendar::CalendarState::load();
-                            if let Some(inner_ev) = inner_state.events.iter_mut().find(|e| e.id == ev_id) {
-                                inner_ev.status = "completed".to_string();
+                            let _ = calendar::CalendarState::update_event(&ev_id, |inner_ev| {
+                                inner_ev.status = calendar::EventStatus::Completed;
                                 inner_ev.result = Some(result);
-                                let _ = inner_state.save();
-                            }
+                            });
                         });
                     }
                 }
@@ -6139,18 +6127,26 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
             return;
         }
 
-        let mut st = calendar::CalendarState::load();
+        // Validate and normalize datetime input
+        let dt_normalized = match calendar::parse_datetime(&dt) {
+            Ok(parsed) => parsed.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            Err(e) => {
+                eprintln!("[CALENDAR] Datetime validation failed: {}", e);
+                return;
+            }
+        };
+
         let id = format!("cal-{}", chrono::Local::now().timestamp_millis());
-        st.events.push(calendar::CalendarEvent {
+        let ev = calendar::CalendarEvent {
             id,
             title: t,
-            time: dt,
+            time: dt_normalized,
             prompt: p,
-            status: "pending".to_string(),
+            status: calendar::EventStatus::Pending,
             result: None,
-        });
-        if st.save().is_ok() {
-            state.set(st);
+        };
+        if calendar::CalendarState::add_event(ev).is_ok() {
+            state.set(calendar::CalendarState::load());
             title.set(String::new());
             datetime.set(String::new());
             prompt.set(String::new());
@@ -6159,10 +6155,8 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
 
     let delete_event = move |id: String| {
         let mut state = state;
-        let mut st = calendar::CalendarState::load();
-        st.events.retain(|e| e.id != id);
-        if st.save().is_ok() {
-            state.set(st);
+        if calendar::CalendarState::delete_event(&id).is_ok() {
+            state.set(calendar::CalendarState::load());
         }
     };
 
@@ -6266,11 +6260,11 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                         }
                                         div { style: "display: flex; align-items: center; gap: 8px;",
                                             span {
-                                                style: match ev.status.as_str() {
-                                                    "completed" => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                    "firing" => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                    "failed" => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                    _ => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                style: match ev.status {
+                                                    calendar::EventStatus::Completed => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    calendar::EventStatus::Firing => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    calendar::EventStatus::Failed => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    calendar::EventStatus::Pending => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
                                                 },
                                                 "{ev.status}"
                                             }
@@ -6348,57 +6342,34 @@ fn TabTodos() -> Element {
         let text = todo_text.read().trim().to_string();
         if text.is_empty() { return; }
         
-        let scope = todo_scope.read().clone();
+        let scope_str = todo_scope.read().clone();
+        let scope = if scope_str == "global" { todo::TodoScope::Global } else { todo::TodoScope::Project };
         let now = chrono::Local::now().to_rfc3339();
         let id = format!("todo-{}", chrono::Local::now().timestamp_millis());
 
-        if scope == "global" {
-            let mut list = todo::TodoList::load_global();
-            list.items.push(todo::TodoEntry { id, text, scope, status: "pending".to_string(), created_at: now });
-            let _ = list.save_global();
-            global_todos.set(list);
-        } else {
-            let mut list = todo::TodoList::load_project(get_default_config_path());
-            list.items.push(todo::TodoEntry { id, text, scope, status: "pending".to_string(), created_at: now });
-            let _ = list.save_project(get_default_config_path());
-            project_todos.set(list);
+        let entry = todo::TodoEntry { id, text, scope, status: todo::TodoStatus::Pending, created_at: now };
+        if todo::TodoList::add_todo(entry, get_default_config_path()).is_ok() {
+            global_todos.set(todo::TodoList::load_global());
+            project_todos.set(todo::TodoList::load_project(get_default_config_path()));
         }
         todo_text.set(String::new());
     };
 
-    let complete_todo = move |id: String, scope: String| {
+    let complete_todo = move |id: String, scope: todo::TodoScope| {
         let mut project_todos = project_todos;
         let mut global_todos = global_todos;
-        if scope == "global" {
-            let mut list = todo::TodoList::load_global();
-            if let Some(item) = list.items.iter_mut().find(|i| i.id == id) {
-                item.status = "completed".to_string();
-                let _ = list.save_global();
-                global_todos.set(list);
-            }
-        } else {
-            let mut list = todo::TodoList::load_project(get_default_config_path());
-            if let Some(item) = list.items.iter_mut().find(|i| i.id == id) {
-                item.status = "completed".to_string();
-                let _ = list.save_project(get_default_config_path());
-                project_todos.set(list);
-            }
+        if todo::TodoList::complete_todo(&id, scope, get_default_config_path()).is_ok() {
+            global_todos.set(todo::TodoList::load_global());
+            project_todos.set(todo::TodoList::load_project(get_default_config_path()));
         }
     };
 
-    let delete_todo = move |id: String, scope: String| {
+    let delete_todo = move |id: String, scope: todo::TodoScope| {
         let mut project_todos = project_todos;
         let mut global_todos = global_todos;
-        if scope == "global" {
-            let mut list = todo::TodoList::load_global();
-            list.items.retain(|i| i.id != id);
-            let _ = list.save_global();
-            global_todos.set(list);
-        } else {
-            let mut list = todo::TodoList::load_project(get_default_config_path());
-            list.items.retain(|i| i.id != id);
-            let _ = list.save_project(get_default_config_path());
-            project_todos.set(list);
+        if todo::TodoList::delete_todo(&id, scope, get_default_config_path()).is_ok() {
+            global_todos.set(todo::TodoList::load_global());
+            project_todos.set(todo::TodoList::load_project(get_default_config_path()));
         }
     };
 
@@ -6477,14 +6448,14 @@ fn TabTodos() -> Element {
                                     div {
                                         style: "display: flex; flex-direction: column; gap: 2px;",
                                         span {
-                                            style: if item.status == "completed" { "text-decoration: line-through; color: var(--color-muted);" } else { "color: var(--color-ink);" },
+                                            style: if item.status == todo::TodoStatus::Completed { "text-decoration: line-through; color: var(--color-muted);" } else { "color: var(--color-ink);" },
                                             "{item.text}"
                                         }
                                         span { style: "font-size: 10px; color: var(--color-muted-soft);", "ID: {item.id}" }
                                     }
                                     
                                     div { style: "display: flex; gap: 6px;",
-                                        if item.status == "pending" {
+                                        if item.status == todo::TodoStatus::Pending {
                                             button {
                                                 class: "btn btn-start btn-sm",
                                                 style: "padding: 2px 6px;",
@@ -6492,7 +6463,7 @@ fn TabTodos() -> Element {
                                                     let id = item.id.clone();
                                                     let scope = item.scope.clone();
                                                     let complete_todo = complete_todo.clone();
-                                                    move |_| complete_todo(id.clone(), scope.clone())
+                                                    move |_| complete_todo(id.clone(), scope)
                                                 },
                                                 "\u{2714} Done"
                                             }
@@ -6504,7 +6475,7 @@ fn TabTodos() -> Element {
                                                 let id = item.id.clone();
                                                 let scope = item.scope.clone();
                                                 let delete_todo = delete_todo.clone();
-                                                move |_| delete_todo(id.clone(), scope.clone())
+                                                move |_| delete_todo(id.clone(), scope)
                                             },
                                             "Delete"
                                         }
@@ -6537,14 +6508,14 @@ fn TabTodos() -> Element {
                                     div {
                                         style: "display: flex; flex-direction: column; gap: 2px;",
                                         span {
-                                            style: if item.status == "completed" { "text-decoration: line-through; color: var(--color-muted);" } else { "color: var(--color-ink);" },
+                                            style: if item.status == todo::TodoStatus::Completed { "text-decoration: line-through; color: var(--color-muted);" } else { "color: var(--color-ink);" },
                                             "{item.text}"
                                         }
                                         span { style: "font-size: 10px; color: var(--color-muted-soft);", "ID: {item.id}" }
                                     }
                                     
                                     div { style: "display: flex; gap: 6px;",
-                                        if item.status == "pending" {
+                                        if item.status == todo::TodoStatus::Pending {
                                             button {
                                                 class: "btn btn-start btn-sm",
                                                 style: "padding: 2px 6px;",
@@ -6552,7 +6523,7 @@ fn TabTodos() -> Element {
                                                     let id = item.id.clone();
                                                     let scope = item.scope.clone();
                                                     let complete_todo = complete_todo.clone();
-                                                    move |_| complete_todo(id.clone(), scope.clone())
+                                                    move |_| complete_todo(id.clone(), scope)
                                                 },
                                                 "\u{2714} Done"
                                             }
@@ -6564,7 +6535,7 @@ fn TabTodos() -> Element {
                                                 let id = item.id.clone();
                                                 let scope = item.scope.clone();
                                                 let delete_todo = delete_todo.clone();
-                                                move |_| delete_todo(id.clone(), scope.clone())
+                                                move |_| delete_todo(id.clone(), scope)
                                             },
                                             "Delete"
                                         }
