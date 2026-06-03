@@ -76,6 +76,78 @@ impl Tab {
     }
 }
 
+#[derive(Clone)]
+struct ConfigSearchEntry {
+    label: String,
+    section: String,
+    tab: Tab,
+    target_id: String,
+}
+
+fn config_search_entries() -> Vec<ConfigSearchEntry> {
+    vec![
+        ConfigSearchEntry { label: "llama-server path".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-llama-server-path-1".into() },
+        ConfigSearchEntry { label: "Model File (.gguf)".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-file-gguf-1".into() },
+        ConfigSearchEntry { label: "Model Alias".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-alias-1".into() },
+        ConfigSearchEntry { label: "Model Directory".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-directory-models-dir-1".into() },
+        ConfigSearchEntry { label: "Model URL".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-url-1".into() },
+        ConfigSearchEntry { label: "HuggingFace Repo".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-huggingface-repo-1".into() },
+        ConfigSearchEntry { label: "HuggingFace File".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-huggingface-file-1".into() },
+        ConfigSearchEntry { label: "HuggingFace Token".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-huggingface-token-1".into() },
+        ConfigSearchEntry { label: "Chat Template".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-chat-template-1".into() },
+        ConfigSearchEntry { label: "System Prompt".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-system-prompt-1".into() },
+        ConfigSearchEntry { label: "Host".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-host-1".into() },
+        ConfigSearchEntry { label: "Port".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-port-1".into() },
+        ConfigSearchEntry { label: "Timeout".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-server-timeout-s-1".into() },
+        ConfigSearchEntry { label: "HTTP Threads".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-http-threads-1".into() },
+        ConfigSearchEntry { label: "Context Size".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-context-size-c-1".into() },
+        ConfigSearchEntry { label: "Predict".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-max-predict-n-1".into() },
+        ConfigSearchEntry { label: "Batch Size".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-batch-size-b-1".into() },
+        ConfigSearchEntry { label: "Micro Batch Size".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-micro-batch-size-ub-1".into() },
+        ConfigSearchEntry { label: "Parallel Sequences".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-parallel-sequences-np-1".into() },
+        ConfigSearchEntry { label: "GPU Layers".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-gpu-layers-ngl-1".into() },
+        ConfigSearchEntry { label: "Main GPU".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-main-gpu-mg-1".into() },
+        ConfigSearchEntry { label: "Split Mode".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-split-mode-sm-1".into() },
+        ConfigSearchEntry { label: "Tensor Split".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-tensor-split-ts-1".into() },
+        ConfigSearchEntry { label: "Cache Type K".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-k-cache-type-ctk-1".into() },
+        ConfigSearchEntry { label: "Cache Type V".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-v-cache-type-ctv-1".into() },
+        ConfigSearchEntry { label: "Threads".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "form-threads-t-1".into() },
+        ConfigSearchEntry { label: "Threads Batch".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "form-batch-threads-tb-1".into() },
+        ConfigSearchEntry { label: "Flash Attention".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "".into() },
+        ConfigSearchEntry { label: "No Warmup".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "".into() },
+        ConfigSearchEntry { label: "Check Tensors".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "".into() },
+        ConfigSearchEntry { label: "Temperature".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-temperature-temp-1".into() },
+        ConfigSearchEntry { label: "Seed".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-seed-s-1".into() },
+        ConfigSearchEntry { label: "Top K".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-top-k-top-k-1".into() },
+        ConfigSearchEntry { label: "Top P".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-top-p-top-p-1".into() },
+        ConfigSearchEntry { label: "Min P".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-min-p-min-p-1".into() },
+        ConfigSearchEntry { label: "Repeat Penalty".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-repeat-penalty-1".into() },
+        ConfigSearchEntry { label: "Presence Penalty".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-presence-penalty-1".into() },
+        ConfigSearchEntry { label: "Frequency Penalty".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-frequency-penalty-1".into() },
+        ConfigSearchEntry { label: "Grammar".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-grammar-bnf-1".into() },
+        ConfigSearchEntry { label: "Grammar File".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-grammar-file-1".into() },
+        ConfigSearchEntry { label: "Rope Scaling".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-scaling-type-1".into() },
+        ConfigSearchEntry { label: "RoPE Freq Base".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-freq-base-1".into() },
+        ConfigSearchEntry { label: "RoPE Freq Scale".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-freq-scale-1".into() },
+        ConfigSearchEntry { label: "Yarn Orig Ctx".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-yarn-orig-ctx-1".into() },
+        ConfigSearchEntry { label: "Yarn Ext Factor".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-extension-factor-1".into() },
+        ConfigSearchEntry { label: "Yarn Attn Factor".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-attention-factor-1".into() },
+        ConfigSearchEntry { label: "Yarn Beta Fast".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-beta-fast-1".into() },
+        ConfigSearchEntry { label: "Yarn Beta Slow".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-beta-slow-1".into() },
+        ConfigSearchEntry { label: "API Key".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-api-key-api-key-1".into() },
+        ConfigSearchEntry { label: "API Key File".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-api-key-file-api-key-file-1".into() },
+        ConfigSearchEntry { label: "Metrics".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
+        ConfigSearchEntry { label: "Slots".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
+        ConfigSearchEntry { label: "Slot Save Path".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-slot-save-path-1".into() },
+        ConfigSearchEntry { label: "Log Format".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-log-format-1".into() },
+        ConfigSearchEntry { label: "Verbose Logging".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
+        ConfigSearchEntry { label: "Model Scan Directories".into(), section: "Model Index".into(), tab: Tab::Library, target_id: "form-scan-directories-1".into() },
+        ConfigSearchEntry { label: "SearxNG URL".into(), section: "Model Index".into(), tab: Tab::Library, target_id: "form-searxng-service-url-1".into() },
+        ConfigSearchEntry { label: "Chat".into(), section: "Navigation".into(), tab: Tab::Chat, target_id: "".into() },
+        ConfigSearchEntry { label: "Downloader".into(), section: "Navigation".into(), tab: Tab::Download, target_id: "".into() },
+    ]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CSS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -767,6 +839,10 @@ fn App() -> Element {
     let mut selected_model = use_signal(String::new);
     let mut loading_models = use_signal(|| false);
 
+    let mut search_query = use_signal(|| String::new());
+    let mut search_results = use_signal(|| Vec::<ConfigSearchEntry>::new());
+    let search_entries = config_search_entries();
+
     let mut scanned_models = use_signal(|| {
         let index_path = get_default_config_path().join("model_index.json");
         library::load_index(&index_path.to_string_lossy())
@@ -780,6 +856,41 @@ fn App() -> Element {
         use_signal(|| Arc::new(Mutex::new(Vec::new())));
 
     let is_running = server_child.read().is_some();
+
+    let on_search_input = move |e: Event<FormData>| {
+        let query = e.value();
+        let normalized = query.trim().to_lowercase();
+        search_query.set(query.clone());
+
+        if normalized.is_empty() {
+            search_results.set(Vec::new());
+            return;
+        }
+
+        let mut filtered: Vec<ConfigSearchEntry> = search_entries
+            .iter()
+            .filter(|entry| {
+                let label = entry.label.to_lowercase();
+                let section = entry.section.to_lowercase();
+                label.contains(&normalized) || section.contains(&normalized)
+            })
+            .cloned()
+            .collect();
+
+        filtered.sort_by_key(|entry| {
+            entry
+                .label
+                .to_lowercase()
+                .find(&normalized)
+                .unwrap_or(usize::MAX)
+        });
+
+        if filtered.len() > 12 {
+            filtered.truncate(12);
+        }
+
+        search_results.set(filtered);
+    };
 
     // ── Indexer & LLM Metadata Enricher ──────────────────────────────
     let _indexer = use_resource(move || {
@@ -1074,6 +1185,8 @@ fn App() -> Element {
         drag_start_height.set(*log_panel_height.read());
     };
 
+    let search_matches = search_results.read().clone();
+
     // ── Render ──────────────────────────────────────────────────────
     rsx! {
         style { {CSS} }
@@ -1145,6 +1258,14 @@ fn App() -> Element {
                     span { aria_hidden: "true", "\u{1F999}" }
                     "Llama-Manager"
                 }
+                div { class: "search-group",
+                    input {
+                        class: "search-input",
+                        placeholder: "Search config entries…",
+                        value: search_query(),
+                        oninput: on_search_input,
+                    }
+                }
                 div { class: "top-right",
                     // Save / Load
                     button { class: "btn btn-ghost btn-sm", onclick: save_config, "Save Config" }
@@ -1207,6 +1328,30 @@ fn App() -> Element {
                         div { class: "error-toast",
                             "\u{26A0}\u{FE0F} "
                             {msg.clone()}
+                        }
+                    }
+
+                    if !search_matches.is_empty() {
+                        div { class: "search-results",
+                            div { class: "search-results-header", "Search results" }
+                            div { class: "search-results-list",
+                                for result in search_matches.into_iter() {
+                                    a {
+                                        class: "search-result-item",
+                                        href: format!("#{}", result.target_id),
+                                        onclick: move |_| {
+                                            active_tab.set(result.tab);
+                                            search_results.set(Vec::new());
+                                            search_query.set(String::new());
+                                        },
+                                        div { class: "search-result-label",
+                                            div { class: "search-result-title", "{result.label}" }
+                                            div { class: "search-result-meta", "{result.section}" }
+                                        }
+                                        div { class: "search-chip", "{result.tab.label()}" }
+                                    }
+                                }
+                            }
                         }
                     }
 
