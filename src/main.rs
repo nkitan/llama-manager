@@ -632,6 +632,47 @@ const CSS: &str = r#"
     --color-surface-strong: color-mix(in srgb, var(--ui-text-color) 12%, transparent);
     --color-surface-dark: color-mix(in srgb, var(--ui-bg-color) 92%, var(--ui-text-color) 8%);
     --color-surface-dark-elevated: color-mix(in srgb, var(--ui-bg-color) 86%, var(--ui-text-color) 14%);
+
+    /* theme-aware overlays (replace hardcoded rgba(0,0,0,X) which disappears
+       on dark themes). Tinted from the text color so they read on both light
+       and dark surfaces. */
+    --color-overlay-1: color-mix(in srgb, var(--ui-text-color) 4%, transparent);
+    --color-overlay-2: color-mix(in srgb, var(--ui-text-color) 8%, transparent);
+    --color-overlay-3: color-mix(in srgb, var(--ui-text-color) 14%, transparent);
+    --color-overlay-4: color-mix(in srgb, var(--ui-text-color) 22%, transparent);
+    --color-overlay-white-1: rgba(255, 255, 255, 0.04);
+    --color-overlay-white-2: rgba(255, 255, 255, 0.08);
+    --color-overlay-white-3: rgba(255, 255, 255, 0.16);
+
+    /* status badge palette — text + matching translucent background.
+       Works for both light and dark themes. */
+    --color-badge-success-text: #10b981;
+    --color-badge-success-bg: color-mix(in srgb, #10b981 16%, transparent);
+    --color-badge-success-border: color-mix(in srgb, #10b981 32%, transparent);
+    --color-badge-warning-text: #d97706;
+    --color-badge-warning-bg: color-mix(in srgb, #f59e0b 18%, transparent);
+    --color-badge-warning-border: color-mix(in srgb, #f59e0b 35%, transparent);
+    --color-badge-error-text: #ef4444;
+    --color-badge-error-bg: color-mix(in srgb, #ef4444 16%, transparent);
+    --color-badge-error-border: color-mix(in srgb, #ef4444 32%, transparent);
+    --color-badge-info-text: var(--ui-accent-color);
+    --color-badge-info-bg: color-mix(in srgb, var(--ui-accent-color) 16%, transparent);
+    --color-badge-info-border: color-mix(in srgb, var(--ui-accent-color) 32%, transparent);
+    --color-badge-neutral-text: var(--color-muted);
+    --color-badge-neutral-bg: var(--color-overlay-2);
+    --color-badge-neutral-border: var(--color-hairline-soft);
+
+    /* category palette for tags/chips that need a hint of color without
+       being tied to a single brand accent. */
+    --color-tag-purple: #a78bfa;
+    --color-tag-blue: #60a5fa;
+    --color-tag-green: #4ade80;
+    --color-tag-yellow: #facc15;
+    --color-tag-pink: #f472b6;
+    --color-tag-orange: #fb923c;
+    --color-tag-cyan: #22d3ee;
+    --color-tag-red: #f87171;
+    --color-tag-slate: #cbd5e1;
 }
 
 /* html and body stay fully transparent so the window's own alpha shows the
@@ -757,7 +798,7 @@ body {
     width: 100%;
 }
 .search-result-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--color-overlay-white-1);
 }
 .search-result-label {
     display: flex; flex-direction: column;
@@ -773,7 +814,7 @@ body {
 .search-chip {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 2px 8px; border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05); color: var(--color-muted);
+    background: var(--color-overlay-white-1); color: var(--color-muted);
     font-size: 10px; font-weight: 500; white-space: nowrap;
     border: 1px solid var(--color-hairline);
 }
@@ -784,15 +825,15 @@ body {
     font-size: 12px; font-weight: 600;
     border: 1px solid transparent;
 }
-.status-badge.running { 
-    background: rgba(16,185,129,0.12); 
-    color: var(--color-success); 
-    border-color: rgba(16,185,129,0.25);
+.status-badge.running {
+    background: var(--color-badge-success-bg);
+    color: var(--color-success);
+    border-color: var(--color-badge-success-border);
 }
-.status-badge.stopped { 
-    background: rgba(255,255,255,0.05); 
-    color: var(--color-muted); 
-    border-color: rgba(255,255,255,0.08);
+.status-badge.stopped {
+    background: var(--color-overlay-white-1);
+    color: var(--color-muted);
+    border-color: var(--color-overlay-white-2);
 }
 .status-dot {
     width: 8px; height: 8px; border-radius: 50%;
@@ -985,7 +1026,7 @@ body {
 }
 .sidebar-section-header.interactive:hover {
     color: var(--color-ink);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--color-overlay-white-1);
 }
 .section-arrow {
     display: inline-block;
@@ -998,8 +1039,8 @@ body {
     color: var(--color-ink);
 }
 .btn-sidebar-toggle {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--color-overlay-white-1);
+    border: 1px solid var(--color-overlay-white-2);
     border-radius: 6px;
     width: 28px;
     height: 28px;
@@ -1014,8 +1055,8 @@ body {
     outline: none;
 }
 .btn-sidebar-toggle:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: var(--color-overlay-white-2);
+    border-color: var(--color-overlay-white-3);
     color: var(--color-ink);
     transform: scale(1.05);
 }
@@ -1046,7 +1087,7 @@ body {
 
 /* ── Content ─────────────────────────────────────────────────────── */
 .content {
-    flex: 1; min-height: 0; overflow-y: auto;
+    flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden;
     /* Use the app background color as base — prevents WebKit2GTK ghosting
        when switching tabs on transparent windows. A truly transparent
        content area causes the compositor to keep the previous tab's
@@ -1061,11 +1102,18 @@ body {
 }
 /* space between top-level children inside any tab */
 .content > * + * { margin-top: 16px; }
-.content::-webkit-scrollbar { width: 6px; }
+.content::-webkit-scrollbar { width: 10px; }
 .content::-webkit-scrollbar-track { background: transparent; }
 .content::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--color-ink) 20%, transparent);
-    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-ink) 35%, transparent);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+.content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-ink) 55%, transparent);
+    background-clip: padding-box;
+    border: 2px solid transparent;
 }
 
 .section-title {
@@ -1265,7 +1313,7 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
     margin-left: 4px;
 }
 .tag-badge button:hover {
-    background: rgba(239, 68, 68, 0.15);
+    background: var(--color-badge-error-bg);
     color: var(--color-error);
 }
 
@@ -1299,6 +1347,10 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
 /* ── Log Panel ────────────────────────────────────────────────────── */
 .log-panel {
     min-height: 160px; display: flex; flex-direction: column;
+    flex: 0 0 auto;
+    /* The actual height is set inline (driven by the resizable splitter)
+       so the panel cannot grow past the user-chosen size — long logs scroll
+       inside .log-content instead of stretching the whole window. */
     background: var(--glass-sheen), var(--glass-frost);
     border: 1px solid var(--color-hairline);
     border-radius: 14px;
@@ -1309,20 +1361,31 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
     display: flex; align-items: center; justify-content: space-between;
     padding: 12px 16px; background: var(--color-canvas);
     border-bottom: 1px solid var(--color-hairline);
+    flex: 0 0 auto;
 }
 .log-panel .log-title {
     font-size: 12px; font-weight: 700; color: var(--color-ink);
     text-transform: uppercase; letter-spacing: 0.12em;
 }
 .log-panel .log-content {
-    flex: 1; overflow-y: auto; padding: 14px 16px;
+    flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 14px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px; line-height: 1.7;
     background: var(--color-canvas);
 }
-.log-panel .log-content::-webkit-scrollbar { width: 8px; }
+.log-panel .log-content::-webkit-scrollbar { width: 10px; }
 .log-panel .log-content::-webkit-scrollbar-track { background: transparent; }
-.log-panel .log-content::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.65); border-radius: 4px; }
+.log-panel .log-content::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--color-ink) 40%, transparent);
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+}
+.log-panel .log-content::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--color-ink) 60%, transparent);
+    background-clip: padding-box;
+    border: 2px solid transparent;
+}
 .log-line { white-space: pre-wrap; word-break: break-word; margin-bottom: 6px; }
 .log-out { color: var(--color-body); }
 .log-err { color: var(--color-error); }
@@ -1339,7 +1402,7 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
     max-height: 100px; overflow-y: auto;
 }
 .cmd-preview::-webkit-scrollbar { width: 6px; }
-.cmd-preview::-webkit-scrollbar-thumb { background: #222222; border-radius: 3px; }
+.cmd-preview::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-ink) 40%, transparent); border-radius: 3px; }
 
 /* ── nav-pill-group for tabs ──────────────────────────────────────── */
 .nav-pill-group {
@@ -1470,7 +1533,7 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
 
 /* ── Misc ─────────────────────────────────────────────────────────── */
 .error-toast {
-    background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2);
+    background: var(--color-badge-error-bg); border: 1px solid var(--color-badge-error-border);
     color: var(--color-error); border-radius: 8px; padding: 12px 16px;
     font-size: 14px; display: flex; align-items: center; gap: 8px;
     font-weight: 500;
@@ -1508,7 +1571,7 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
     outline: none;
 }
 .top-menu-btn:hover, .top-menu-btn.active {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-overlay-white-2);
     color: var(--color-ink);
 }
 .menu-dropdown {
@@ -1543,16 +1606,16 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
     gap: 8px;
 }
 .dropdown-item:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-overlay-white-2);
     color: var(--color-ink);
 }
 .dropdown-item.item-danger:hover {
-    background: rgba(239, 68, 68, 0.2);
-    color: #fca5a5;
+    background: var(--color-badge-error-bg);
+    color: var(--color-badge-error-text);
 }
 .dropdown-divider {
     height: 1px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-overlay-white-2);
     margin: 4px 0;
 }
 .window-controls {
@@ -1578,12 +1641,12 @@ input[type="range"].form-input:focus::-webkit-slider-thumb {
     outline: none;
 }
 .window-control-btn:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--color-overlay-white-2);
     color: var(--color-ink);
 }
 .window-control-btn.control-close:hover {
-    background: #ef4444;
-    color: white;
+    background: var(--color-error);
+    color: var(--color-on-primary);
 }
 "#;
 
@@ -2986,9 +3049,9 @@ fn App() -> Element {
                     key: "{active_tab().as_str()}",
                     style: if active_tab() == Tab::Chat {
                         if immersive_mode() {
-                            "height: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0;"
+                            "height: 100%; overflow: scroll; display: flex; flex-direction: column; padding: 0;"
                         } else {
-                            "height: 100%; overflow: hidden; display: flex; flex-direction: column;"
+                            "height: 100%; overflow: scroll; display: flex; flex-direction: column;"
                         }
                     } else { "" },
                     // Error toast
@@ -3088,7 +3151,7 @@ fn App() -> Element {
             if !immersive_mode() {
                 div {
                     class: "log-panel",
-                    style: "min-height: {log_panel_height}px;",
+                    style: "height: {log_panel_height}px;",
                 div { class: "log-header",
                     div { class: "log-title", "Output" }
                     button {
@@ -4931,7 +4994,7 @@ fn TabLibrary(
             div { class: "card",
                 div { style: "display: flex; align-items: center; justify-content: space-between;",
                     div { class: "card-title", "Indexed Models ({scanned_models.read().len()})" }
-                    div { class: "form-hint", style: "margin: 0;", "Status: " span { style: "color: #a78bfa; font-weight: 600;", "{index_status()}" } }
+                    div { class: "form-hint", style: "margin: 0;", "Status: " span { style: "color: var(--color-brand-accent); font-weight: 600;", "{index_status()}" } }
                 }
 
             if scanned_models.read().is_empty() {
@@ -5065,83 +5128,83 @@ fn TabLibrary(
                                                                                             }
                                                                                             div { style: "font-size: 10px; color: var(--color-muted); font-family: monospace; margin-top: 2px;", {m.filename.clone()} }
 
-                                                                                            // Hierarchy Tags BADGES!
-                                                                                            if !m.tags.is_empty() {
-                                                                                                div { style: "display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;",
-                                                                                                    for tag in m.tags.iter() {
-                                                                                                        span {
-                                                                                                            style: {
-                                                                                                                let color = if tag.starts_with("Q") || tag.starts_with("IQ") || tag == "BF16" || tag == "F16" || tag == "FP16" || tag == "F32" || tag == "FP32" {
-                                                                                                                    "background: rgba(59, 130, 246, 0.08); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.15);"
-                                                                                                                } else {
-                                                                                                                    match tag.as_str() {
-                                                                                                                        "GGUF" => "background: rgba(139, 92, 246, 0.08); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.15);",
-                                                                                                                        "Safetensors" => "background: rgba(59, 130, 246, 0.08); color: #1d4ed8; border: 1px solid rgba(59, 130, 246, 0.15);",
-                                                                                                                        "Uncensored" => "background: rgba(239, 68, 68, 0.08); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.15);",
-                                                                                                                        "Thinking" => "background: rgba(245, 158, 11, 0.08); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.15);",
-                                                                                                                        "Abliterated" => "background: rgba(249, 115, 22, 0.08); color: #c2410c; border: 1px solid rgba(249, 115, 22, 0.15);",
-                                                                                                                        _ => "background: rgba(107, 114, 128, 0.08); color: #374151; border: 1px solid rgba(107, 114, 128, 0.15);"
-                                                                                                                    }
-                                                                                                                };
-                                                                                                                format!("padding: 1px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 500; {}", color)
-                                                                                                            },
-                                                                                                            "{tag}"
-                                                                                                        }
-                                                                                                    }
-                                                                                                }
-                                                                                            }
+                                                                                                     // Hierarchy Tags BADGES!
+                                                                                                     if !m.tags.is_empty() {
+                                                                                                         div { style: "display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;",
+                                                                                                             for tag in m.tags.iter() {
+                                                                                                                 span {
+                                                                                                                     style: {
+                                                                                                                         let color = if tag.starts_with("Q") || tag.starts_with("IQ") || tag == "BF16" || tag == "F16" || tag == "FP16" || tag == "F32" || tag == "FP32" {
+                                                                                                                             "background: color-mix(in srgb, var(--color-tag-blue) 12%, transparent); color: var(--color-tag-blue); border: 1px solid color-mix(in srgb, var(--color-tag-blue) 28%, transparent);"
+                                                                                                                         } else {
+                                                                                                                             match tag.as_str() {
+                                                                                                                                 "GGUF" => "background: color-mix(in srgb, var(--color-tag-purple) 14%, transparent); color: var(--color-tag-purple); border: 1px solid color-mix(in srgb, var(--color-tag-purple) 30%, transparent);",
+                                                                                                                                 "Safetensors" => "background: color-mix(in srgb, var(--color-tag-blue) 12%, transparent); color: var(--color-tag-blue); border: 1px solid color-mix(in srgb, var(--color-tag-blue) 28%, transparent);",
+                                                                                                                                 "Uncensored" => "background: var(--color-badge-error-bg); color: var(--color-badge-error-text); border: 1px solid var(--color-badge-error-border);",
+                                                                                                                                 "Thinking" => "background: var(--color-badge-warning-bg); color: var(--color-badge-warning-text); border: 1px solid var(--color-badge-warning-border);",
+                                                                                                                                 "Abliterated" => "background: color-mix(in srgb, var(--color-tag-orange) 14%, transparent); color: var(--color-tag-orange); border: 1px solid color-mix(in srgb, var(--color-tag-orange) 30%, transparent);",
+                                                                                                                                 _ => "background: var(--color-badge-neutral-bg); color: var(--color-badge-neutral-text); border: 1px solid var(--color-badge-neutral-border);"
+                                                                                                                             }
+                                                                                                                         };
+                                                                                                                         format!("padding: 1px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 500; {}", color)
+                                                                                                                     },
+                                                                                                                     "{tag}"
+                                                                                                                 }
+                                                                                                             }
+                                                                                                         }
+                                                                                                     }
                                                                                         }
 
-                                                                                        // Column 2: Use-case
-                                                                                        td { style: "padding: 10px 6px;",
-                                                                                            span {
-                                                                                                style: {
-                                                                                                    let bg = match m.use_case.as_str() {
-                                                                                                        "Text Generation" => "rgba(124, 92, 252, 0.15); color: #c084fc",
-                                                                                                        "Text Embedding" => "rgba(59, 130, 246, 0.15); color: #60a5fa",
-                                                                                                        "OCR" => "rgba(234, 179, 8, 0.15); color: #facc15",
-                                                                                                        "ASR" => "rgba(34, 197, 94, 0.15); color: #4ade80",
-                                                                                                        "TTS" => "rgba(236, 72, 153, 0.15); color: #f472b6",
-                                                                                                        "Image Generation" => "rgba(249, 115, 22, 0.15); color: #ffedd5",
-                                                                                                        "Video Generation" => "rgba(6, 182, 212, 0.15); color: #22d3ee",
-                                                                                                        "Coding" => "rgba(239, 68, 68, 0.15); color: #f87171",
-                                                                                                        _ => "rgba(100, 116, 139, 0.15); color: #cbd5e1"
-                                                                                                    };
-                                                                                                    format!("padding: 2px 6px; border-radius: 10px; font-size: 10.5px; font-weight: 500; background: {}", bg)
-                                                                                                },
-                                                                                                {m.use_case.clone()}
-                                                                                            }
-                                                                                        }
+                                                                                         // Column 2: Use-case
+                                                                                         td { style: "padding: 10px 6px;",
+                                                                                             span {
+                                                                                                 style: {
+                                                                                                     let bg = match m.use_case.as_str() {
+                                                                                                         "Text Generation" => "color-mix(in srgb, var(--color-tag-purple) 16%, transparent); color: var(--color-tag-purple);",
+                                                                                                         "Text Embedding" => "color-mix(in srgb, var(--color-tag-blue) 16%, transparent); color: var(--color-tag-blue);",
+                                                                                                         "OCR" => "color-mix(in srgb, var(--color-tag-yellow) 18%, transparent); color: var(--color-tag-yellow);",
+                                                                                                         "ASR" => "color-mix(in srgb, var(--color-tag-green) 16%, transparent); color: var(--color-tag-green);",
+                                                                                                         "TTS" => "color-mix(in srgb, var(--color-tag-pink) 16%, transparent); color: var(--color-tag-pink);",
+                                                                                                         "Image Generation" => "color-mix(in srgb, var(--color-tag-orange) 18%, transparent); color: var(--color-tag-orange);",
+                                                                                                         "Video Generation" => "color-mix(in srgb, var(--color-tag-cyan) 18%, transparent); color: var(--color-tag-cyan);",
+                                                                                                         "Coding" => "color-mix(in srgb, var(--color-tag-red) 18%, transparent); color: var(--color-tag-red);",
+                                                                                                         _ => "var(--color-overlay-2); color: var(--color-muted);"
+                                                                                                     };
+                                                                                                     format!("padding: 2px 6px; border-radius: 10px; font-size: 10.5px; font-weight: 500; background: {}", bg)
+                                                                                                 },
+                                                                                                 {m.use_case.clone()}
+                                                                                             }
+                                                                                         }
 
-                                                                                        // Column 3: Size
-                                                                                        td { style: "padding: 10px 6px;",
-                                                                                            div { style: "font-weight: 500; color: #cbd5e1;", {m.size_info.clone()} }
-                                                                                        }
+                                                                                         // Column 3: Size
+                                                                                         td { style: "padding: 10px 6px;",
+                                                                                             div { style: "font-weight: 500; color: var(--color-muted);", {m.size_info.clone()} }
+                                                                                         }
 
-                                                                                        // Column 4: Links
-                                                                                        td { style: "padding: 10px 6px;",
-                                                                                            div { style: "display: flex; gap: 6px;",
-                                                                                                if !m.hf_link.is_empty() {
-                                                                                                    a {
-                                                                                                        href: "{m.hf_link}",
-                                                                                                        target: "_blank",
-                                                                                                        style: "color: #3b82f6; text-decoration: none; display: inline-flex; align-items: center; gap: 2px;",
-                                                                                                        "\u{1F917} HF"
-                                                                                                    }
-                                                                                                }
-                                                                                                if !m.github_link.is_empty() {
-                                                                                                    a {
-                                                                                                        href: "{m.github_link}",
-                                                                                                        target: "_blank",
-                                                                                                        style: "color: #10b981; text-decoration: none; display: inline-flex; align-items: center; gap: 2px;",
-                                                                                                        "\u{1F431} Git"
-                                                                                                    }
-                                                                                                }
-                                                                                                if m.hf_link.is_empty() && m.github_link.is_empty() {
-                                                                                                    span { style: "color: #4a5568; font-style: italic; font-size: 11px;", "None" }
-                                                                                                }
-                                                                                            }
-                                                                                        }
+                                                                                         // Column 4: Links
+                                                                                         td { style: "padding: 10px 6px;",
+                                                                                             div { style: "display: flex; gap: 6px;",
+                                                                                                 if !m.hf_link.is_empty() {
+                                                                                                     a {
+                                                                                                         href: "{m.hf_link}",
+                                                                                                         target: "_blank",
+                                                                                                         style: "color: var(--color-brand-accent); text-decoration: none; display: inline-flex; align-items: center; gap: 2px;",
+                                                                                                         "\u{1F917} HF"
+                                                                                                     }
+                                                                                                 }
+                                                                                                 if !m.github_link.is_empty() {
+                                                                                                     a {
+                                                                                                         href: "{m.github_link}",
+                                                                                                         target: "_blank",
+                                                                                                         style: "color: var(--color-success); text-decoration: none; display: inline-flex; align-items: center; gap: 2px;",
+                                                                                                         "\u{1F431} Git"
+                                                                                                     }
+                                                                                                 }
+                                                                                                 if m.hf_link.is_empty() && m.github_link.is_empty() {
+                                                                                                     span { style: "color: var(--color-muted); font-style: italic; font-size: 11px;", "None" }
+                                                                                                 }
+                                                                                             }
+                                                                                         }
 
                                                                                         // Column 5: Action
                                                                                         td { style: "padding: 10px 6px; text-align: right;",
@@ -5162,9 +5225,9 @@ fn TabLibrary(
                                                                                                         },
                                                                                                         "\u{21BB} Enrich"
                                                                                                     }
-                                                                                                } else if m.status == "enriching" {
-                                                                                                    span { style: "font-size: 10.5px; color: #eab308; font-style: italic;", "Enriching\u{2026}" }
-                                                                                                }
+                                                                                             } else if m.status == "enriching" {
+                                                                                                     span { style: "font-size: 10.5px; color: var(--color-warning); font-style: italic;", "Enriching\u{2026}" }
+                                                                                             }
 
                                                                                                 button {
                                                                                                     class: "btn btn-ghost btn-sm",
@@ -5290,9 +5353,9 @@ fn TabLibrary(
                                                             span {
                                                                 style: {
                                                                     let color = match m.status.as_str() {
-                                                                        "enriching" => "background: rgba(139, 92, 246, 0.08); color: #6d28d9; border: 1px solid rgba(139, 92, 246, 0.15);",
-                                                                        "failed" => "background: rgba(239, 68, 68, 0.08); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.15);",
-                                                                        _ => "background: rgba(245, 158, 11, 0.08); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.15);"
+                                                                        "enriching" => "background: color-mix(in srgb, var(--color-tag-purple) 14%, transparent); color: var(--color-tag-purple); border: 1px solid color-mix(in srgb, var(--color-tag-purple) 30%, transparent);",
+                                                                        "failed" => "background: var(--color-badge-error-bg); color: var(--color-badge-error-text); border: 1px solid var(--color-badge-error-border);",
+                                                                        _ => "background: var(--color-badge-warning-bg); color: var(--color-badge-warning-text); border: 1px solid var(--color-badge-warning-border);"
                                                                     };
                                                                     format!("padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; {}", color)
                                                                 },
@@ -5885,7 +5948,7 @@ fn TabDownload(search_target: Signal<String>) -> Element {
                     }
                     if show_raw_logs() {
                         div {
-                            style: "background: #0f172a; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 12px; border-radius: 8px; overflow-y: auto; height: 180px; white-space: pre-wrap; word-break: break-all; border: 1px solid #1e293b; line-height: 1.4; text-align: left; margin-top: 8px;",
+                            style: "background: var(--color-surface-dark); color: var(--color-on-dark-soft); font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 12px; border-radius: 8px; overflow-y: auto; height: 180px; white-space: pre-wrap; word-break: break-all; border: 1px solid var(--color-hairline); line-height: 1.4; text-align: left; margin-top: 8px;",
                             for (i, line) in tmux_output.read().iter().enumerate() {
                                 div { key: "{i}", {line.clone()} }
                             }
@@ -6121,11 +6184,11 @@ fn TabChat(
         if let Some((ref h, p)) = *routed_instance.read() {
             if !immersive_mode() {
                 div {
-                    style: "background: var(--color-brand-accent); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
+                    style: "background: var(--color-brand-accent); color: var(--color-on-primary); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
                     span { "💬 Chat routed to instance: {h}:{p}" }
                     button {
                         class: "btn btn-sm",
-                        style: "background: rgba(255, 255, 255, 0.2); color: #fff; border: none; padding: 2px 8px; font-size: 11px;",
+                        style: "background: var(--color-overlay-white-3); color: var(--color-on-primary); border: none; padding: 2px 8px; font-size: 11px;",
                         onclick: move |_| routed_instance.set(None),
                         "Reset to Local"
                     }
@@ -6136,7 +6199,7 @@ fn TabChat(
         if !server_status() {
             if !immersive_mode() {
                 div {
-                    style: "background: var(--color-warning); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
+                    style: "background: var(--color-warning); color: var(--color-on-primary); padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
                     if let Some((ref h, p)) = *routed_instance.read() {
                         span { "⚠️ Routed server {h}:{p} is offline. Please make sure the instance is running or select another instance." }
                     } else {
@@ -6212,7 +6275,7 @@ fn TabChat(
             }
 
             div {
-                style: "flex-grow: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;",
+                style: "flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;",
                 if messages.read().is_empty() {
                     div {
                         style: "margin: auto; text-align: center; color: var(--color-muted); max-width: 320px;",
@@ -6227,17 +6290,17 @@ fn TabChat(
                             style: if role == "user" { "display: flex; justify-content: flex-end;" } else { "display: flex; justify-content: flex-start;" },
                             div {
                                 style: if role == "user" {
-                                    "background: var(--color-brand-accent); color: #fff; padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 80%; font-size: 13.5px; line-height: 1.4; text-align: left;"
+                                    "background: var(--color-brand-accent); color: var(--color-on-primary); padding: 10px 14px; border-radius: 14px 14px 2px 14px; max-width: 80%; font-size: 13.5px; line-height: 1.4; text-align: left;"
                                 } else {
                                     "background: var(--color-canvas); color: var(--color-ink); padding: 10px 14px; border-radius: 14px 14px 14px 2px; max-width: 80%; font-size: 13.5px; line-height: 1.4; text-align: left; border: 1px solid var(--color-hairline);"
                                 },
                                 div { "{text}" }
                                 if let Some(logs) = opt_logs {
                                     div {
-                                        style: "margin-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 6px; font-size: 11px; width: 100%;",
+                                        style: "margin-top: 8px; border-top: 1px solid var(--color-hairline-soft); padding-top: 6px; font-size: 11px; width: 100%;",
                                         details {
                                             summary { style: "cursor: pointer; font-weight: 600; color: var(--color-brand-accent); outline: none; margin-bottom: 4px;", "🤖 Agent Execution Trace ({logs.len()} steps)" }
-                                            div { style: "font-family: monospace; white-space: pre-wrap; padding: 8px; background: rgba(0,0,0,0.03); border: 1px solid var(--color-hairline); border-radius: 4px; max-height: 160px; overflow-y: auto; color: var(--color-muted); font-size: 10.5px; line-height: 1.3;",
+                                            div { style: "font-family: monospace; white-space: pre-wrap; padding: 8px; background: var(--color-overlay-1); border: 1px solid var(--color-hairline); border-radius: 4px; max-height: 160px; overflow-y: auto; color: var(--color-muted); font-size: 10.5px; line-height: 1.3;",
                                                 for log in logs {
                                                     div { "{log}" }
                                                 }
@@ -6484,18 +6547,18 @@ fn TabInstances(
                             "{check_status()}"
                         }
                         div {
-                            style: "font-size: 11.5px; font-weight: 600; color: var(--color-brand-accent); background: rgba(37, 99, 235, 0.08); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(37, 99, 235, 0.15);",
+                            style: "font-size: 11.5px; font-weight: 600; color: var(--color-badge-info-text); background: var(--color-badge-info-bg); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-badge-info-border);",
                             "Active: {detected_instances.read().len()}"
                         }
                     }
                 }
                 if let Some((ref h, p)) = *routed_instance.read() {
                     div {
-                        style: "margin-top: 12px; padding: 10px 14px; background: var(--color-brand-accent); color: #fff; border-radius: 4px; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;",
+                        style: "margin-top: 12px; padding: 10px 14px; background: var(--color-brand-accent); color: var(--color-on-primary); border-radius: 4px; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;",
                         span { "💬 Chat is currently routed to: {h}:{p}" }
                         button {
                             class: "btn btn-sm",
-                            style: "background: rgba(255, 255, 255, 0.2); color: #fff; border: none; padding: 2px 8px; font-size: 11px;",
+                            style: "background: var(--color-overlay-white-3); color: var(--color-on-primary); border: none; padding: 2px 8px; font-size: 11px;",
                             onclick: move |_| routed_instance.set(None),
                             "Reset to Default Local"
                         }
@@ -6649,7 +6712,7 @@ fn TabInstances(
                                         div { style: "font-size: 11px; font-weight: 600; color: var(--color-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;", "Loaded Models" }
                                         div { style: "display: flex; flex-wrap: wrap; gap: 6px;",
                                             for model in inst.models.iter() {
-                                                div { style: "font-size: 11.5px; padding: 4px 8px; background: #ffffff; border: 1px solid var(--color-hairline); border-radius: 4px; color: var(--color-body); font-family: monospace;",
+                                                div { style: "font-size: 11.5px; padding: 4px 8px; background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 4px; color: var(--color-body); font-family: monospace;",
                                                     "📦 {model}"
                                                 }
                                             }
@@ -6933,7 +6996,7 @@ fn TabMcp(config: Signal<ServerConfig>, search_target: Signal<String>) -> Elemen
                             }
                             button {
                                 class: "btn btn-ghost btn-sm",
-                                style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                style: "color: var(--color-error); border-color: var(--color-badge-error-border);",
                                 onclick: {
                                     let name = tool.name.clone();
                                     move |_| remove_tool(name.clone())
@@ -7191,7 +7254,7 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
         div { style: "display: flex; justify-content: flex-end; margin-bottom: 16px;",
             button {
                 class: "btn btn-ghost btn-sm",
-                style: "color: var(--color-error); border-color: rgba(239,68,68,0.2);",
+                style: "color: var(--color-error); border-color: var(--color-badge-error-border);",
                 disabled: global_mems.is_empty() && project_mems.is_empty(),
                 onclick: clear_memories,
                 "🧹 Clear All Memory Stores"
@@ -7211,7 +7274,7 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
 
                     // Notion Sidebar (List of memories)
                     div {
-                        style: "width: 200px; border-right: 1px solid var(--color-hairline); background: rgba(248, 250, 252, 0.5); display: flex; flex-direction: column; padding: 12px; gap: 12px;",
+                        style: "width: 200px; border-right: 1px solid var(--color-hairline); background: var(--color-surface-soft); display: flex; flex-direction: column; padding: 12px; gap: 12px;",
 
                         // Sidebar Header
                         div {
@@ -7318,12 +7381,12 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
 
                     // Notion Editor Workspace Area
                     div {
-                        style: "flex: 1; display: flex; flex-direction: column; padding: 24px; background: #ffffff;",
+                        style: "flex: 1; display: flex; flex-direction: column; padding: 24px; background: var(--color-canvas);",
 
                         if selected_mem.read().is_some() || show_new_form() {
                             // Title Area (Borderless, Large Notion Title)
                             input {
-                                style: "width: 100%; border: none; outline: none; font-size: 28px; font-weight: 800; color: #1e293b; margin-bottom: 16px; padding: 0; font-family: inherit;",
+                                style: "width: 100%; border: none; outline: none; font-size: 28px; font-weight: 800; color: var(--color-ink); margin-bottom: 16px; padding: 0; font-family: inherit;",
                                 placeholder: "Untitled Memory",
                                 value: edit_title(),
                                 oninput: move |e| edit_title.set(e.value())
@@ -7395,7 +7458,7 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
 
                             // Markdown editor area
                             textarea {
-                                style: "flex: 1; border: none; outline: none; resize: none; font-size: 14px; line-height: 1.6; color: #334155; font-family: monospace; min-height: 240px; margin-bottom: 16px;",
+                                style: "flex: 1; border: none; outline: none; resize: none; font-size: 14px; line-height: 1.6; color: var(--color-ink); background: transparent; font-family: monospace; min-height: 240px; margin-bottom: 16px;",
                                 placeholder: "Write details in Markdown here...",
                                 value: edit_content(),
                                 oninput: move |e| edit_content.set(e.value())
@@ -7408,7 +7471,7 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
                                 if selected_mem.read().is_some() {
                                     button {
                                         class: "btn btn-ghost btn-sm",
-                                        style: "color: var(--color-error); border-color: rgba(239,68,68,0.2);",
+                                        style: "color: var(--color-error); border-color: var(--color-badge-error-border);",
                                         onclick: move |_| {
                                             let scope = edit_scope.read().clone();
                                             let id = edit_id.read().clone();
@@ -7503,11 +7566,11 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
                         span { class: "card-title", "🕸️ Memory Connections Graph (Obsidian-Style)" }
                         div { style: "display: flex; gap: 8px; font-size: 10px;",
                             span { style: "display: flex; align-items: center; gap: 4px;",
-                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6366f1;" }
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-tag-blue);" }
                                 "Global"
                             }
                             span { style: "display: flex; align-items: center; gap: 4px;",
-                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a78bfa;" }
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-tag-purple);" }
                                 "Project"
                             }
                         }
@@ -7635,7 +7698,7 @@ fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
                             if let Some(hover_id) = hovered_node.read().clone() {
                                 if let Some(node) = positions.iter().find(|n| n.id == hover_id) {
                                     div {
-                                        style: format!("position: absolute; left: {}px; top: {}px; transform: translate(-50%, -100%); background: #1e293b; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 10; font-weight: 500; white-space: nowrap;", node.x, node.y - 20.0),
+                                        style: format!("position: absolute; left: {}px; top: {}px; transform: translate(-50%, -100%); background: var(--color-surface-dark-elevated); color: var(--color-on-primary); padding: 4px 8px; border-radius: 4px; font-size: 11px; pointer-events: none; z-index: 10; font-weight: 500; white-space: nowrap;", node.x, node.y - 20.0),
                                         "{node.title} ({node.scope})"
                                     }
                                 }
@@ -7736,25 +7799,25 @@ fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
             crate::planner::TaskStatus::Backlog,
             "Backlog",
             "📁",
-            "border-top: 4px solid #64748b; background: rgba(100, 116, 139, 0.05);",
+            "border-top: 4px solid var(--color-muted); background: var(--color-overlay-1);",
         ),
         (
             crate::planner::TaskStatus::Todo,
             "To Do",
             "📋",
-            "border-top: 4px solid #2563eb; background: rgba(37, 99, 235, 0.05);",
+            "border-top: 4px solid var(--color-tag-blue); background: color-mix(in srgb, var(--color-tag-blue) 8%, transparent);",
         ),
         (
             crate::planner::TaskStatus::InProgress,
             "In Progress",
             "⚡",
-            "border-top: 4px solid #d97706; background: rgba(217, 119, 6, 0.05);",
+            "border-top: 4px solid var(--color-warning); background: var(--color-badge-warning-bg);",
         ),
         (
             crate::planner::TaskStatus::Done,
             "Done",
             "✅",
-            "border-top: 4px solid #059669; background: rgba(5, 150, 105, 0.05);",
+            "border-top: 4px solid var(--color-success); background: var(--color-badge-success-bg);",
         ),
     ];
 
@@ -7867,14 +7930,14 @@ fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
             for (col_status, col_name, col_emoji, col_style) in columns {
                 div {
                     key: "{col_name}",
-                    style: "flex: 1; min-width: 250px; background: #ffffff; border-radius: 8px; border: 1px solid var(--color-hairline); display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.02);",
+                    style: "flex: 1; min-width: 250px; background: var(--color-canvas); border-radius: 8px; border: 1px solid var(--color-hairline); display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.02);",
 
                     // Column Header
                     div {
                         style: "padding: 10px 14px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--color-hairline); border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; {col_style} color: var(--color-ink);",
                         span { "{col_emoji} {col_name}" }
                         span {
-                            style: "background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 10px; font-size: 11px;",
+                            style: "background: var(--color-overlay-2); padding: 1px 6px; border-radius: 10px; font-size: 11px;",
                             "{planner_state.read().tasks.iter().filter(|t| t.status == col_status).count()}"
                         }
                     }
@@ -7899,14 +7962,14 @@ fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
                                         style: "display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;",
                                         span {
                                             style: match task.priority.as_str() {
-                                                "High" => "background: #fee2e2; color: #991b1b; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
-                                                "Medium" => "background: #fef3c7; color: #92400e; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
-                                                _ => "background: #f1f5f9; color: #475569; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
+                                                "High" => "background: var(--color-badge-error-bg); color: var(--color-badge-error-text); padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
+                                                "Medium" => "background: var(--color-badge-warning-bg); color: var(--color-badge-warning-text); padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
+                                                _ => "background: var(--color-badge-neutral-bg); color: var(--color-badge-neutral-text); padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
                                             },
                                             "{task.priority}"
                                         }
                                         span {
-                                            style: "background: #e0e7ff; color: #3730a3; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; display: flex; align-items: center; gap: 2px;",
+                                            style: "background: var(--color-badge-info-bg); color: var(--color-badge-info-text); padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; display: flex; align-items: center; gap: 2px;",
                                             "🤖 {task.assigned_agent}"
                                         }
                                     }
@@ -7925,7 +7988,7 @@ fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
 
                                     // Date
                                     div {
-                                        style: "font-size: 9.5px; color: var(--color-muted); display: flex; justify-content: space-between; align-items: center; margin-top: 4px; border-top: 1px solid rgba(0,0,0,0.03); padding-top: 4px;",
+                                        style: "font-size: 9.5px; color: var(--color-muted); display: flex; justify-content: space-between; align-items: center; margin-top: 4px; border-top: 1px solid var(--color-overlay-1); padding-top: 4px;",
                                         span { "Created: {task.created_at}" }
                                     }
 
@@ -7935,7 +7998,7 @@ fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
 
                                         select {
                                             class: "form-select",
-                                            style: "font-size: 10.5px; padding: 1px 4px; height: 20px; width: auto; background: #fff;",
+                                            style: "font-size: 10.5px; padding: 1px 4px; height: 20px; width: auto; background: var(--color-canvas);",
                                             value: task.status.as_str(),
                                             onchange: {
                                                 let task_id = task.id.clone();
@@ -7963,7 +8026,7 @@ fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
 
                                         button {
                                             class: "btn btn-ghost btn-sm",
-                                            style: "padding: 1px 4px; font-size: 10px; color: var(--color-error); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); height: 20px; display: flex; align-items: center;",
+                                            style: "padding: 1px 4px; font-size: 10px; color: var(--color-error); border: 1px solid var(--color-badge-error-border); background: var(--color-badge-error-bg); height: 20px; display: flex; align-items: center;",
                                             onclick: {
                                                 let task_id = task.id.clone();
                                                 move |_| {
@@ -8051,9 +8114,9 @@ fn TabMonitor(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
                                     }
                                     span {
                                         style: match agent.status.as_str() {
-                                            "Active" => "background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
-                                            "Idle" => "background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
-                                            _ => "background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
+                                            "Active" => "background: var(--color-badge-success-bg); color: var(--color-badge-success-text); padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
+                                            "Idle" => "background: var(--color-badge-warning-bg); color: var(--color-badge-warning-text); padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
+                                            _ => "background: var(--color-badge-neutral-bg); color: var(--color-badge-neutral-text); padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
                                         },
                                         "{agent.status}"
                                     }
@@ -8073,7 +8136,7 @@ fn TabMonitor(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
                         div { class: "card-title", "Live Event Feed" }
                         button {
                             class: "btn btn-ghost btn-sm",
-                            style: "color: var(--color-error); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05);",
+                            style: "color: var(--color-error); border: 1px solid var(--color-badge-error-border); background: var(--color-badge-error-bg);",
                             onclick: clear_activities,
                             "Clear Feed"
                         }
@@ -8085,16 +8148,16 @@ fn TabMonitor(config: Signal<ServerConfig>, search_target: Signal<String>) -> El
                         }
                     } else {
                         div {
-                            style: "display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.4; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: #1e293b; color: #e2e8f0;",
+                            style: "display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.4; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: var(--color-surface-dark); color: var(--color-on-dark-soft);",
 
                             // Render from latest to oldest
                             for event in monitor_state.read().events.iter().rev() {
                                 div {
                                     key: "{event.timestamp}-{event.agent_name}",
-                                    style: "display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 4px 0;",
-                                    span { style: "color: #94a3b8; font-weight: 500; min-width: 65px;", "[{event.timestamp}]" }
-                                    span { style: "color: #38bdf8; font-weight: 600; min-width: 120px;", "🤖 {event.agent_name}:" }
-                                    span { style: "color: #f1f5f9; flex: 1; word-break: break-all;", "{event.message}" }
+                                    style: "display: flex; gap: 8px; border-bottom: 1px solid var(--color-overlay-white-1); padding: 4px 0;",
+                                    span { style: "color: var(--color-muted); font-weight: 500; min-width: 65px;", "[{event.timestamp}]" }
+                                    span { style: "color: var(--color-tag-cyan); font-weight: 600; min-width: 120px;", "🤖 {event.agent_name}:" }
+                                    span { style: "color: var(--color-ink); flex: 1; word-break: break-all;", "{event.message}" }
                                 }
                             }
                         }
@@ -8382,16 +8445,16 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                     div { style: "display: flex; gap: 8px;",
                                         span {
                                             style: match ev.status {
-                                                calendar::EventStatus::Completed => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                calendar::EventStatus::Firing => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                calendar::EventStatus::Failed => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                calendar::EventStatus::Pending => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Completed => "background: var(--color-badge-success-bg); color: var(--color-badge-success-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Firing => "background: var(--color-badge-info-bg); color: var(--color-badge-info-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Failed => "background: var(--color-badge-error-bg); color: var(--color-badge-error-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                calendar::EventStatus::Pending => "background: var(--color-badge-warning-bg); color: var(--color-badge-warning-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
                                             },
                                             "{ev.status}"
                                         }
                                         button {
                                             class: "btn btn-ghost btn-sm",
-                                            style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                            style: "color: var(--color-error); border-color: var(--color-badge-error-border);",
                                             onclick: {
                                                 let id = ev.id.clone();
                                                 let delete_event = delete_event.clone();
@@ -8408,7 +8471,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                 }
 
                                 if let Some(ref res) = ev.result {
-                                    pre { style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;",
+                                    pre { style: "margin-top: 8px; background: var(--color-surface-dark); color: var(--color-on-dark-soft); font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto;",
                                         "{res}"
                                     }
                                 }
@@ -8451,16 +8514,16 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                             div { style: "display: flex; align-items: center; gap: 8px; flex-shrink: 0;",
                                                 span {
                                                     style: match ev.status {
-                                                        calendar::EventStatus::Completed => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                        calendar::EventStatus::Firing => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                        calendar::EventStatus::Failed => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
-                                                        calendar::EventStatus::Pending => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Completed => "background: var(--color-badge-success-bg); color: var(--color-badge-success-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Firing => "background: var(--color-badge-info-bg); color: var(--color-badge-info-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Failed => "background: var(--color-badge-error-bg); color: var(--color-badge-error-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                        calendar::EventStatus::Pending => "background: var(--color-badge-warning-bg); color: var(--color-badge-warning-text); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
                                                     },
                                                     "{ev.status}"
                                                 }
                                                 button {
                                                     class: "btn btn-ghost btn-sm",
-                                                    style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                                    style: "color: var(--color-error); border-color: var(--color-badge-error-border);",
                                                     onclick: {
                                                         let id = ev.id.clone();
                                                         let delete_event = delete_event.clone();
@@ -8499,7 +8562,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
 
                                                 if expanded_event.read().as_ref() == Some(&ev.id) {
                                                     pre {
-                                                        style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;",
+                                                        style: "margin-top: 8px; background: var(--color-surface-dark); color: var(--color-on-dark-soft); font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;",
                                                         "{res}"
                                                     }
                                                 }
@@ -8756,7 +8819,7 @@ fn TabTodos() -> Element {
                                         }
                                         button {
                                             class: "btn btn-ghost btn-sm",
-                                            style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2); padding: 2px 6px;",
+                                            style: "color: var(--color-error); border-color: var(--color-badge-error-border); padding: 2px 6px;",
                                             onclick: {
                                                 let id = item.id.clone();
                                                 let scope = item.scope.clone();
@@ -8816,7 +8879,7 @@ fn TabTodos() -> Element {
                                         }
                                         button {
                                             class: "btn btn-ghost btn-sm",
-                                            style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2); padding: 2px 6px;",
+                                            style: "color: var(--color-error); border-color: var(--color-badge-error-border); padding: 2px 6px;",
                                             onclick: {
                                                 let id = item.id.clone();
                                                 let scope = item.scope.clone();
@@ -9352,7 +9415,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
             if !bench_output.read().is_empty() {
                 div { class: "card",
                     div { class: "card-title", "Raw Output" }
-                    pre { style: "white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #e2e8f0; background: #1e293b; padding: 14px; border-radius: 6px; max-height: 340px; overflow-y: auto;",
+                    pre { style: "white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--color-on-dark-soft); background: var(--color-surface-dark); padding: 14px; border-radius: 6px; max-height: 340px; overflow-y: auto;",
                         "{bench_output}"
                     }
                 }
@@ -9644,7 +9707,7 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
                     div { class: "card",
                         div { class: "card-title", "Live Research Status Logs" }
                         pre {
-                            style: "background: #1e293b; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 12px; border-radius: 6px; height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;",
+                            style: "background: var(--color-surface-dark); color: var(--color-on-dark-soft); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 12px; border-radius: 6px; height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;",
                             "{log_content}"
                         }
                     }
@@ -9710,8 +9773,8 @@ fn render_markdown(text: &str) -> Element {
                 let lang = code_lang.clone();
                 rendered_elements.push(rsx! {
                     div {
-                        style: "background: #1e293b; color: #e2e8f0; font-family: monospace; padding: 12px; border-radius: 6px; margin: 10px 0; overflow-x: auto; font-size: 13px;",
-                        div { style: "font-size: 10px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;",
+                        style: "background: var(--color-surface-dark); color: var(--color-on-dark-soft); font-family: monospace; padding: 12px; border-radius: 6px; margin: 10px 0; overflow-x: auto; font-size: 13px;",
+                        div { style: "font-size: 10px; color: var(--color-muted); text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid var(--color-overlay-white-1); padding-bottom: 4px;",
                             { if lang.is_empty() { "code".to_string() } else { lang } }
                         }
                         pre { "{content}" }
@@ -9948,7 +10011,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                     div {
                         style: "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-hairline); padding-bottom: 8px; margin-bottom: 14px;",
                         span { style: "font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);", "📋 Episodic Buffer (Event Graph)" }
-                        span { class: "badge", style: "background: #f1f5f9; color: #475569; font-size: 11px;", "{episodic_buffer.read().len()} Transient Events" }
+                        span { class: "badge", style: "background: var(--color-badge-neutral-bg); color: var(--color-badge-neutral-text); font-size: 11px;", "{episodic_buffer.read().len()} Transient Events" }
                     }
 
                     // Log Entries List
@@ -9963,7 +10026,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                             for (idx, log) in episodic_buffer.read().iter().enumerate() {
                                 div {
                                     key: "{idx}",
-                                    style: "display: flex; gap: 10px; padding: 8px; border-left: 2px solid #cbd5e1; background: rgba(248, 250, 252, 0.6); border-radius: 0 4px 4px 0; font-size: 12.5px;",
+                                    style: "display: flex; gap: 10px; padding: 8px; border-left: 2px solid var(--color-hairline); background: var(--color-surface-soft); border-radius: 0 4px 4px 0; font-size: 12.5px;",
                                     span { style: "font-family: monospace; font-size: 11px; color: var(--color-muted); padding-top: 1.5px;", "[{log.timestamp}]" }
                                     span { style: "color: var(--color-body);", "{log.text}" }
                                 }
@@ -9973,7 +10036,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
 
                     // Divergence Meter
                     div {
-                        style: "background: #f8fafc; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; margin-bottom: 16px;",
+                        style: "background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; margin-bottom: 16px;",
                         div {
                             style: "display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--color-ink);",
                             span { "Semantic Divergence Score" }
@@ -9984,11 +10047,11 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                         }
                         // Progress Bar
                         div {
-                            style: "width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; position: relative;",
+                            style: "width: 100%; height: 8px; background: var(--color-surface-strong); border-radius: 4px; overflow: hidden; position: relative;",
                             div {
                                 style: format!("height: 100%; width: {}%; background: {}; transition: width 0.4s ease, background 0.3s;",
                                     (calculated_divergence_score() * 100.0).min(100.0),
-                                    if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() { "#ef4444" } else if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() * 0.7 { "#f59e0b" } else { "#10b981" }
+                                    if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() { "var(--color-error)" } else if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() * 0.7 { "var(--color-warning)" } else { "var(--color-success)" }
                                 )
                             }
                         }
@@ -10080,11 +10143,11 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                         span { style: "font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);", "🕸️ Global topic associative network" }
                         div { style: "display: flex; gap: 8px; font-size: 10px;",
                             span { style: "display: flex; align-items: center; gap: 4px;",
-                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #0f172a;" }
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-ink);" }
                                 "Core Node"
                             }
                             span { style: "display: flex; align-items: center; gap: 4px;",
-                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6366f1;" }
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-brand-accent);" }
                                 "Consolidated"
                             }
                         }
@@ -10174,11 +10237,11 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                         // Overlay consolidation animation
                         if anim_consolidating() {
                             div {
-                                style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;",
+                                style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--color-overlay-4); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;",
                                 div {
-                                    style: "border: 4px solid #f3f3f3; border-top: 4px solid #6366f1; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 12px;"
+                                    style: "border: 4px solid var(--color-overlay-2); border-top: 4px solid var(--color-brand-accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 12px;"
                                 }
-                                span { style: "font-size: 13.5px; font-weight: 700; color: #4338ca;", "Consolidating Event Graph..." }
+                                span { style: "font-size: 13.5px; font-weight: 700; color: var(--color-primary-active);", "Consolidating Event Graph..." }
                                 span { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 4px;", "Merging summarized items into Global network" }
                             }
                         }
@@ -10587,7 +10650,7 @@ fn TabAppSettings(
                 div { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;",
                     div { class: "card-title", style: "font-size: 12px; margin: 0; color: var(--color-brand-accent);", "Save as Named Theme" }
                     if theme_is_modified {
-                        span { style: "font-size: 11px; background: rgba(var(--accent-rgb, 99,102,241),0.12); color: var(--color-brand-accent); padding: 2px 8px; border-radius: 20px; font-weight: 600;", "Modified" }
+                        span { style: "font-size: 11px; background: var(--color-badge-info-bg); color: var(--color-badge-info-text); padding: 2px 8px; border-radius: 20px; font-weight: 600;", "Modified" }
                     }
                 }
                 div { style: "font-size: 11.5px; color: var(--color-muted); margin-bottom: 12px;",
@@ -10651,7 +10714,7 @@ fn TabAppSettings(
                         for custom in config.read().custom_themes.clone().iter() {
                             div {
                                 key: "{custom.name}",
-                                style: "display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid var(--color-hairline); cursor: pointer;",
+                                style: "display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: var(--color-overlay-1); border-radius: 8px; border: 1px solid var(--color-hairline); cursor: pointer;",
                                 onclick: {
                                     let name = custom.name.clone();
                                     move |_| {
@@ -10666,18 +10729,18 @@ fn TabAppSettings(
                                 div { style: "display: flex; align-items: center; gap: 10px;",
                                     // Color swatches
                                     div { style: "display: flex; gap: 3px;",
-                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.background_color}; border: 1px solid rgba(255,255,255,0.15);" }
-                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.accent_color}; border: 1px solid rgba(255,255,255,0.15);" }
-                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.text_color}; border: 1px solid rgba(255,255,255,0.15);" }
+                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.background_color}; border: 1px solid var(--color-hairline-soft);" }
+                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.accent_color}; border: 1px solid var(--color-hairline-soft);" }
+                                        div { style: "width: 12px; height: 12px; border-radius: 3px; background: {custom.text_color}; border: 1px solid var(--color-hairline-soft);" }
                                     }
                                     span { style: "font-size: 13px; font-weight: 600; color: var(--color-ink);", "{custom.name}" }
                                     if config.read().theme_name == custom.name {
-                                        span { style: "font-size: 10px; background: rgba(var(--accent-rgb,99,102,241),0.15); color: var(--color-brand-accent); padding: 1px 7px; border-radius: 20px; font-weight: 700;", "Active" }
+                                        span { style: "font-size: 10px; background: var(--color-badge-info-bg); color: var(--color-badge-info-text); padding: 1px 7px; border-radius: 20px; font-weight: 700;", "Active" }
                                     }
                                 }
                                 div { style: "display: flex; gap: 6px;",
                                     button {
-                                        style: "background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; color: #f87171; font-size: 11px; padding: 3px 10px; border-radius: 6px; transition: all 0.2s;",
+                                        style: "background: var(--color-badge-error-bg); border: 1px solid var(--color-badge-error-border); cursor: pointer; color: var(--color-badge-error-text); font-size: 11px; padding: 3px 10px; border-radius: 6px; transition: all 0.2s;",
                                         onclick: {
                                             let name = custom.name.clone();
                                             move |e| {
