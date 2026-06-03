@@ -2,12 +2,18 @@
 
 mod config;
 mod library;
+mod agent;
+mod planner;
+mod calendar;
+mod todo;
+mod notes;
 
 use config::*;
 use dioxus::prelude::*;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabs
@@ -16,6 +22,10 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone, Copy, PartialEq)]
 enum Tab {
     Chat,
+    Planner,
+    Monitor,
+    Mcp,
+    Agents,
     Model,
     Library,
     Download,
@@ -27,13 +37,22 @@ enum Tab {
     Sampling,
     Advanced,
     Api,
+    Calendar,
+    Todos,
+    QuickNotes,
+    Compare,
+    DeepResearch,
 }
 
 impl Tab {
     fn label(&self) -> &str {
         match self {
             Self::Chat => "Chat",
-            Self::Model => "Model",
+            Self::Planner => "Task Planner (Kanban)",
+            Self::Monitor => "Agent Monitor",
+            Self::Mcp => "MCP Tools",
+            Self::Agents => "Agents & Memory",
+            Self::Model => "Model Configuration",
             Self::Library => "Model Index",
             Self::Download => "Downloader",
             Self::Server => "Server",
@@ -44,11 +63,20 @@ impl Tab {
             Self::Sampling => "Sampling",
             Self::Advanced => "Advanced",
             Self::Api => "API & Security",
+            Self::Calendar => "Calendar & Triggers",
+            Self::Todos => "Todos (Project/Global)",
+            Self::QuickNotes => "Quick Notes",
+            Self::Compare => "Model Comparison (Blind)",
+            Self::DeepResearch => "Deep Research Agent",
         }
     }
     fn icon(&self) -> &str {
         match self {
             Self::Chat => "\u{1F4AC}",        // 💬
+            Self::Planner => "\u{1F4CB}",    // 📋
+            Self::Monitor => "\u{1F4CA}",    // 📊
+            Self::Mcp => "\u{1F6E0}",         // 🛠️
+            Self::Agents => "\u{1F9E0}",      // 🧠
             Self::Model => "\u{1F4E6}",       // 📦
             Self::Library => "\u{1F4DA}",     // 📚
             Self::Download => "\u{1F4E5}",    // 📥
@@ -60,11 +88,21 @@ impl Tab {
             Self::Sampling => "\u{1F3B2}",     // 🎲
             Self::Advanced => "\u{1F527}",     // 🔧
             Self::Api => "\u{1F512}",          // 🔒
+            Self::Calendar => "\u{1F4C5}",     // 📅
+            Self::Todos => "\u{2705}",         // ✅
+            Self::QuickNotes => "\u{1F4DD}",    // 📝
+            Self::Compare => "\u{1F441}",       // 👁️
+            Self::DeepResearch => "\u{1F50E}",  // 🔍
         }
     }
+    #[allow(dead_code)]
     fn all() -> &'static [Tab] {
         &[
             Tab::Chat,
+            Tab::Planner,
+            Tab::Monitor,
+            Tab::Mcp,
+            Tab::Agents,
             Tab::Model,
             Tab::Library,
             Tab::Download,
@@ -76,6 +114,11 @@ impl Tab {
             Tab::Sampling,
             Tab::Advanced,
             Tab::Api,
+            Tab::Calendar,
+            Tab::Todos,
+            Tab::QuickNotes,
+            Tab::Compare,
+            Tab::DeepResearch,
         ]
     }
 }
@@ -90,16 +133,16 @@ struct ConfigSearchEntry {
 
 fn config_search_entries() -> Vec<ConfigSearchEntry> {
     vec![
-        ConfigSearchEntry { label: "llama-server path".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-llama-server-path-1".into() },
-        ConfigSearchEntry { label: "Model File (.gguf)".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-file-gguf-1".into() },
-        ConfigSearchEntry { label: "Model Alias".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-alias-1".into() },
-        ConfigSearchEntry { label: "Model Directory".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-directory-models-dir-1".into() },
-        ConfigSearchEntry { label: "Model URL".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-model-url-1".into() },
-        ConfigSearchEntry { label: "HuggingFace Repo".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-huggingface-repo-1".into() },
-        ConfigSearchEntry { label: "HuggingFace File".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-huggingface-file-1".into() },
-        ConfigSearchEntry { label: "HuggingFace Token".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-huggingface-token-1".into() },
-        ConfigSearchEntry { label: "Chat Template".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-chat-template-1".into() },
-        ConfigSearchEntry { label: "System Prompt".into(), section: "Model".into(), tab: Tab::Model, target_id: "form-system-prompt-1".into() },
+        ConfigSearchEntry { label: "llama-server path".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-llama-server-path-1".into() },
+        ConfigSearchEntry { label: "Model File (.gguf)".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-file-gguf-1".into() },
+        ConfigSearchEntry { label: "Model Alias".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-alias-1".into() },
+        ConfigSearchEntry { label: "Model Directory".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-directory-models-dir-1".into() },
+        ConfigSearchEntry { label: "Model URL".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-url-1".into() },
+        ConfigSearchEntry { label: "HuggingFace Repo".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-huggingface-repo-1".into() },
+        ConfigSearchEntry { label: "HuggingFace File".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-huggingface-file-1".into() },
+        ConfigSearchEntry { label: "HuggingFace Token".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-huggingface-token-1".into() },
+        ConfigSearchEntry { label: "Chat Template".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-chat-template-1".into() },
+        ConfigSearchEntry { label: "System Prompt".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-system-prompt-1".into() },
         ConfigSearchEntry { label: "Host".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-host-1".into() },
         ConfigSearchEntry { label: "Port".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-port-1".into() },
         ConfigSearchEntry { label: "Timeout".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-server-timeout-s-1".into() },
@@ -164,25 +207,25 @@ const CSS: &str = r#"
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-    --color-primary: #111111;
-    --color-primary-active: #242424;
-    --color-primary-disabled: #e5e7eb;
-    --color-ink: #111111;
-    --color-body: #374151;
-    --color-muted: #6b7280;
-    --color-muted-soft: #898989;
-    --color-hairline: #e5e7eb;
-    --color-hairline-soft: #f3f4f6;
-    --color-canvas: #ffffff;
-    --color-surface-soft: #f8f9fa;
-    --color-surface-card: #f5f5f5;
-    --color-surface-strong: #e5e7eb;
-    --color-surface-dark: #101010;
-    --color-surface-dark-elevated: #1a1a1a;
+    --color-primary: #0f172a;
+    --color-primary-active: #1e293b;
+    --color-primary-disabled: #f1f5f9;
+    --color-ink: #0f172a;
+    --color-body: #334155;
+    --color-muted: #64748b;
+    --color-muted-soft: #94a3b8;
+    --color-hairline: #e2e8f0;
+    --color-hairline-soft: #f8fafc;
+    --color-canvas: #f8fafc;
+    --color-surface-soft: #f8fafc;
+    --color-surface-card: #ffffff;
+    --color-surface-strong: #e2e8f0;
+    --color-surface-dark: #0f172a;
+    --color-surface-dark-elevated: #1e293b;
     --color-on-primary: #ffffff;
     --color-on-dark: #ffffff;
-    --color-on-dark-soft: #a1a1aa;
-    --color-brand-accent: #3b82f6;
+    --color-on-dark-soft: #94a3b8;
+    --color-brand-accent: #2563eb;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
@@ -213,101 +256,108 @@ body {
 .top-bar {
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 12px;
-    padding: 12px 24px;
-    background: var(--color-canvas);
+    padding: 8px 16px;
+    background: #ffffff;
     border-bottom: 1px solid var(--color-hairline);
-    min-height: 64px;
+    min-height: 52px;
 }
 .top-title {
-    display: flex; align-items: center; gap: 12px;
-    font-size: 20px; font-weight: 600; letter-spacing: -0.04em;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
     color: var(--color-ink);
 }
-.top-title span { font-size: 24px; }
-.top-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.top-title span { font-size: 18px; }
+.top-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .search-group {
     position: relative;
     display: inline-flex;
     align-items: center;
-    width: min(420px, 100%);
+    width: min(320px, 100%);
 }
 .search-input {
-    width: 100%; padding: 10px 14px;
+    width: 100%; padding: 6px 10px;
     border: 1px solid var(--color-hairline);
-    border-radius: 9999px;
+    border-radius: 4px;
     background: var(--color-canvas);
     color: var(--color-ink);
-    font-size: 14px;
+    font-size: 12.5px;
     transition: border-color 0.2s, box-shadow 0.2s;
     font-family: 'Inter', sans-serif;
 }
 .search-input:focus {
     border-color: var(--color-brand-accent);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
     outline: none;
 }
 .search-results {
     position: absolute;
-    top: calc(100% + 8px);
+    top: calc(100% + 4px);
     left: 0;
     width: 100%;
-    max-height: 340px;
-    background: var(--color-surface-card);
+    max-height: 300px;
+    background: #ffffff;
     border: 1px solid var(--color-hairline);
-    border-radius: 16px;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.07);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     overflow: hidden;
     z-index: 50;
 }
 .search-results-list {
-    max-height: 300px;
+    max-height: 260px;
     overflow-y: auto;
 }
 .search-results-header {
-    padding: 16px 18px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--color-hairline);
-    font-size: 13px; font-weight: 600; color: var(--color-muted);
+    font-size: 11px; font-weight: 600; color: var(--color-muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
 }
 .search-results-list {
     display: flex; flex-direction: column;
 }
 .search-result-item {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 12px;
-    padding: 10px 14px;
+    gap: 10px;
+    padding: 8px 12px;
     text-decoration: none;
     color: inherit;
-    transition: background 0.15s, transform 0.08s;
-    border-bottom: 1px solid rgba(255,255,255,0.03);
+    transition: background 0.1s;
+    border-bottom: 1px solid var(--color-hairline-soft);
+    background: transparent;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
 }
 .search-result-item:hover {
-    background: rgba(100,116,139,0.04);
-    transform: translateY(-1px);
+    background: var(--color-surface-soft);
 }
 .search-result-label {
     display: flex; flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     min-width: 0;
 }
 .search-result-title {
-    font-size: 14px; font-weight: 600; color: var(--color-ink);
+    font-size: 13px; font-weight: 600; color: var(--color-ink);
 }
 .search-result-meta {
-    font-size: 12px; color: var(--color-muted);
+    font-size: 11px; color: var(--color-muted);
 }
 .search-chip {
     display: inline-flex; align-items: center; justify-content: center;
-    padding: 6px 10px; border-radius: 9999px;
-    background: rgba(255,255,255,0.03); color: var(--color-muted);
-    font-size: 12px; white-space: nowrap;
-    border: 1px solid rgba(255,255,255,0.02);
+    padding: 2px 8px; border-radius: 4px;
+    background: var(--color-surface-soft); color: var(--color-muted);
+    font-size: 10px; font-weight: 500; white-space: nowrap;
+    border: 1px solid var(--color-hairline);
 }
 
 .status-badge {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 14px; border-radius: 9999px;
-    font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 12px; font-weight: 500;
     border: 1px solid transparent;
 }
 .status-badge.running { 
@@ -316,12 +366,12 @@ body {
     border-color: rgba(16,185,129,0.15);
 }
 .status-badge.stopped { 
-    background: rgba(107,114,128,0.08); 
+    background: rgba(100,116,139,0.08); 
     color: var(--color-muted); 
-    border-color: rgba(107,114,128,0.15);
+    border-color: rgba(100,116,139,0.15);
 }
 .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 6px; height: 6px; border-radius: 50%;
 }
 .status-dot.running {
     background: var(--color-success);
@@ -333,10 +383,10 @@ body {
 
 /* ── Buttons ─────────────────────────────────────────────────────── */
 .btn {
-    padding: 8px 16px; border: none; border-radius: 8px;
-    font-size: 14px; font-weight: 600; cursor: pointer;
+    padding: 6px 12px; border: none; border-radius: 4px;
+    font-size: 13px; font-weight: 500; cursor: pointer;
     transition: background-color 0.2s, transform 0.1s;
-    display: inline-flex; align-items: center; gap: 8px;
+    display: inline-flex; align-items: center; gap: 6px;
     outline: none;
     font-family: 'Inter', sans-serif;
 }
@@ -372,12 +422,12 @@ body {
     background: var(--color-surface-soft);
 }
 
-.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-sm { padding: 4px 8px; font-size: 12px; }
 
 .btn-browse {
-    padding: 8px 14px; background: var(--color-canvas); color: var(--color-body);
-    border: 1px solid var(--color-hairline); border-radius: 8px; cursor: pointer;
-    font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif;
+    padding: 6px 10px; background: var(--color-canvas); color: var(--color-body);
+    border: 1px solid var(--color-hairline); border-radius: 4px; cursor: pointer;
+    font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif;
     white-space: nowrap; transition: background-color 0.2s;
     outline: none;
 }
@@ -389,18 +439,18 @@ body {
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar {
     width: 220px; min-width: 220px;
-    background: var(--color-surface-card);
+    background: #ffffff;
     border-right: 1px solid var(--color-hairline);
     display: flex; flex-direction: column;
-    padding: 16px 8px;
-    gap: 4px;
+    padding: 8px 6px;
+    gap: 2px;
 }
 .sidebar-item {
-    display: flex; align-items: center; gap: 12px;
-    padding: 10px 16px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; cursor: pointer;
     transition: all 0.15s; color: var(--color-muted);
-    border-radius: 6px;
-    font-size: 14px; font-weight: 500;
+    border-radius: 4px;
+    font-size: 13px; font-weight: 500;
     user-select: none;
     outline: none;
     background: transparent;
@@ -410,76 +460,91 @@ body {
 }
 .sidebar-item:hover { background: var(--color-hairline-soft); color: var(--color-ink); }
 .sidebar-item.active {
-    background: var(--color-canvas); color: var(--color-ink);
+    background: var(--color-surface-soft); color: var(--color-ink);
     font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    border: 1px solid var(--color-hairline);
+    box-shadow: inset 2px 0 0 var(--color-brand-accent);
+    border-radius: 0 4px 4px 0;
 }
-.sidebar-icon { font-size: 16px; width: 20px; text-align: center; }
+.sidebar-icon { font-size: 14px; width: 18px; text-align: center; }
+
+.sidebar-section-header {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+    padding: 10px 10px 4px 10px;
+    user-select: none;
+}
+.sidebar-sub-item {
+    padding-left: 20px;
+    font-size: 12px;
+}
 
 /* ── Content ─────────────────────────────────────────────────────── */
 .content {
-    flex: 1; overflow-y: auto; padding: 32px;
-    display: flex; flex-direction: column; gap: 24px;
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 16px;
     background: var(--color-canvas);
 }
-.content::-webkit-scrollbar { width: 8px; }
+.content::-webkit-scrollbar { width: 6px; }
 .content::-webkit-scrollbar-track { background: transparent; }
-.content::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: 4px; }
+.content::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: 3px; }
 
 .section-title {
-    font-size: 24px; font-weight: 600; letter-spacing: -0.04em; color: var(--color-ink); margin-bottom: 6px;
+    font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink); margin-bottom: 2px;
     font-family: 'Inter', sans-serif;
 }
 .section-desc {
-    font-size: 14px; color: var(--color-muted); margin-bottom: 12px; line-height: 1.5;
+    font-size: 13px; color: var(--color-muted); margin-bottom: 8px; line-height: 1.4;
 }
 
 /* ── Cards ────────────────────────────────────────────────────────── */
 .card {
     background: var(--color-surface-card);
     border: 1px solid var(--color-hairline);
-    border-radius: 12px; padding: 24px;
-    display: flex; flex-direction: column; gap: 16px;
+    border-radius: 4px; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.03), 0 1px 2px rgba(15,23,42,0.02);
 }
 .card-title {
-    font-size: 12px; font-weight: 600; color: var(--color-muted);
+    font-size: 11px; font-weight: 600; color: var(--color-muted);
     text-transform: uppercase; letter-spacing: 0.05em;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 /* ── Form  ────────────────────────────────────────────────────────── */
-.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
 .form-group:last-child { margin-bottom: 0; }
 .form-label {
-    font-size: 14px; font-weight: 500;
+    font-size: 12.5px; font-weight: 600;
     color: var(--color-ink);
 }
-.form-hint { font-size: 12px; color: var(--color-muted); margin-top: 2px; line-height: 1.4; }
+.form-hint { font-size: 11px; color: var(--color-muted); margin-top: 1px; line-height: 1.3; }
 
 .form-input, .form-select {
-    width: 100%; padding: 10px 14px;
+    width: 100%; padding: 6px 10px;
     background: var(--color-canvas); border: 1px solid var(--color-hairline);
-    border-radius: 8px; color: var(--color-ink); font-size: 14px;
+    border-radius: 4px; color: var(--color-ink); font-size: 12.5px;
     transition: border-color 0.2s, box-shadow 0.2s; outline: none;
     font-family: 'Inter', sans-serif;
 }
 .form-input:focus, .form-select:focus, .tag-input-container:focus-within {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px rgba(17,17,17,0.05);
+    border-color: var(--color-brand-accent);
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.08);
 }
 .form-input::placeholder { color: var(--color-muted-soft); }
 
 .form-textarea {
-    width: 100%; padding: 10px 14px; min-height: 100px; resize: vertical;
+    width: 100%; padding: 6px 10px; min-height: 80px; resize: vertical;
     background: var(--color-canvas); border: 1px solid var(--color-hairline);
-    border-radius: 8px; color: var(--color-ink); font-size: 14px;
+    border-radius: 4px; color: var(--color-ink); font-size: 12.5px;
     font-family: 'JetBrains Mono', monospace;
     outline: none; transition: border-color 0.2s, box-shadow 0.2s;
 }
 .form-textarea:focus {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px rgba(17,17,17,0.05);
+    border-color: var(--color-brand-accent);
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.08);
 }
 .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .form-row > * { flex: 1; min-width: 200px; }
@@ -769,14 +834,18 @@ body {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn main() {
-    dioxus::launch(App);
+    dioxus::LaunchBuilder::new()
+        .with_cfg(dioxus::desktop::Config::new().with_window(
+            dioxus::desktop::WindowBuilder::new().with_title("Llama-Manager")
+        ))
+        .launch(App);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // App
 // ─────────────────────────────────────────────────────────────────────────────
 
-fn get_default_config_path() -> std::path::PathBuf {
+pub fn get_default_config_path() -> std::path::PathBuf {
     std::path::PathBuf::from("/home/notroot/Work/llama-manager")
 }
 
@@ -806,6 +875,7 @@ fn App() -> Element {
     // ── State ───────────────────────────────────────────────────────
     let mut config = use_signal(load_default_config);
     let mut show_config_modal = use_signal(|| false);
+    let immersive_mode = use_signal(|| false);
 
     // Resizer States
     let mut sidebar_width = use_signal(|| 220.0);
@@ -836,6 +906,71 @@ fn App() -> Element {
         }
     });
 
+    // Background Calendar Prompt Trigger Watcher
+    let _calendar_watcher = use_resource(move || {
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                let mut state = calendar::CalendarState::load();
+                let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+                let mut to_fire = Vec::new();
+
+                for ev in state.events.iter_mut() {
+                    if ev.status == "pending" && ev.time <= now {
+                        ev.status = "firing".to_string();
+                        to_fire.push(ev.clone());
+                    }
+                }
+
+                if !to_fire.is_empty() {
+                    let _ = state.save();
+                    
+                    for ev in to_fire {
+                        let host = "127.0.0.1".to_string();
+                        let port = load_default_config().port;
+                        let prompt = ev.prompt.clone();
+                        let title = ev.title.clone();
+                        let ev_id = ev.id.clone();
+
+                        tokio::spawn(async move {
+                            println!("[CALENDAR TRIGGER] Event '{}' hit! Firing prompt: '{}'", title, prompt);
+                            
+                            let mut memory_manager = agent::MemoryManager::new(get_default_config_path());
+                            let mcp_registry = agent::McpRegistry::load(get_default_config_path());
+                            let target_model = library::get_target_model_with_host(&host, port, "").await;
+
+                            let result = match agent::run_agent_task(
+                                &host,
+                                port,
+                                &target_model,
+                                &prompt,
+                                &mcp_registry,
+                                &mut memory_manager,
+                                None,
+                            ).await {
+                                Ok(resp) => {
+                                    println!("[CALENDAR TRIGGER] Prompt ran successfully. Output: {}", resp.text);
+                                    format!("Success:\n{}", resp.text)
+                                }
+                                Err(e) => {
+                                    eprintln!("[CALENDAR TRIGGER] Prompt failed: {}", e);
+                                    format!("Error: {}", e)
+                                }
+                            };
+
+                            let mut inner_state = calendar::CalendarState::load();
+                            if let Some(inner_ev) = inner_state.events.iter_mut().find(|e| e.id == ev_id) {
+                                inner_ev.status = "completed".to_string();
+                                inner_ev.result = Some(result);
+                                let _ = inner_state.save();
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    });
+
     // Auto-save config to ~/.local/share/llama-manager/config.json whenever it changes
     use_effect(move || {
         let current_config = config.read().clone();
@@ -852,6 +987,7 @@ fn App() -> Element {
         }
     });
     let mut active_tab = use_signal(|| Tab::Chat);
+    let routed_instance = use_signal(|| None::<(String, u16)>);
     let mut logs = use_signal(Vec::<String>::new);
     let mut error_msg = use_signal(|| None::<String>);
     let mut available_models = use_signal(Vec::<String>::new);
@@ -1277,7 +1413,9 @@ fn App() -> Element {
             },
 
             // ── Top bar ─────────────────────────────────────────────
-            div { class: "top-bar",
+            div {
+                class: "top-bar",
+                style: if immersive_mode() { "display: none;" } else { "" },
                 div { class: "top-title",
                     span { aria_hidden: "true", "\u{1F999}" }
                     "Llama-Manager"
@@ -1311,7 +1449,21 @@ fn App() -> Element {
                                             let mut st = search_target.clone();
                                             spawn(async move {
                                                 tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-                                                st.set(tgt);
+                                                st.set(tgt.clone());
+                                                let js_scroll = format!(
+                                                    r#"
+                                                    setTimeout(() => {{
+                                                        const el = document.getElementById("{}");
+                                                        if (el) {{
+                                                            el.scrollIntoView({{ behavior: "smooth", block: "center" }});
+                                                            el.style.outline = "2px solid var(--color-brand-accent)";
+                                                            setTimeout(() => el.style.outline = "", 1500);
+                                                        }}
+                                                    }}, 100);
+                                                    "#,
+                                                    tgt
+                                                );
+                                                let _ = dioxus::document::eval(&js_scroll);
                                             });
                                         },
                                         div { class: "search-result-label",
@@ -1360,10 +1512,37 @@ fn App() -> Element {
                 // ── Sidebar ─────────────────────────────────────────
                 div {
                     class: "sidebar",
-                    style: "width: {sidebar_width}px; min-width: {sidebar_width}px;",
-                    for tab in Tab::all() {
+                    style: if immersive_mode() { "display: none;" } else { "width: {sidebar_width}px; min-width: {sidebar_width}px;" },
+                    // General/Top-level entries
+                    for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents, Tab::Model, Tab::Library, Tab::Download, Tab::Instances] {
                         button {
                             class: if active_tab() == *tab { "sidebar-item active" } else { "sidebar-item" },
+                            onclick: {
+                                let t = *tab;
+                                move |_| active_tab.set(t)
+                            },
+                            span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                            {tab.label()}
+                        }
+                    }
+                    // Llama-Server sub-section
+                    div { class: "sidebar-section-header", "Llama-Server" }
+                    for tab in &[Tab::Server, Tab::Context, Tab::Gpu, Tab::Performance, Tab::Sampling, Tab::Advanced, Tab::Api] {
+                        button {
+                            class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
+                            onclick: {
+                                let t = *tab;
+                                move |_| active_tab.set(t)
+                            },
+                            span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                            {tab.label()}
+                        }
+                    }
+                    // Productivity & Research sub-section
+                    div { class: "sidebar-section-header", "Productivity & Research" }
+                    for tab in &[Tab::Calendar, Tab::Todos, Tab::QuickNotes, Tab::Compare, Tab::DeepResearch] {
+                        button {
+                            class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
                             onclick: {
                                 let t = *tab;
                                 move |_| active_tab.set(t)
@@ -1375,13 +1554,23 @@ fn App() -> Element {
                 }
 
                 // Vertical Resizer Handle
-                div {
-                    class: if drag_state() == DragType::Sidebar { "resizer-v dragging" } else { "resizer-v" },
-                    onmousedown: on_sidebar_resizer_mousedown,
+                if !immersive_mode() {
+                    div {
+                        class: if drag_state() == DragType::Sidebar { "resizer-v dragging" } else { "resizer-v" },
+                        onmousedown: on_sidebar_resizer_mousedown,
+                    }
                 }
 
                 // ── Content area ────────────────────────────────────
-                div { class: "content",
+                div {
+                    class: "content",
+                    style: if active_tab() == Tab::Chat {
+                        if immersive_mode() {
+                            "height: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0;"
+                        } else {
+                            "height: 100%; overflow: hidden; display: flex; flex-direction: column;"
+                        }
+                    } else { "" },
                     // Error toast
                     if let Some(ref msg) = *error_msg.read() {
                         div { class: "error-toast",
@@ -1391,28 +1580,31 @@ fn App() -> Element {
                     }
 
                     match active_tab() {
-                        Tab::Chat        => rsx! { TabChat        { config, search_target } },
+                        Tab::Chat        => rsx! { TabChat        { config, search_target, routed_instance, immersive_mode } },
+                        Tab::Planner     => rsx! { TabPlanner     { config, search_target } },
+                        Tab::Monitor     => rsx! { TabMonitor     { config, search_target } },
+                        Tab::Mcp         => rsx! { TabMcp         { config, search_target } },
+                        Tab::Agents      => rsx! { TabAgents      { config, search_target } },
                         Tab::Model       => rsx! { TabModel       { config, search_target } },
                         Tab::Library     => rsx! { TabLibrary     { config, scanned_models, index_status, scan_trigger, search_target } },
                         Tab::Download    => rsx! { TabDownload    { search_target } },
                         Tab::Server      => rsx! { TabServer      { config, search_target } },
-                        Tab::Instances   => rsx! { TabInstances   { search_target } },
+                        Tab::Instances   => rsx! { TabInstances   { config, search_target, routed_instance } },
                         Tab::Context     => rsx! { TabContext      { config, search_target } },
                         Tab::Gpu         => rsx! { TabGpu         { config, search_target } },
                         Tab::Performance => rsx! { TabPerformance { config, search_target } },
                         Tab::Sampling    => rsx! { TabSampling    { config, search_target } },
                         Tab::Advanced    => rsx! { TabAdvanced    { config, search_target } },
                         Tab::Api         => rsx! { TabApi         { config, search_target } },
-                    }
-
-                    // Command preview
-                    div { class: "card",
-                        div { class: "card-title", "Command Preview" }
-                        div { class: "cmd-preview", {config.read().command_preview()} }
+                        Tab::Calendar    => rsx! { TabCalendar    { config } },
+                        Tab::Todos       => rsx! { TabTodos       {} },
+                        Tab::QuickNotes  => rsx! { TabQuickNotes  {} },
+                        Tab::Compare     => rsx! { TabCompare     { config } },
+                        Tab::DeepResearch => rsx! { TabDeepResearch { config } },
                     }
 
                     // Available models
-                    if is_running && !available_models.read().is_empty() {
+                    if active_tab() != Tab::Chat && active_tab() != Tab::Planner && active_tab() != Tab::Monitor && active_tab() != Tab::Calendar && active_tab() != Tab::Todos && active_tab() != Tab::QuickNotes && active_tab() != Tab::Compare && active_tab() != Tab::DeepResearch && is_running && !available_models.read().is_empty() {
                         div { class: "card",
                             div { class: "card-title", "Available Models" }
                             if loading_models() {
@@ -1464,15 +1656,18 @@ fn App() -> Element {
             }
 
             // Horizontal Resizer Handle
-            div {
-                class: if drag_state() == DragType::LogPanel { "resizer-h dragging" } else { "resizer-h" },
-                onmousedown: on_log_resizer_mousedown,
+            if !immersive_mode() {
+                div {
+                    class: if drag_state() == DragType::LogPanel { "resizer-h dragging" } else { "resizer-h" },
+                    onmousedown: on_log_resizer_mousedown,
+                }
             }
 
             // ── Output panel integrated into main UI ───────────────
-            div {
-                class: "log-panel",
-                style: "min-height: {log_panel_height}px;",
+            if !immersive_mode() {
+                div {
+                    class: "log-panel",
+                    style: "min-height: {log_panel_height}px;",
                 div { class: "log-header",
                     div { class: "log-title", "Output" }
                     button {
@@ -1502,6 +1697,7 @@ fn App() -> Element {
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -1824,6 +2020,61 @@ fn suggest_server_optimizations(cfg: &ServerConfig) -> Vec<OptimizationSuggestio
         });
     }
 
+    if cfg.ubatch_size > cfg.batch_size && cfg.batch_size > 0 {
+        suggestions.push(OptimizationSuggestion {
+            key: "ubatch_size".into(),
+            label: "Micro-batch size (-ub)".into(),
+            current: cfg.ubatch_size.to_string(),
+            recommended: cfg.batch_size.to_string(),
+            reason: "Micro-batch size (-ub) should not exceed physical batch size (-b). Aligning them prevents execution issues.".into(),
+            selected: false,
+        });
+    }
+
+    if cfg.ctx_size >= 16384 && (cfg.cache_type_k == CacheType::F16 || cfg.cache_type_v == CacheType::F16) {
+        suggestions.push(OptimizationSuggestion {
+            key: "kv_cache_quant".into(),
+            label: "K/V Cache Quantization".into(),
+            current: "f16".into(),
+            recommended: "q8_0".into(),
+            reason: "Large context sizes use significant memory. Quantizing K/V cache to q8_0 saves memory with virtually no loss in quality.".into(),
+            selected: false,
+        });
+    }
+
+    if !cfg.draft_model.is_empty() && cfg.draft_gpu_layers <= 0 && cfg.gpu_layers > 0 {
+        suggestions.push(OptimizationSuggestion {
+            key: "draft_gpu_layers".into(),
+            label: "Draft GPU Layers".into(),
+            current: "0".into(),
+            recommended: "99".into(),
+            reason: "Draft model should be offloaded to GPU to match main model GPU usage and speed up speculative decoding.".into(),
+            selected: false,
+        });
+    }
+
+    if cfg.no_warmup {
+        suggestions.push(OptimizationSuggestion {
+            key: "no_warmup".into(),
+            label: "Disable Warmup Skip".into(),
+            current: "skipped".into(),
+            recommended: "false".into(),
+            reason: "Warmup runs check tensors and load cache, reducing latency for the user's first query.".into(),
+            selected: false,
+        });
+    }
+
+    if cfg.no_mmap {
+        suggestions.push(OptimizationSuggestion {
+            key: "no_mmap".into(),
+            label: "Enable Memory Mapping (mmap)".into(),
+            current: "off".into(),
+            recommended: "false".into(),
+            reason: "Enable memory mapping to load models instantly and reduce memory overhead.".into(),
+            selected: false,
+        });
+    }
+
     suggestions
 }
 
@@ -1849,6 +2100,22 @@ fn apply_server_optimization(cfg: &mut ServerConfig, key: &str, value: &str) {
         }
         "parallel" => {
             if let Ok(v) = value.parse::<u32>() { cfg.parallel = v; }
+        }
+        "ubatch_size" => {
+            if let Ok(v) = value.parse::<u32>() { cfg.ubatch_size = v; }
+        }
+        "kv_cache_quant" => {
+            cfg.cache_type_k = CacheType::from_str(value);
+            cfg.cache_type_v = CacheType::from_str(value);
+        }
+        "draft_gpu_layers" => {
+            if let Ok(v) = value.parse::<i32>() { cfg.draft_gpu_layers = v; }
+        }
+        "no_warmup" => {
+            cfg.no_warmup = value.eq_ignore_ascii_case("true");
+        }
+        "no_mmap" => {
+            cfg.no_mmap = value.eq_ignore_ascii_case("true");
         }
         _ => {}
     }
@@ -1996,6 +2263,12 @@ fn TabServer(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
                     }
                 }
             }
+        }
+
+        // Command preview
+        div { class: "card",
+            div { class: "card-title", "Command Preview" }
+            div { class: "cmd-preview", {config.read().command_preview()} }
         }
     }
 }
@@ -4281,103 +4554,186 @@ fn TabDownload(search_target: Signal<String>) -> Element {
 
 fn perform_send(
     config: Signal<ServerConfig>,
-    mut messages: Signal<Vec<(String, String)>>,
+    mut messages: Signal<Vec<(String, String, Option<Vec<String>>)>>,
     mut current_input: Signal<String>,
     mut is_generating: Signal<bool>,
     mut chat_error: Signal<Option<String>>,
+    routed_instance: Signal<Option<(String, u16)>>,
+    selected_chat_model: String,
+    use_agent: bool,
 ) {
     let text = current_input.read().trim().to_string();
     if text.is_empty() || is_generating() {
         return;
     }
 
-    messages.write().push(("user".to_string(), text.clone()));
+    messages.write().push(("user".to_string(), text.clone(), None));
     current_input.set(String::new());
     is_generating.set(true);
     chat_error.set(None);
 
-    let port = config.read().port;
+    let (host, port) = if let Some((h, p)) = routed_instance.read().clone() {
+        (h, p)
+    } else {
+        ("127.0.0.1".to_string(), config.read().port)
+    };
     let history = messages.read().clone();
 
-    spawn(async move {
-        let target_model = library::get_target_model(port, "").await;
-        let llm_url = format!("http://127.0.0.1:{}/v1/chat/completions", port);
+    if use_agent {
+        spawn(async move {
+            let target_model = if !selected_chat_model.is_empty() {
+                selected_chat_model
+            } else {
+                library::get_target_model_with_host(&host, port, "").await
+            };
+            let mut memory_manager = agent::MemoryManager::new(get_default_config_path());
+            let mcp_registry = agent::McpRegistry::load(get_default_config_path());
+            let searxng_url = if config.read().searxng_url.is_empty() { None } else { Some(config.read().searxng_url.clone()) };
 
-        let mut req_messages = Vec::new();
-        for (role, content) in &history {
-            req_messages.push(serde_json::json!({
-                "role": role,
-                "content": content
-            }));
-        }
-
-        let payload = serde_json::json!({
-            "model": target_model,
-            "messages": req_messages,
-            "temperature": 0.7,
-        });
-
-        let client = reqwest::Client::new();
-        match client.post(&llm_url).json(&payload).send().await {
-            Ok(res) => {
-                if res.status().is_success() {
-                    #[derive(serde::Deserialize, Clone)]
-                    struct ChatMessage {
-                        content: Option<String>,
-                    }
-                    #[derive(serde::Deserialize, Clone)]
-                    struct ChatChoice {
-                        message: Option<ChatMessage>,
-                    }
-                    #[derive(serde::Deserialize)]
-                    struct ChatResponse {
-                        choices: Option<Vec<ChatChoice>>,
-                    }
-
-                    if let Ok(chat_res) = res.json::<ChatResponse>().await {
-                        if let Some(content) = chat_res.choices
-                            .and_then(|c| c.first().cloned())
-                            .and_then(|c| c.message)
-                            .and_then(|m| m.content)
-                        {
-                            messages.write().push(("assistant".to_string(), content));
-                        } else {
-                            chat_error.set(Some("Invalid response format received from model server.".to_string()));
-                        }
-                    } else {
-                        chat_error.set(Some("Failed to parse JSON response from model server.".to_string()));
-                    }
-                } else {
-                    chat_error.set(Some(format!("Model server returned error status: {}", res.status())));
+            match agent::run_agent_task(
+                &host,
+                port,
+                &target_model,
+                &text,
+                &mcp_registry,
+                &mut memory_manager,
+                searxng_url,
+            ).await {
+                Ok(resp) => {
+                    messages.write().push(("assistant".to_string(), resp.text, Some(resp.logs)));
+                }
+                Err(e) => {
+                    chat_error.set(Some(format!("Agent execution failed: {}", e)));
                 }
             }
-            Err(e) => {
-                chat_error.set(Some(format!("Failed to connect to model server: {}", e)));
+            is_generating.set(false);
+        });
+    } else {
+        spawn(async move {
+            let target_model = if !selected_chat_model.is_empty() {
+                selected_chat_model
+            } else {
+                library::get_target_model_with_host(&host, port, "").await
+            };
+            let llm_url = format!("http://{}:{}/v1/chat/completions", host, port);
+
+            let mut req_messages = Vec::new();
+            for (role, content, _) in &history {
+                req_messages.push(serde_json::json!({
+                    "role": role,
+                    "content": content
+                }));
             }
-        }
-        is_generating.set(false);
-    });
+
+            let payload = serde_json::json!({
+                "model": target_model,
+                "messages": req_messages,
+                "temperature": 0.7,
+            });
+
+            let client = reqwest::Client::new();
+            match client.post(&llm_url).json(&payload).send().await {
+                Ok(res) => {
+                    if res.status().is_success() {
+                        #[derive(serde::Deserialize, Clone)]
+                        struct ChatMessage {
+                            content: Option<String>,
+                        }
+                        #[derive(serde::Deserialize, Clone)]
+                        struct ChatChoice {
+                            message: Option<ChatMessage>,
+                        }
+                        #[derive(serde::Deserialize)]
+                        struct ChatResponse {
+                            choices: Option<Vec<ChatChoice>>,
+                        }
+
+                        if let Ok(chat_res) = res.json::<ChatResponse>().await {
+                            if let Some(content) = chat_res.choices
+                                .and_then(|c| c.first().cloned())
+                                .and_then(|c| c.message)
+                                .and_then(|m| m.content)
+                            {
+                                messages.write().push(("assistant".to_string(), content, None));
+                            } else {
+                                chat_error.set(Some("Invalid response format received from model server.".to_string()));
+                            }
+                        } else {
+                            chat_error.set(Some("Failed to parse JSON response from model server.".to_string()));
+                        }
+                    } else {
+                        chat_error.set(Some(format!("Model server returned error status: {}", res.status())));
+                    }
+                }
+                Err(e) => {
+                    chat_error.set(Some(format!("Failed to connect to model server: {}", e)));
+                }
+            }
+            is_generating.set(false);
+        });
+    }
 }
 
 #[component]
-fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
-    let mut messages = use_signal(Vec::<(String, String)>::new);
+fn TabChat(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+    mut routed_instance: Signal<Option<(String, u16)>>,
+    mut immersive_mode: Signal<bool>,
+) -> Element {
+    let mut messages = use_signal(Vec::<(String, String, Option<Vec<String>>)>::new);
+    let mut use_agent = use_signal(|| false);
     let mut current_input = use_signal(String::new);
     let is_generating = use_signal(|| false);
     let mut chat_error = use_signal(|| None::<String>);
     let mut server_status = use_signal(|| false);
+    let mut chat_models = use_signal(Vec::<String>::new);
+    let mut selected_chat_model = use_signal(String::new);
 
     let _server_checker = use_resource(move || {
         async move {
             loop {
-                let port = config.read().port;
+                let (host, port) = if let Some((h, p)) = routed_instance.read().clone() {
+                    (h, p)
+                } else {
+                    ("127.0.0.1".to_string(), config.read().port)
+                };
                 let client = reqwest::Client::new();
-                let url = format!("http://127.0.0.1:{}/v1/models", port);
+                let url = format!("http://{}:{}/v1/models", host, port);
                 let online = match client.get(&url).timeout(std::time::Duration::from_secs(1)).send().await {
-                    Ok(res) => res.status().is_success(),
+                    Ok(res) => {
+                        if res.status().is_success() {
+                            #[derive(serde::Deserialize)]
+                            struct ModelInfo {
+                                id: String,
+                            }
+                            #[derive(serde::Deserialize)]
+                            struct ModelsList {
+                                data: Vec<ModelInfo>,
+                            }
+                            if let Ok(list) = res.json::<ModelsList>().await {
+                                let names: Vec<String> = list.data.into_iter().map(|m| m.id).collect();
+                                if !names.contains(&selected_chat_model.read()) {
+                                    if let Some(first) = names.first() {
+                                        selected_chat_model.set(first.clone());
+                                    } else {
+                                        selected_chat_model.set(String::new());
+                                    }
+                                }
+                                chat_models.set(names);
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     Err(_) => false,
                 };
                 server_status.set(online);
+                if !online {
+                    chat_models.set(Vec::new());
+                    selected_chat_model.set(String::new());
+                }
                 tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             }
         }
@@ -4386,16 +4742,37 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
     let clear_chat = move |_| {
         messages.write().clear();
         chat_error.set(None);
-    };
+    };    rsx! {
+        if !immersive_mode() {
+            div { class: "section-title", "Interactive Model Chat" }
+            div { class: "section-desc", "Have live conversations with the loaded model. Start the model server from the Server tab to begin." }
+        }
 
-    rsx! {
-        div { class: "section-title", "Interactive Model Chat" }
-        div { class: "section-desc", "Have live conversations with the loaded model. Start the model server from the Server tab to begin." }
+        if let Some((ref h, p)) = *routed_instance.read() {
+            if !immersive_mode() {
+                div {
+                    style: "background: var(--color-brand-accent); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
+                    span { "💬 Chat routed to instance: {h}:{p}" }
+                    button {
+                        class: "btn btn-sm",
+                        style: "background: rgba(255, 255, 255, 0.2); color: #fff; border: none; padding: 2px 8px; font-size: 11px;",
+                        onclick: move |_| routed_instance.set(None),
+                        "Reset to Local"
+                    }
+                }
+            }
+        }
 
         if !server_status() {
-            div {
-                style: "background: var(--color-warning); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
-                span { "⚠️ Model server is offline. Please make sure a model is configured and click 'Start Server' in the Server tab to chat." }
+            if !immersive_mode() {
+                div {
+                    style: "background: var(--color-warning); color: #fff; padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between;",
+                    if let Some((ref h, p)) = *routed_instance.read() {
+                        span { "⚠️ Routed server {h}:{p} is offline. Please make sure the instance is running or select another instance." }
+                    } else {
+                        span { "⚠️ Model server is offline. Please make sure a model is configured and click 'Start Server' in the Server tab to chat." }
+                    }
+                }
             }
         }
 
@@ -4406,17 +4783,61 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
         }
 
         div {
-            style: "display: flex; flex-direction: column; height: 500px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;",
+            style: if immersive_mode() {
+                "display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--color-surface-soft); border: none; border-radius: 0; overflow: hidden; height: 100vh;"
+            } else {
+                "display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;"
+            },
             
             div {
-                style: "display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--color-canvas); border-bottom: 1px solid var(--color-hairline);",
+                style: "display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: var(--color-canvas); border-bottom: 1px solid var(--color-hairline);",
                 span { style: "font-weight: 600; color: var(--color-ink);", "💬 Chat Session" }
-                button {
-                    class: "btn btn-outline",
-                    style: "padding: 4px 12px; font-size: 12px;",
-                    disabled: messages.read().is_empty(),
-                    onclick: clear_chat,
-                    "Clear Conversation"
+                div { style: "display: flex; align-items: center; gap: 16px;",
+                    if !chat_models.read().is_empty() {
+                        div { style: "display: flex; align-items: center; gap: 12px;",
+                            div { style: "display: flex; align-items: center; gap: 6px;",
+                                span { style: "font-size: 12px; color: var(--color-muted); font-weight: 500;", "Model:" }
+                                select {
+                                    class: "form-select",
+                                    style: "width: auto; padding: 2px 24px 2px 8px; font-size: 12px; height: 26px; line-height: 1; border-radius: 4px;",
+                                    value: selected_chat_model(),
+                                    onchange: move |e: Event<FormData>| {
+                                        selected_chat_model.set(e.value());
+                                    },
+                                    for model in chat_models.read().iter() {
+                                        option { value: model.clone(), "{model}" }
+                                    }
+                                }
+                            }
+                            label { style: "display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--color-ink); cursor: pointer;",
+                                input {
+                                    r#type: "checkbox",
+                                    checked: use_agent(),
+                                    onchange: move |e: Event<FormData>| {
+                                        use_agent.set(e.value() == "true");
+                                    }
+                                }
+                                "🤖 Agent Mode"
+                            }
+                        }
+                    }
+                    button {
+                        class: "btn btn-ghost btn-sm",
+                        style: "padding: 4px 10px; font-size: 12px; display: flex; align-items: center; gap: 4px;",
+                        onclick: move |_| immersive_mode.set(!immersive_mode()),
+                        if immersive_mode() {
+                            span { "✨ Exit Immersive" }
+                        } else {
+                            span { "✨ Immersive Mode" }
+                        }
+                    }
+                    button {
+                        class: "btn btn-ghost btn-sm",
+                        style: "padding: 4px 10px; font-size: 12px;",
+                        disabled: messages.read().is_empty(),
+                        onclick: clear_chat,
+                        "Clear Conversation"
+                    }
                 }
             }
 
@@ -4430,7 +4851,7 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
                         div { style: "font-size: 12.5px; line-height: 1.4;", "Type a message below to query the running Llama model server in real time." }
                     }
                 } else {
-                    for (i, (role, text)) in messages.read().iter().enumerate() {
+                    for (i, (role, text, opt_logs)) in messages.read().iter().enumerate() {
                         div {
                             key: "{i}",
                             style: if role == "user" { "display: flex; justify-content: flex-end;" } else { "display: flex; justify-content: flex-start;" },
@@ -4440,7 +4861,20 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
                                 } else {
                                     "background: var(--color-canvas); color: var(--color-ink); padding: 10px 14px; border-radius: 14px 14px 14px 2px; max-width: 80%; font-size: 13.5px; line-height: 1.4; text-align: left; border: 1px solid var(--color-hairline);"
                                 },
-                                {text.clone()}
+                                div { "{text}" }
+                                if let Some(logs) = opt_logs {
+                                    div {
+                                        style: "margin-top: 8px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 6px; font-size: 11px; width: 100%;",
+                                        details {
+                                            summary { style: "cursor: pointer; font-weight: 600; color: var(--color-brand-accent); outline: none; margin-bottom: 4px;", "🤖 Agent Execution Trace ({logs.len()} steps)" }
+                                            div { style: "font-family: monospace; white-space: pre-wrap; padding: 8px; background: rgba(0,0,0,0.03); border: 1px solid var(--color-hairline); border-radius: 4px; max-height: 160px; overflow-y: auto; color: var(--color-muted); font-size: 10.5px; line-height: 1.3;",
+                                                for log in logs {
+                                                    div { "{log}" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -4469,7 +4903,7 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
                     oninput: move |e| current_input.set(e.value()),
                     onkeydown: move |e: KeyboardEvent| {
                         if e.key() == Key::Enter {
-                            perform_send(config, messages, current_input, is_generating, chat_error);
+                            perform_send(config, messages, current_input, is_generating, chat_error, routed_instance, selected_chat_model.read().clone(), use_agent());
                         }
                     }
                 }
@@ -4478,7 +4912,7 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
                     style: "padding: 8px 20px;",
                     disabled: !server_status() || is_generating() || current_input.read().trim().is_empty(),
                     onclick: move |_| {
-                        perform_send(config, messages, current_input, is_generating, chat_error);
+                        perform_send(config, messages, current_input, is_generating, chat_error, routed_instance, selected_chat_model.read().clone(), use_agent());
                     },
                     "Send"
                 }
@@ -4486,6 +4920,7 @@ fn TabChat(config: Signal<ServerConfig>, search_target: Signal<String>) -> Eleme
         }
     }
 }
+
 
 // ── Instances Tab ────────────────────────────────────────────────────────────
 
@@ -4498,12 +4933,17 @@ struct LlamaInstance {
 }
 
 #[component]
-fn TabInstances(search_target: Signal<String>) -> Element {
+fn TabInstances(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+    mut routed_instance: Signal<Option<(String, u16)>>,
+) -> Element {
     let mut detected_instances = use_signal(Vec::<LlamaInstance>::new);
     let mut custom_hostname_input = use_signal(|| "127.0.0.1".to_string());
     let mut custom_port_input = use_signal(String::new);
     let mut last_check_time = use_signal(|| 0i64);
     let mut check_status = use_signal(|| "Idle".to_string());
+    let mut refresh_trigger = use_signal(|| 0u64);
 
     // Common ports to check for llama-server
     let common_ports = vec![8080, 8000, 8001, 8002, 8003, 8004, 5000, 5001, 5002];
@@ -4511,10 +4951,9 @@ fn TabInstances(search_target: Signal<String>) -> Element {
     // Async task to periodically detect instances
     let _detector = use_resource(move || {
         let common_ports = common_ports.clone();
+        let _ = refresh_trigger();
         async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-                
                 check_status.set("Checking ports...".to_string());
                 let mut instances = Vec::new();
 
@@ -4551,18 +4990,12 @@ fn TabInstances(search_target: Signal<String>) -> Element {
                                 }
                             }
                         }
-                        _ => {
-                            // Check if we already have this instance stored to preserve its status
-                            let existing = detected_instances.read();
-                            if !existing.iter().any(|i| i.port == port) {
-                                // Only add as offline if we've had it before, otherwise skip
-                            }
-                        }
+                        _ => {}
                     }
                 }
 
-                // Check custom instances (non-localhost)
-                for inst in detected_instances.read().iter() {
+                // Check custom instances (non-localhost) - use peek() to avoid reactive dependency loops
+                for inst in detected_instances.peek().iter() {
                     if !common_ports.contains(&inst.port) {
                         let client = reqwest::Client::new();
                         let url = format!("http://{}:{}/v1/models", inst.hostname, inst.port);
@@ -4609,6 +5042,8 @@ fn TabInstances(search_target: Signal<String>) -> Element {
                 detected_instances.set(instances);
                 *last_check_time.write() = chrono::Local::now().timestamp();
                 check_status.set("Ready".to_string());
+
+                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             }
         }
     });
@@ -4627,6 +5062,7 @@ fn TabInstances(search_target: Signal<String>) -> Element {
                     });
                     detected_instances.set(instances);
                     custom_port_input.set(String::new());
+                    refresh_trigger.set(refresh_trigger() + 1);
                 }
             }
         }
@@ -4639,15 +5075,47 @@ fn TabInstances(search_target: Signal<String>) -> Element {
     };
 
     let manual_refresh = move |_: Event<MouseData>| {
-        check_status.set("Manual refresh triggered...".to_string());
+        refresh_trigger.set(refresh_trigger() + 1);
     };
 
     rsx! {
         div { class: "tab-container",
             // Header
             div { class: "card",
-                div { class: "card-title", "🖥️ Llama-Server Instance Monitor" }
-                div { class: "form-hint", "Discovers running llama-server instances on common ports and displays loaded models per instance." }
+                div { style: "display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;",
+                    div { style: "flex: 1; min-width: 250px;",
+                        div { class: "card-title", "🖥️ Llama-Server Instance Monitor" }
+                        div { class: "form-hint", "Discovers running llama-server instances on common ports and displays loaded models per instance." }
+                    }
+                    div { style: "display: flex; gap: 8px; align-items: center; flex-shrink: 0;",
+                        div {
+                            style: "font-size: 11.5px; color: var(--color-muted); background: var(--color-surface-soft); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--color-hairline); display: flex; align-items: center; gap: 6px; font-weight: 500;",
+                            span { style: "width: 6px; height: 6px; border-radius: 50%; background: var(--color-brand-accent); animation: pulse 2s infinite;" }
+                            "{check_status()}"
+                        }
+                        div {
+                            style: "font-size: 11.5px; font-weight: 600; color: var(--color-brand-accent); background: rgba(37, 99, 235, 0.08); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(37, 99, 235, 0.15);",
+                            "Active: {detected_instances.read().len()}"
+                        }
+                    }
+                }
+                if let Some((ref h, p)) = *routed_instance.read() {
+                    div {
+                        style: "margin-top: 12px; padding: 10px 14px; background: var(--color-brand-accent); color: #fff; border-radius: 4px; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;",
+                        span { "💬 Chat is currently routed to: {h}:{p}" }
+                        button {
+                            class: "btn btn-sm",
+                            style: "background: rgba(255, 255, 255, 0.2); color: #fff; border: none; padding: 2px 8px; font-size: 11px;",
+                            onclick: move |_| routed_instance.set(None),
+                            "Reset to Default Local"
+                        }
+                    }
+                } else {
+                    div {
+                        style: "margin-top: 12px; padding: 10px 14px; background: var(--color-surface-soft); color: var(--color-muted); border-radius: 4px; font-size: 13px; font-weight: 500; border: 1px solid var(--color-hairline);",
+                        "💬 Chat is routed to the default local server configuration (port: {config.read().port})"
+                    }
+                }
             }
 
             // Add Custom Instance Card
@@ -4697,6 +5165,7 @@ fn TabInstances(search_target: Signal<String>) -> Element {
                                                 });
                                                 detected_instances.set(instances);
                                                 custom_port_input.set(String::new());
+                                                refresh_trigger.set(refresh_trigger() + 1);
                                             }
                                         }
                                     }
@@ -4709,7 +5178,7 @@ fn TabInstances(search_target: Signal<String>) -> Element {
                             "Add"
                         }
                         button {
-                            class: "btn btn-secondary",
+                            class: "btn btn-ghost",
                             onclick: manual_refresh,
                             "🔄 Refresh"
                         }
@@ -4718,69 +5187,87 @@ fn TabInstances(search_target: Signal<String>) -> Element {
                 div { class: "form-hint", "Detected instances refresh automatically every 10 seconds. Add remote instances by specifying hostname/IP and port." }
             }
 
-            // Status Card
-            div { class: "card",
-                div { class: "card-title", "Status" }
-                div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 16px;",
-                    div {
-                        div { class: "form-label", "Detection Status" }
-                        div { style: "font-family: monospace; font-size: 13px; color: var(--color-on-surface-soft);", "{check_status()}" }
-                    }
-                    div {
-                        div { class: "form-label", "Detected Instances" }
-                        div { style: "font-family: monospace; font-size: 13px; color: var(--color-primary);", "{detected_instances.read().len()}" }
-                    }
-                }
-            }
-
             // Instances List
             if detected_instances.read().is_empty() {
                 div { class: "card",
-                    div { style: "text-align: center; padding: 32px; color: var(--color-muted);",
+                    div { style: "text-align: center; padding: 24px; color: var(--color-muted); font-size: 13px;",
                         "No instances detected. Make sure llama-server is running on one of the common ports (8080, 8000-8004, 5000-5002) or add a custom instance."
                     }
                 }
             } else {
                 div { class: "card",
                     div { class: "card-title", "Active Instances" }
-                    div { style: "display: flex; flex-direction: column; gap: 16px;",
+                    div { style: "display: flex; flex-direction: column; gap: 12px;",
                         for inst in detected_instances.read().iter() {
-                            div { style: "border: 1px solid var(--color-hairline); border-radius: 8px; padding: 16px; background: var(--color-surface-dark);",
-                                div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+                            div { style: "border: 1px solid var(--color-hairline); border-radius: 4px; padding: 12px; background: var(--color-surface-soft); display: flex; flex-direction: column; gap: 10px;",
+                                div { style: "display: flex; justify-content: space-between; align-items: center;",
                                     div {
-                                        div { style: "font-weight: 600; margin-bottom: 4px;", "{inst.hostname}:{inst.port}" }
-                                        div { style: "font-size: 12px; color: var(--color-muted);",
+                                        div { style: "font-weight: 600; font-size: 13.5px; color: var(--color-ink);", "{inst.hostname}:{inst.port}" }
+                                        div { style: "font-size: 11.5px; margin-top: 2px;",
                                             match inst.status.as_str() {
-                                                "online" => rsx! { span { style: "color: var(--color-success);", "✓ Online" } },
-                                                "offline" => rsx! { span { style: "color: var(--color-error);", "✗ Offline" } },
-                                                _ => rsx! { span { style: "color: var(--color-warning);", "⏳ Checking..." } },
+                                                "online" => rsx! { span { style: "color: var(--color-success); font-weight: 500;", "● Online" } },
+                                                "offline" => rsx! { span { style: "color: var(--color-error); font-weight: 500;", "● Offline" } },
+                                                _ => rsx! { span { style: "color: var(--color-warning); font-weight: 500;", "● Checking..." } },
                                             }
                                         }
                                     }
-                                    button {
-                                        class: "btn btn-ghost btn-sm",
-                                        onclick: {
-                                            let hostname = inst.hostname.clone();
-                                            let port = inst.port;
-                                            move |_| remove_instance((hostname.clone(), port))
-                                        },
-                                        "Remove"
+                                    {
+                                        let is_currently_routed = if let Some((ref h, p)) = *routed_instance.read() {
+                                            h == &inst.hostname && p == inst.port
+                                        } else {
+                                            false
+                                        };
+                                        rsx! {
+                                            div { style: "display: flex; gap: 6px; align-items: center;",
+                                                if inst.status == "online" {
+                                                    button {
+                                                        class: if is_currently_routed { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                                                        onclick: {
+                                                            let hostname = inst.hostname.clone();
+                                                            let port = inst.port;
+                                                            move |_| {
+                                                                if is_currently_routed {
+                                                                    routed_instance.set(None);
+                                                                } else {
+                                                                    routed_instance.set(Some((hostname.clone(), port)));
+                                                                }
+                                                            }
+                                                        },
+                                                        if is_currently_routed { "💬 Routed" } else { "🔌 Route Chat" }
+                                                    }
+                                                }
+                                                button {
+                                                    class: "btn btn-ghost btn-sm",
+                                                    onclick: {
+                                                        let hostname = inst.hostname.clone();
+                                                        let port = inst.port;
+                                                        move |_| {
+                                                            if is_currently_routed {
+                                                                routed_instance.set(None);
+                                                            }
+                                                            remove_instance((hostname.clone(), port))
+                                                        }
+                                                    },
+                                                    "Remove"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                                 if !inst.models.is_empty() {
-                                    div { style: "border-top: 1px solid var(--color-hairline); padding-top: 12px;",
-                                        div { style: "font-size: 12px; font-weight: 500; color: var(--color-muted); margin-bottom: 8px;", "Loaded Models ({inst.models.len()})" }
-                                        div { style: "display: flex; flex-direction: column; gap: 6px;",
+                                    div { style: "border-top: 1px solid var(--color-hairline); padding-top: 8px;",
+                                        div { style: "font-size: 11px; font-weight: 600; color: var(--color-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em;", "Loaded Models" }
+                                        div { style: "display: flex; flex-wrap: wrap; gap: 6px;",
                                             for model in inst.models.iter() {
-                                                div { style: "font-size: 12px; padding: 6px 8px; background: var(--color-surface); border-radius: 4px; color: var(--color-on-surface-soft);",
+                                                div { style: "font-size: 11.5px; padding: 4px 8px; background: #ffffff; border: 1px solid var(--color-hairline); border-radius: 4px; color: var(--color-body); font-family: monospace;",
                                                     "📦 {model}"
                                                 }
                                             }
                                         }
                                     }
                                 } else if inst.status == "online" {
-                                    div { style: "border-top: 1px solid var(--color-hairline); padding-top: 12px;",
-                                        div { style: "font-size: 12px; color: var(--color-muted);", "No models loaded" }
+                                    div { style: "border-top: 1px solid var(--color-hairline); padding-top: 8px;",
+                                        div { style: "font-size: 11.5px; color: var(--color-muted); font-style: italic;", "No models loaded" }
                                     }
                                 }
                             }
@@ -4791,3 +5278,2068 @@ fn TabInstances(search_target: Signal<String>) -> Element {
         }
     }
 }
+
+
+#[component]
+fn TabMcp(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+) -> Element {
+    let base_dir = get_default_config_path();
+    let mut mcp_registry = use_signal(move || agent::McpRegistry::load(base_dir.clone()));
+
+    // Form inputs for creating a new tool
+    let mut tool_name = use_signal(String::new);
+    let mut tool_desc = use_signal(String::new);
+    let mut tool_type = use_signal(|| agent::McpType::Local);
+    let mut local_cmd = use_signal(String::new);
+    let mut local_args = use_signal(String::new);
+    let mut remote_url = use_signal(String::new);
+    let mut remote_headers = use_signal(String::new);
+    let mut ssl_verify_off = use_signal(|| false);
+    let mut mcp_error = use_signal(|| None::<String>);
+
+    let add_tool = move |_| {
+        let name = tool_name.read().trim().to_string();
+        let desc = tool_desc.read().trim().to_string();
+        if name.is_empty() || desc.is_empty() {
+            mcp_error.set(Some("Tool name and description cannot be empty.".to_string()));
+            return;
+        }
+
+        let new_tool = match tool_type() {
+            agent::McpType::Local => {
+                let cmd = local_cmd.read().trim().to_string();
+                if cmd.is_empty() {
+                    mcp_error.set(Some("Command is required for local tools.".to_string()));
+                    return;
+                }
+                let args_vec: Vec<String> = local_args.read()
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                agent::McpTool {
+                    name,
+                    description: desc,
+                    tool_type: agent::McpType::Local,
+                    command: Some(cmd),
+                    args: Some(args_vec),
+                    url: None,
+                    headers: None,
+                    ssl_verify_off: false,
+                }
+            }
+            agent::McpType::Remote => {
+                let url = remote_url.read().trim().to_string();
+                if url.is_empty() {
+                    mcp_error.set(Some("URL is required for remote tools.".to_string()));
+                    return;
+                }
+                let mut headers_map = HashMap::new();
+                for line in remote_headers.read().lines() {
+                    let parts: Vec<&str> = line.splitn(2, ':').collect();
+                    if parts.len() == 2 {
+                        headers_map.insert(parts[0].trim().to_string(), parts[1].trim().to_string());
+                    }
+                }
+                agent::McpTool {
+                    name,
+                    description: desc,
+                    tool_type: agent::McpType::Remote,
+                    command: None,
+                    args: None,
+                    url: Some(url),
+                    headers: Some(headers_map),
+                    ssl_verify_off: ssl_verify_off(),
+                }
+            }
+        };
+
+        let mut reg = mcp_registry.read().clone();
+        // Remove tool if already exists with the same name, then add
+        reg.tools.retain(|t| t.name != new_tool.name);
+        reg.tools.push(new_tool);
+
+        match reg.save(get_default_config_path()) {
+            Ok(_) => {
+                mcp_registry.set(reg);
+                tool_name.set(String::new());
+                tool_desc.set(String::new());
+                local_cmd.set(String::new());
+                local_args.set(String::new());
+                remote_url.set(String::new());
+                remote_headers.set(String::new());
+                ssl_verify_off.set(false);
+                mcp_error.set(None);
+            }
+            Err(e) => {
+                mcp_error.set(Some(format!("Failed to save tool: {}", e)));
+            }
+        }
+    };
+
+    let mut remove_tool = move |name: String| {
+        let mut reg = mcp_registry.read().clone();
+        reg.tools.retain(|t| t.name != name);
+        if let Ok(_) = reg.save(get_default_config_path()) {
+            mcp_registry.set(reg);
+        }
+    };
+
+    rsx! {
+        div { class: "section-title", "Model Context Protocol (MCP) Tools" }
+        div { class: "section-desc", "Connect your LLM to local shell tools and remote web APIs. These tools are available dynamically to the Agent." }
+
+        if let Some(err) = mcp_error() {
+            div { class: "error-toast", style: "margin-bottom: 16px;", "❌ {err}" }
+        }
+
+        // Add a new Tool Card
+        div { class: "card", style: "margin-bottom: 16px;",
+            div { class: "card-title", "Add New MCP Tool" }
+            
+            div { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px;",
+                div { class: "form-group",
+                    label { class: "form-label", "Tool Name" }
+                    input {
+                        class: "form-input",
+                        placeholder: "e.g. read_file",
+                        value: tool_name(),
+                        oninput: move |e| tool_name.set(e.value())
+                    }
+                }
+                div { class: "form-group",
+                    label { class: "form-label", "Description" }
+                    input {
+                        class: "form-input",
+                        placeholder: "e.g. Reads content of a file on disk",
+                        value: tool_desc(),
+                        oninput: move |e| tool_desc.set(e.value())
+                    }
+                }
+                div { class: "form-group",
+                    label { class: "form-label", "Type" }
+                    select {
+                        class: "form-select",
+                        value: if tool_type() == agent::McpType::Local { "local" } else { "remote" },
+                        onchange: move |e: Event<FormData>| {
+                            if e.value() == "local" {
+                                tool_type.set(agent::McpType::Local);
+                            } else {
+                                tool_type.set(agent::McpType::Remote);
+                            }
+                        },
+                        option { value: "local", "Local Shell Execution" }
+                        option { value: "remote", "Remote Web API Endpoint" }
+                    }
+                }
+            }
+
+            {match tool_type() {
+                agent::McpType::Local => rsx! {
+                    div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;",
+                        div { class: "form-group",
+                            label { class: "form-label", "Command binary" }
+                            input {
+                                class: "form-input",
+                                placeholder: "e.g. cat, grep, python",
+                                value: local_cmd(),
+                                oninput: move |e| local_cmd.set(e.value())
+                            }
+                        }
+                        div { class: "form-group",
+                            label { class: "form-label", "Arguments (comma separated, use {{param}})" }
+                            input {
+                                class: "form-input",
+                                placeholder: "e.g. -n, {{path}}",
+                                value: local_args(),
+                                oninput: move |e| local_args.set(e.value())
+                            }
+                        }
+                    }
+                },
+                agent::McpType::Remote => rsx! {
+                    div { style: "display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;",
+                        div { style: "display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: flex-end;",
+                            div { class: "form-group",
+                                label { class: "form-label", "URL endpoint (use {{param}})" }
+                                input {
+                                    class: "form-input",
+                                    placeholder: "https://api.github.com/repos/{{owner}}/{{repo}}",
+                                    value: remote_url(),
+                                    oninput: move |e| remote_url.set(e.value())
+                                }
+                            }
+                            label { style: "display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--color-ink); cursor: pointer; margin-bottom: 12px;",
+                                input {
+                                    r#type: "checkbox",
+                                    checked: ssl_verify_off(),
+                                    onchange: move |e: Event<FormData>| {
+                                        ssl_verify_off.set(e.value() == "true");
+                                    }
+                                }
+                                "Bypass SSL verification"
+                            }
+                        }
+                        div { class: "form-group",
+                            label { class: "form-label", "Custom Headers (one Key: Value per line)" }
+                            textarea {
+                                class: "form-input",
+                                style: "font-family: monospace; height: 80px;",
+                                placeholder: "Authorization: Bearer <your_token>\nContent-Type: application/json",
+                                value: remote_headers(),
+                                oninput: move |e| remote_headers.set(e.value())
+                            }
+                        }
+                    }
+                }
+            }}
+
+            button {
+                class: "btn btn-start",
+                onclick: add_tool,
+                "Register Tool"
+            }
+        }
+
+        // List Registered Tools
+        div { class: "card",
+            div { class: "card-title", "Active MCP Tools Registry ({mcp_registry.read().tools.len()})" }
+            
+            if mcp_registry.read().tools.is_empty() {
+                div { style: "text-align: center; color: var(--color-muted); padding: 24px;", "No custom MCP tools registered yet." }
+            } else {
+                div { style: "display: flex; flex-direction: column; gap: 12px;",
+                    for tool in mcp_registry.read().tools.iter() {
+                        div {
+                            key: "{tool.name}",
+                            style: "display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 12px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 6px;",
+                            div { style: "display: flex; flex-direction: column; gap: 4px;",
+                                div { style: "display: flex; align-items: center; gap: 8px;",
+                                    span { style: "font-weight: 600; color: var(--color-ink); font-size: 14px;", "{tool.name}" }
+                                    span {
+                                        style: "font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;",
+                                        class: if tool.tool_type == agent::McpType::Local { "status-badge running" } else { "status-badge stopped" },
+                                        if tool.tool_type == agent::McpType::Local { "Local Exec" } else { "Remote HTTP" }
+                                    }
+                                }
+                                div { style: "font-size: 12.5px; color: var(--color-body);", "{tool.description}" }
+                                {match tool.tool_type {
+                                    agent::McpType::Local => rsx! {
+                                        div { style: "font-size: 11px; font-family: monospace; color: var(--color-muted); margin-top: 4px;",
+                                            "Command: {tool.command.clone().unwrap_or_default()} {tool.args.clone().unwrap_or_default().join(\" \")}"
+                                        }
+                                    },
+                                    agent::McpType::Remote => rsx! {
+                                        div { style: "font-size: 11px; font-family: monospace; color: var(--color-muted); margin-top: 4px;",
+                                            "Endpoint: {tool.url.clone().unwrap_or_default()}"
+                                            if tool.ssl_verify_off {
+                                                " [SSL verify: off]"
+                                            }
+                                        }
+                                    }
+                                }}
+                            }
+                            button {
+                                class: "btn btn-ghost btn-sm",
+                                style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                onclick: {
+                                    let name = tool.name.clone();
+                                    move |_| remove_tool(name.clone())
+                                },
+                                "Delete"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TabAgents(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+) -> Element {
+    let mut memory_manager = use_signal(move || agent::MemoryManager::new(get_default_config_path()));
+    let mut new_global_memory = use_signal(String::new);
+    let mut new_project_memory = use_signal(String::new);
+    let mut memory_trigger = use_signal(|| 0);
+
+    let add_global_mem = move |_| {
+        let text = new_global_memory.read().trim().to_string();
+        if !text.is_empty() {
+            memory_manager.write().add_global(text);
+            new_global_memory.set(String::new());
+            memory_trigger.write();
+        }
+    };
+
+    let add_project_mem = move |_| {
+        let text = new_project_memory.read().trim().to_string();
+        if !text.is_empty() {
+            memory_manager.write().add_project(text);
+            new_project_memory.set(String::new());
+            memory_trigger.write();
+        }
+    };
+
+    let clear_memories = move |_| {
+        memory_manager.write().clear_all();
+        memory_trigger.write();
+    };
+
+    let global_mems = memory_manager.read().global_store.memories.clone();
+    let project_mems = memory_manager.read().project_store.memories.clone();
+
+    rsx! {
+        div { class: "section-title", "Agents & Self-Learning Memory" }
+        div { class: "section-desc", "Self-learning layers analyze agent sessions and persist global & project-wide memories, optimizing behavior." }
+
+        // Clear memory
+        div { style: "display: flex; justify-content: flex-end; margin-bottom: 16px;",
+            button {
+                class: "btn btn-ghost btn-sm",
+                style: "color: var(--color-error); border-color: rgba(239,68,68,0.2);",
+                disabled: global_mems.is_empty() && project_mems.is_empty(),
+                onclick: clear_memories,
+                "🧹 Clear All Memory Stores"
+            }
+        }
+
+        div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;",
+            // Global Memory
+            div { class: "card",
+                div { class: "card-title", "🌐 Global Memory Database" }
+                div { style: "font-size: 12.5px; color: var(--color-muted); margin-bottom: 8px;", "Learned behaviors and user constraints across all workspaces." }
+                
+                div { style: "display: flex; gap: 8px; margin-bottom: 12px;",
+                    input {
+                        class: "form-input",
+                        placeholder: "Learn a global rule manually...",
+                        value: new_global_memory(),
+                        oninput: move |e| new_global_memory.set(e.value())
+                    }
+                    button {
+                        class: "btn btn-start btn-sm",
+                        onclick: add_global_mem,
+                        "Add"
+                    }
+                }
+
+                if global_mems.is_empty() {
+                    div { style: "text-align: center; color: var(--color-muted); padding: 16px; font-style: italic; font-size: 12.5px;", "Global memory database is empty." }
+                } else {
+                    ul { style: "display: flex; flex-direction: column; gap: 6px; padding-left: 16px; margin: 0; font-size: 13px; color: var(--color-body); max-height: 240px; overflow-y: auto;",
+                        for mem in global_mems.iter() {
+                            li { "{mem}" }
+                        }
+                    }
+                }
+            }
+
+            // Project Memory
+            div { class: "card",
+                div { class: "card-title", "📂 Project Workspace Memory" }
+                div { style: "font-size: 12.5px; color: var(--color-muted); margin-bottom: 8px;", "Project-specific paths, files, and build guidelines learned." }
+                
+                div { style: "display: flex; gap: 8px; margin-bottom: 12px;",
+                    input {
+                        class: "form-input",
+                        placeholder: "Learn a project rule manually...",
+                        value: new_project_memory(),
+                        oninput: move |e| new_project_memory.set(e.value())
+                    }
+                    button {
+                        class: "btn btn-start btn-sm",
+                        onclick: add_project_mem,
+                        "Add"
+                    }
+                }
+
+                if project_mems.is_empty() {
+                    div { style: "text-align: center; color: var(--color-muted); padding: 16px; font-style: italic; font-size: 12.5px;", "Project memory database is empty." }
+                } else {
+                    ul { style: "display: flex; flex-direction: column; gap: 6px; padding-left: 16px; margin: 0; font-size: 13px; color: var(--color-body); max-height: 240px; overflow-y: auto;",
+                        for mem in project_mems.iter() {
+                            li { "{mem}" }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Web Search Integration Settings
+        div { class: "card",
+            div { class: "card-title", "🌐 Internet Search & Browser Options" }
+            div { class: "form-group", style: "max-width: 480px;",
+                label { class: "form-label", "SearXNG URL (Optional endpoint, falls back to DuckDuckGo html search)" }
+                input {
+                    class: "form-input",
+                    placeholder: "http://localhost:8888",
+                    value: config.read().searxng_url.clone(),
+                    oninput: move |e| {
+                        let mut new_cfg = config.read().clone();
+                        new_cfg.searxng_url = e.value();
+                        config.set(new_cfg);
+                    }
+                }
+            }
+        }
+
+        // Conformance Card
+        div { class: "card",
+            div { class: "card-title", "🤖 Conformance & Agent Standards" }
+            div { style: "font-size: 13px; line-height: 1.5; color: var(--color-body); display: flex; flex-direction: column; gap: 8px;",
+                div { "This agent system strictly conforms to the following specifications:" }
+                div {
+                    ul { style: "padding-left: 20px; display: flex; flex-direction: column; gap: 4px;",
+                        li { "📁 " strong { "AGENTS.md" } " - Dev guidelines, check rules, testing patterns, and PR formatting guidelines." }
+                        li { "⚡ " strong { "SKILL.md" } " - Configurable skill structure, tool registry configurations, self-learning loops, and recursive subagents." }
+                        li { "🕷️ " strong { "Web-Scraping Layer" } " - Supports DuckDuckGo, SearXNG, Cloakbrowser / Camofox, and browser-harness integrations." }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TabPlanner(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+) -> Element {
+    let tasks_path = crate::get_default_config_path().join("planner_tasks.json");
+    let mut planner_state = use_signal(|| crate::planner::PlannerState::load(tasks_path.clone()));
+    let tasks_path_sig = use_signal(|| tasks_path);
+
+    // Form inputs state
+    let mut show_create_form = use_signal(|| false);
+    let mut new_title = use_signal(String::new);
+    let mut new_summary = use_signal(String::new);
+    let mut new_agent = use_signal(|| "LlamaManagerAgent".to_string());
+    let mut new_priority = use_signal(|| "Medium".to_string());
+    let mut new_status = use_signal(|| crate::planner::TaskStatus::Todo);
+
+    // Periodic synchronization
+    let _refresh_tasks = use_resource(move || {
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                let loaded = crate::planner::PlannerState::load(tasks_path_sig.read().clone());
+                planner_state.set(loaded);
+            }
+        }
+    });
+
+    let add_task = move |_| {
+        let title = new_title.read().trim().to_string();
+        let summary = new_summary.read().trim().to_string();
+        if title.is_empty() {
+            return;
+        }
+
+        let new_task = crate::planner::KanbanTask {
+            id: format!("task-{}", chrono::Utc::now().timestamp_millis()),
+            title,
+            summary,
+            assigned_agent: new_agent.read().clone(),
+            status: new_status.read().clone(),
+            priority: new_priority.read().clone(),
+            created_at: chrono::Local::now().format("%Y-%m-%d").to_string(),
+        };
+        let mut state = planner_state.write();
+        state.tasks.push(new_task);
+        let _ = state.save(tasks_path_sig.read().clone());
+        
+        // Reset fields
+        new_title.set(String::new());
+        new_summary.set(String::new());
+        show_create_form.set(false);
+    };
+
+    let columns = vec![
+        (crate::planner::TaskStatus::Backlog, "Backlog", "📁", "border-top: 4px solid #64748b; background: rgba(100, 116, 139, 0.05);"),
+        (crate::planner::TaskStatus::Todo, "To Do", "📋", "border-top: 4px solid #2563eb; background: rgba(37, 99, 235, 0.05);"),
+        (crate::planner::TaskStatus::InProgress, "In Progress", "⚡", "border-top: 4px solid #d97706; background: rgba(217, 119, 6, 0.05);"),
+        (crate::planner::TaskStatus::Done, "Done", "✅", "border-top: 4px solid #059669; background: rgba(5, 150, 105, 0.05);"),
+    ];
+
+    rsx! {
+        div { class: "section-title", "Task Planner & Kanban Board" }
+        div { class: "section-desc", "Organize autonomous agent execution steps, verify goals, and update work packages." }
+
+        // Expandable task form
+        div { class: "card", style: "margin-bottom: 16px;",
+            div { style: "display: flex; justify-content: space-between; align-items: center;",
+                span { style: "font-size: 13.5px; font-weight: 600; color: var(--color-ink);", "➕ Manage & Create Tasks" }
+                button {
+                    class: "btn btn-ghost btn-sm",
+                    onclick: move |_| show_create_form.set(!show_create_form()),
+                    if show_create_form() { "Collapse Form" } else { "Expand Create Task Form" }
+                }
+            }
+
+            if show_create_form() {
+                div { style: "display: flex; flex-direction: column; gap: 12px; margin-top: 12px; border-top: 1px solid var(--color-hairline); padding-top: 12px;",
+                    div { class: "form-group",
+                        label { class: "form-label", "Task Title *" }
+                        input {
+                            class: "form-input",
+                            placeholder: "Optimize inference performance...",
+                            value: new_title(),
+                            oninput: move |e| new_title.set(e.value())
+                        }
+                    }
+                    div { class: "form-group",
+                        label { class: "form-label", "Summary / Description" }
+                        input {
+                            class: "form-input",
+                            placeholder: "Analyze micro-batch size and layer distribution for better throughput.",
+                            value: new_summary(),
+                            oninput: move |e| new_summary.set(e.value())
+                        }
+                    }
+                    div { style: "display: flex; gap: 16px; flex-wrap: wrap;",
+                        div { class: "form-group", style: "flex: 1; min-width: 150px;",
+                            label { class: "form-label", "Assigned Agent" }
+                            select {
+                                class: "form-select",
+                                value: new_agent(),
+                                onchange: move |e: Event<FormData>| new_agent.set(e.value()),
+                                option { value: "LlamaManagerAgent", "🤖 LlamaManagerAgent" }
+                                option { value: "ConfigOptimizer", "⚙️ ConfigOptimizer" }
+                                option { value: "WebResearcher", "🌐 WebResearcher" }
+                                option { value: "CodeAuditor", "💻 CodeAuditor" }
+                            }
+                        }
+                        div { class: "form-group", style: "flex: 1; min-width: 150px;",
+                            label { class: "form-label", "Priority" }
+                            select {
+                                class: "form-select",
+                                value: new_priority(),
+                                onchange: move |e: Event<FormData>| new_priority.set(e.value()),
+                                option { value: "Low", "Low" }
+                                option { value: "Medium", "Medium" }
+                                option { value: "High", "High" }
+                            }
+                        }
+                        div { class: "form-group", style: "flex: 1; min-width: 150px;",
+                            label { class: "form-label", "Initial Column" }
+                            select {
+                                class: "form-select",
+                                value: new_status().as_str(),
+                                onchange: move |e: Event<FormData>| {
+                                    let val = e.value();
+                                    let status = match val.as_str() {
+                                        "Backlog" => crate::planner::TaskStatus::Backlog,
+                                        "Todo" => crate::planner::TaskStatus::Todo,
+                                        "In Progress" => crate::planner::TaskStatus::InProgress,
+                                        "Done" => crate::planner::TaskStatus::Done,
+                                        _ => crate::planner::TaskStatus::Todo,
+                                    };
+                                    new_status.set(status);
+                                },
+                                option { value: "Backlog", "Backlog" }
+                                option { value: "Todo", "Todo" }
+                                option { value: "In Progress", "In Progress" }
+                                option { value: "Done", "Done" }
+                            }
+                        }
+                    }
+                    div { style: "display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;",
+                        button {
+                            class: "btn btn-ghost btn-sm",
+                            onclick: move |_| {
+                                new_title.set(String::new());
+                                new_summary.set(String::new());
+                                show_create_form.set(false);
+                            },
+                            "Cancel"
+                        }
+                        button {
+                            class: "btn btn-start btn-sm",
+                            disabled: new_title.read().trim().is_empty(),
+                            onclick: add_task,
+                            "Create Kanban Task"
+                        }
+                    }
+                }
+            }
+        }
+ 
+        // Kanban Board Grid
+        div {
+            style: "display: flex; gap: 16px; overflow-x: auto; flex-grow: 1; min-height: 500px; padding-bottom: 24px; align-items: flex-start;",
+            for (col_status, col_name, col_emoji, col_style) in columns {
+                div {
+                    key: "{col_name}",
+                    style: "flex: 1; min-width: 250px; background: #ffffff; border-radius: 8px; border: 1px solid var(--color-hairline); display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.02);",
+                    
+                    // Column Header
+                    div {
+                        style: "padding: 10px 14px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--color-hairline); border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; {col_style} color: var(--color-ink);",
+                        span { "{col_emoji} {col_name}" }
+                        span {
+                            style: "background: rgba(0,0,0,0.06); padding: 1px 6px; border-radius: 10px; font-size: 11px;",
+                            "{planner_state.read().tasks.iter().filter(|t| t.status == col_status).count()}"
+                        }
+                    }
+
+                    // Column Task Cards
+                    div {
+                        style: "padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px; max-height: calc(100vh - 250px); overflow-y: auto;",
+                        
+                        if !planner_state.read().tasks.iter().any(|t| t.status == col_status) {
+                            div {
+                                style: "margin: auto; text-align: center; color: var(--color-muted-soft); font-size: 11px; padding: 24px 0;",
+                                "No tasks in this column"
+                            }
+                        } else {
+                            for task in planner_state.read().tasks.iter().filter(|t| t.status == col_status).cloned() {
+                                div {
+                                    key: "{task.id}",
+                                    style: "background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; transition: transform 0.15s, box-shadow 0.15s; cursor: default;",
+                                    
+                                    // Card Badges
+                                    div {
+                                        style: "display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;",
+                                        span {
+                                            style: match task.priority.as_str() {
+                                                "High" => "background: #fee2e2; color: #991b1b; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
+                                                "Medium" => "background: #fef3c7; color: #92400e; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
+                                                _ => "background: #f1f5f9; color: #475569; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600;",
+                                            },
+                                            "{task.priority}"
+                                        }
+                                        span {
+                                            style: "background: #e0e7ff; color: #3730a3; padding: 2px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; display: flex; align-items: center; gap: 2px;",
+                                            "🤖 {task.assigned_agent}"
+                                        }
+                                    }
+
+                                    // Task Title & Summary
+                                    div {
+                                        style: "font-size: 12.5px; font-weight: 600; color: var(--color-ink); line-height: 1.3;",
+                                        "{task.title}"
+                                    }
+                                    if !task.summary.is_empty() {
+                                        div {
+                                            style: "font-size: 11px; color: var(--color-body); line-height: 1.35; max-height: 48px; overflow: hidden; text-overflow: ellipsis;",
+                                            "{task.summary}"
+                                        }
+                                    }
+
+                                    // Date
+                                    div {
+                                        style: "font-size: 9.5px; color: var(--color-muted); display: flex; justify-content: space-between; align-items: center; margin-top: 4px; border-top: 1px solid rgba(0,0,0,0.03); padding-top: 4px;",
+                                        span { "Created: {task.created_at}" }
+                                    }
+
+                                    // Controls / Movement and deletion
+                                    div {
+                                        style: "display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 4px;",
+                                        
+                                        select {
+                                            class: "form-select",
+                                            style: "font-size: 10.5px; padding: 1px 4px; height: 20px; width: auto; background: #fff;",
+                                            value: task.status.as_str(),
+                                            onchange: {
+                                                let task_id = task.id.clone();
+                                                move |e: Event<FormData>| {
+                                                    let new_status_str = e.value();
+                                                    let new_status = match new_status_str.as_str() {
+                                                        "Backlog" => crate::planner::TaskStatus::Backlog,
+                                                        "Todo" => crate::planner::TaskStatus::Todo,
+                                                        "In Progress" => crate::planner::TaskStatus::InProgress,
+                                                        "Done" => crate::planner::TaskStatus::Done,
+                                                        _ => crate::planner::TaskStatus::Todo,
+                                                    };
+                                                    let mut state = planner_state.write();
+                                                    if let Some(t) = state.tasks.iter_mut().find(|t| t.id == task_id) {
+                                                        t.status = new_status;
+                                                    }
+                                                    let _ = state.save(tasks_path_sig.read().clone());
+                                                }
+                                            },
+                                            option { value: "Backlog", "Backlog" }
+                                            option { value: "Todo", "Todo" }
+                                            option { value: "In Progress", "In Progress" }
+                                            option { value: "Done", "Done" }
+                                        }
+
+                                        button {
+                                            class: "btn btn-ghost btn-sm",
+                                            style: "padding: 1px 4px; font-size: 10px; color: var(--color-error); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05); height: 20px; display: flex; align-items: center;",
+                                            onclick: {
+                                                let task_id = task.id.clone();
+                                                move |_| {
+                                                    let mut state = planner_state.write();
+                                                    state.tasks.retain(|t| t.id != task_id);
+                                                    let _ = state.save(tasks_path_sig.read().clone());
+                                                }
+                                            },
+                                            "Delete"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn TabMonitor(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+) -> Element {
+    let monitor_path = crate::get_default_config_path().join("agent_activities.json");
+    let mut monitor_state = use_signal(|| crate::planner::MonitorState::load(monitor_path.clone()));
+
+    // Auto refresh resource
+    let refresh_path = monitor_path.clone();
+    let _refresh_monitor = use_resource(move || {
+        let monitor_path = refresh_path.clone();
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                let loaded = crate::planner::MonitorState::load(monitor_path.clone());
+                monitor_state.set(loaded);
+            }
+        }
+    });
+
+    let clear_activities = {
+        let monitor_path = monitor_path.clone();
+        move |_| {
+            let mut state = monitor_state.write();
+            state.events.clear();
+            let _ = state.save(monitor_path.clone());
+        }
+    };
+
+    rsx! {
+        div { class: "section-title", "Live Agent Monitor" }
+        div { class: "section-desc", "Inspect real-time agent execution traces, current workflows, and subprocess event streams." }
+
+        div {
+            style: "display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start;",
+            
+            // Left Column: Agents Registry / Status List
+            div {
+                style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
+                div { class: "card",
+                    div { class: "card-title", "Agent Subprocesses" }
+                    
+                    if monitor_state.read().agents.is_empty() {
+                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; font-size: 12.5px; padding: 20px;",
+                            "No active or registered agents found."
+                        }
+                    } else {
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 10px;",
+                            for agent in monitor_state.read().agents.iter() {
+                                div {
+                                    key: "{agent.name}",
+                                    style: "border: 1px solid var(--color-hairline); border-radius: 6px; padding: 10px; background: var(--color-canvas); display: flex; align-items: center; justify-content: space-between; gap: 12px;",
+                                    div { style: "display: flex; flex-direction: column; gap: 2px; flex: 1;",
+                                        div { style: "font-size: 13px; font-weight: 600; color: var(--color-ink); display: flex; align-items: center; gap: 6px;",
+                                            span { "🤖" }
+                                            span { "{agent.name}" }
+                                        }
+                                        div { style: "font-size: 11px; color: var(--color-body); word-break: break-all;",
+                                            strong { "Current Action: " }
+                                            "{agent.current_action}"
+                                        }
+                                        div { style: "font-size: 10px; color: var(--color-muted-soft);",
+                                            "Last active: {agent.last_active}"
+                                        }
+                                    }
+                                    span {
+                                        style: match agent.status.as_str() {
+                                            "Active" => "background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
+                                            "Idle" => "background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
+                                            _ => "background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-weight: 600; white-space: nowrap;",
+                                        },
+                                        "{agent.status}"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Right Column: Live Logs & Events
+            div {
+                style: "flex: 2; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
+                div { class: "card",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center;",
+                        div { class: "card-title", "Live Event Feed" }
+                        button {
+                            class: "btn btn-ghost btn-sm",
+                            style: "color: var(--color-error); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.05);",
+                            onclick: clear_activities,
+                            "Clear Feed"
+                        }
+                    }
+
+                    if monitor_state.read().events.is_empty() {
+                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; font-size: 12.5px; padding: 40px;",
+                            "No events logged yet. Trigger agent execution to view real-time traces."
+                        }
+                    } else {
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.4; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: #1e293b; color: #e2e8f0;",
+                            
+                            // Render from latest to oldest
+                            for event in monitor_state.read().events.iter().rev() {
+                                div {
+                                    key: "{event.timestamp}-{event.agent_name}",
+                                    style: "display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 4px 0;",
+                                    span { style: "color: #94a3b8; font-weight: 500; min-width: 65px;", "[{event.timestamp}]" }
+                                    span { style: "color: #38bdf8; font-weight: 600; min-width: 120px;", "🤖 {event.agent_name}:" }
+                                    span { style: "color: #f1f5f9; flex: 1; word-break: break-all;", "{event.message}" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Calendar View ────────────────────────────────────────────────────────────
+
+#[component]
+fn TabCalendar(config: Signal<ServerConfig>) -> Element {
+    let title = use_signal(String::new);
+    let datetime = use_signal(String::new);
+    let prompt = use_signal(String::new);
+    let state = use_signal(|| calendar::CalendarState::load());
+    let expanded_event = use_signal(|| None::<String>);
+
+    let add_event = move |_| {
+        let mut state = state;
+        let mut title = title;
+        let mut datetime = datetime;
+        let mut prompt = prompt;
+        let t = title.read().trim().to_string();
+        let dt = datetime.read().trim().to_string();
+        let p = prompt.read().trim().to_string();
+        if t.is_empty() || dt.is_empty() || p.is_empty() {
+            return;
+        }
+
+        let mut st = calendar::CalendarState::load();
+        let id = format!("cal-{}", chrono::Local::now().timestamp_millis());
+        st.events.push(calendar::CalendarEvent {
+            id,
+            title: t,
+            time: dt,
+            prompt: p,
+            status: "pending".to_string(),
+            result: None,
+        });
+        if st.save().is_ok() {
+            state.set(st);
+            title.set(String::new());
+            datetime.set(String::new());
+            prompt.set(String::new());
+        }
+    };
+
+    let delete_event = move |id: String| {
+        let mut state = state;
+        let mut st = calendar::CalendarState::load();
+        st.events.retain(|e| e.id != id);
+        if st.save().is_ok() {
+            state.set(st);
+        }
+    };
+
+    let _refresh = use_resource(move || {
+        let mut state = state;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                state.set(calendar::CalendarState::load());
+            }
+        }
+    });
+
+    rsx! {
+        div { class: "section-title", "Calendar & AI Triggers" }
+        div { class: "section-desc", "Schedule events with prompt triggers that execute autonomously when reached. The AI can also schedule events." }
+
+        div {
+            style: "display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;",
+            
+            // Left column: Schedule form
+            div {
+                style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
+                div { class: "card",
+                    div { class: "card-title", "Schedule Trigger Event" }
+                    
+                    div { class: "form-group",
+                        label { class: "form-label", "Event Title" }
+                        input {
+                            class: "form-input",
+                            placeholder: "e.g., Run daily optimization...",
+                            value: title(),
+                            oninput: move |e| {
+                                let mut title = title;
+                                title.set(e.value());
+                            },
+                        }
+                    }
+
+                    div { class: "form-group",
+                        label { class: "form-label", "Trigger Time (YYYY-MM-DDTHH:MM:SS)" }
+                        input {
+                            class: "form-input",
+                            placeholder: "e.g., 2026-06-03T23:00:00",
+                            value: datetime(),
+                            oninput: move |e| {
+                                let mut datetime = datetime;
+                                datetime.set(e.value());
+                            },
+                        }
+                        div { class: "form-hint", "Note: Local time format. The runner checks this time continuously." }
+                    }
+
+                    div { class: "form-group",
+                        label { class: "form-label", "Agent Prompt to Fire" }
+                        textarea {
+                            class: "form-input",
+                            style: "height: 100px; font-family: inherit;",
+                            placeholder: "e.g., Optimize my local server GPU layers and compile a report...",
+                            value: prompt(),
+                            oninput: move |e| {
+                                let mut prompt = prompt;
+                                prompt.set(e.value());
+                            },
+                        }
+                    }
+
+                    button {
+                        class: "btn btn-start",
+                        onclick: add_event,
+                        "Schedule Event"
+                    }
+                }
+            }
+
+            // Right column: Event List
+            div {
+                style: "flex: 2; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
+                div { class: "card",
+                    div { class: "card-title", "Scheduled Events" }
+                    
+                    if state.read().events.is_empty() {
+                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 40px;",
+                            "No events scheduled yet."
+                        }
+                    } else {
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 12px;",
+                            for ev in state.read().events.iter() {
+                                div {
+                                    key: "{ev.id}",
+                                    style: "border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: var(--color-canvas);",
+                                    
+                                    div {
+                                        style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;",
+                                        div {
+                                            div { style: "font-weight: 600; color: var(--color-ink); font-size: 14px;", "{ev.title}" }
+                                            div { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 2px;", 
+                                                "Trigger: {ev.time}"
+                                            }
+                                        }
+                                        div { style: "display: flex; align-items: center; gap: 8px;",
+                                            span {
+                                                style: match ev.status.as_str() {
+                                                    "completed" => "background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    "firing" => "background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    "failed" => "background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                    _ => "background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;",
+                                                },
+                                                "{ev.status}"
+                                            }
+                                            button {
+                                                class: "btn btn-ghost btn-sm",
+                                                style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2);",
+                                                onclick: {
+                                                    let id = ev.id.clone();
+                                                    let delete_event = delete_event.clone();
+                                                    move |_| delete_event(id.clone())
+                                                },
+                                                "Delete"
+                                            }
+                                        }
+                                    }
+                                    
+                                    div {
+                                        style: "font-size: 12.5px; background: var(--color-surface-card); border: 1px solid var(--color-hairline); border-radius: 4px; padding: 8px; margin-bottom: 6px; color: var(--color-body); word-break: break-all;",
+                                        strong { "Prompt: " }
+                                        "{ev.prompt}"
+                                    }
+
+                                    if let Some(ref res) = ev.result {
+                                        div {
+                                            style: "margin-top: 10px;",
+                                            button {
+                                                class: "btn btn-ghost btn-sm",
+                                                onclick: {
+                                                    let id = ev.id.clone();
+                                                    let expanded_event = expanded_event;
+                                                    move |_| {
+                                                        let mut expanded_event = expanded_event;
+                                                        if expanded_event.read().as_ref() == Some(&id) {
+                                                            expanded_event.set(None);
+                                                        } else {
+                                                            expanded_event.set(Some(id.clone()));
+                                                        }
+                                                    }
+                                                },
+                                                if expanded_event.read().as_ref() == Some(&ev.id) { "Hide Run Output" } else { "Show Run Output" }
+                                            }
+                                            
+                                            if expanded_event.read().as_ref() == Some(&ev.id) {
+                                                pre {
+                                                    style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;",
+                                                    "{res}"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Todos View ───────────────────────────────────────────────────────────────
+
+#[component]
+fn TabTodos() -> Element {
+    let todo_text = use_signal(String::new);
+    let todo_scope = use_signal(|| "project".to_string());
+    
+    let project_todos = use_signal(|| todo::TodoList::load_project(get_default_config_path()));
+    let global_todos = use_signal(|| todo::TodoList::load_global());
+
+    let add_todo = move |_| {
+        let mut project_todos = project_todos;
+        let mut global_todos = global_todos;
+        let mut todo_text = todo_text;
+        let text = todo_text.read().trim().to_string();
+        if text.is_empty() { return; }
+        
+        let scope = todo_scope.read().clone();
+        let now = chrono::Local::now().to_rfc3339();
+        let id = format!("todo-{}", chrono::Local::now().timestamp_millis());
+
+        if scope == "global" {
+            let mut list = todo::TodoList::load_global();
+            list.items.push(todo::TodoEntry { id, text, scope, status: "pending".to_string(), created_at: now });
+            let _ = list.save_global();
+            global_todos.set(list);
+        } else {
+            let mut list = todo::TodoList::load_project(get_default_config_path());
+            list.items.push(todo::TodoEntry { id, text, scope, status: "pending".to_string(), created_at: now });
+            let _ = list.save_project(get_default_config_path());
+            project_todos.set(list);
+        }
+        todo_text.set(String::new());
+    };
+
+    let complete_todo = move |id: String, scope: String| {
+        let mut project_todos = project_todos;
+        let mut global_todos = global_todos;
+        if scope == "global" {
+            let mut list = todo::TodoList::load_global();
+            if let Some(item) = list.items.iter_mut().find(|i| i.id == id) {
+                item.status = "completed".to_string();
+                let _ = list.save_global();
+                global_todos.set(list);
+            }
+        } else {
+            let mut list = todo::TodoList::load_project(get_default_config_path());
+            if let Some(item) = list.items.iter_mut().find(|i| i.id == id) {
+                item.status = "completed".to_string();
+                let _ = list.save_project(get_default_config_path());
+                project_todos.set(list);
+            }
+        }
+    };
+
+    let delete_todo = move |id: String, scope: String| {
+        let mut project_todos = project_todos;
+        let mut global_todos = global_todos;
+        if scope == "global" {
+            let mut list = todo::TodoList::load_global();
+            list.items.retain(|i| i.id != id);
+            let _ = list.save_global();
+            global_todos.set(list);
+        } else {
+            let mut list = todo::TodoList::load_project(get_default_config_path());
+            list.items.retain(|i| i.id != id);
+            let _ = list.save_project(get_default_config_path());
+            project_todos.set(list);
+        }
+    };
+
+    let _refresh = use_resource(move || {
+        let mut project_todos = project_todos;
+        let mut global_todos = global_todos;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                project_todos.set(todo::TodoList::load_project(get_default_config_path()));
+                global_todos.set(todo::TodoList::load_global());
+            }
+        }
+    });
+
+    rsx! {
+        div { class: "section-title", "Todo List (Project & Global)" }
+        div { class: "section-desc", "Manage tasks across scopes. The AI agent retrieves these tasks and can add or complete them automatically." }
+
+        div { class: "card",
+            style: "margin-bottom: 20px;",
+            div { class: "card-title", "Add Todo Item" }
+            div {
+                style: "display: flex; gap: 12px; flex-wrap: wrap; align-items: center;",
+                input {
+                    class: "form-input",
+                    style: "flex: 3; min-width: 250px;",
+                    placeholder: "e.g., Rewrite models API endpoint in rust...",
+                    value: todo_text(),
+                    oninput: move |e| {
+                        let mut todo_text = todo_text;
+                        todo_text.set(e.value());
+                    },
+                }
+                select {
+                    class: "form-input",
+                    style: "flex: 1; min-width: 120px;",
+                    value: todo_scope(),
+                    onchange: move |e| {
+                        let mut todo_scope = todo_scope;
+                        todo_scope.set(e.value());
+                    },
+                    option { value: "project", "Project Scope" }
+                    option { value: "global", "Global Scope" }
+                }
+                button {
+                    class: "btn btn-start",
+                    style: "height: 38px;",
+                    onclick: add_todo,
+                    "Add Todo"
+                }
+            }
+        }
+
+        div {
+            style: "display: flex; gap: 20px; flex-wrap: wrap;",
+            
+            // Project Scope Card
+            div {
+                style: "flex: 1; min-width: 300px;",
+                div { class: "card",
+                    div { class: "card-title", "Project-wide Todos" }
+                    
+                    if project_todos.read().items.is_empty() {
+                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 25px;",
+                            "No project todos."
+                        }
+                    } else {
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 8px;",
+                            for item in project_todos.read().items.iter() {
+                                div {
+                                    key: "{item.id}",
+                                    style: "display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-hairline); padding: 8px 12px; border-radius: 6px; background: var(--color-canvas);",
+                                    
+                                    div {
+                                        style: "display: flex; flex-direction: column; gap: 2px;",
+                                        span {
+                                            style: if item.status == "completed" { "text-decoration: line-through; color: var(--color-muted);" } else { "color: var(--color-ink);" },
+                                            "{item.text}"
+                                        }
+                                        span { style: "font-size: 10px; color: var(--color-muted-soft);", "ID: {item.id}" }
+                                    }
+                                    
+                                    div { style: "display: flex; gap: 6px;",
+                                        if item.status == "pending" {
+                                            button {
+                                                class: "btn btn-start btn-sm",
+                                                style: "padding: 2px 6px;",
+                                                onclick: {
+                                                    let id = item.id.clone();
+                                                    let scope = item.scope.clone();
+                                                    let complete_todo = complete_todo.clone();
+                                                    move |_| complete_todo(id.clone(), scope.clone())
+                                                },
+                                                "\u{2714} Done"
+                                            }
+                                        }
+                                        button {
+                                            class: "btn btn-ghost btn-sm",
+                                            style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2); padding: 2px 6px;",
+                                            onclick: {
+                                                let id = item.id.clone();
+                                                let scope = item.scope.clone();
+                                                let delete_todo = delete_todo.clone();
+                                                move |_| delete_todo(id.clone(), scope.clone())
+                                            },
+                                            "Delete"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Global Scope Card
+            div {
+                style: "flex: 1; min-width: 300px;",
+                div { class: "card",
+                    div { class: "card-title", "Global Todos" }
+                    
+                    if global_todos.read().items.is_empty() {
+                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 25px;",
+                            "No global todos."
+                        }
+                    } else {
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 8px;",
+                            for item in global_todos.read().items.iter() {
+                                div {
+                                    key: "{item.id}",
+                                    style: "display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-hairline); padding: 8px 12px; border-radius: 6px; background: var(--color-canvas);",
+                                    
+                                    div {
+                                        style: "display: flex; flex-direction: column; gap: 2px;",
+                                        span {
+                                            style: if item.status == "completed" { "text-decoration: line-through; color: var(--color-muted);" } else { "color: var(--color-ink);" },
+                                            "{item.text}"
+                                        }
+                                        span { style: "font-size: 10px; color: var(--color-muted-soft);", "ID: {item.id}" }
+                                    }
+                                    
+                                    div { style: "display: flex; gap: 6px;",
+                                        if item.status == "pending" {
+                                            button {
+                                                class: "btn btn-start btn-sm",
+                                                style: "padding: 2px 6px;",
+                                                onclick: {
+                                                    let id = item.id.clone();
+                                                    let scope = item.scope.clone();
+                                                    let complete_todo = complete_todo.clone();
+                                                    move |_| complete_todo(id.clone(), scope.clone())
+                                                },
+                                                "\u{2714} Done"
+                                            }
+                                        }
+                                        button {
+                                            class: "btn btn-ghost btn-sm",
+                                            style: "color: var(--color-error); border-color: rgba(239, 68, 68, 0.2); padding: 2px 6px;",
+                                            onclick: {
+                                                let id = item.id.clone();
+                                                let scope = item.scope.clone();
+                                                let delete_todo = delete_todo.clone();
+                                                move |_| delete_todo(id.clone(), scope.clone())
+                                            },
+                                            "Delete"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Quick Notes View ─────────────────────────────────────────────────────────
+
+#[component]
+fn TabQuickNotes() -> Element {
+    let scope = use_signal(|| "project".to_string());
+    let content = use_signal(|| notes::load_notes("project", get_default_config_path()));
+    let last_saved = use_signal(|| "Not saved yet during this session".to_string());
+
+    let load_scope_notes = move |s: String| {
+        let mut scope = scope;
+        let mut content = content;
+        scope.set(s.clone());
+        content.set(notes::load_notes(&s, get_default_config_path()));
+    };
+
+    let save_notes = move |_| {
+        let sc = scope.read().clone();
+        let text = content.read().clone();
+        match notes::save_notes(&sc, &text, get_default_config_path()) {
+            Ok(_) => {
+                let mut last_saved = last_saved;
+                let now = chrono::Local::now().format("%H:%M:%S").to_string();
+                last_saved.set(format!("Saved successfully at {}", now));
+            }
+            Err(_) => {}
+        }
+    };
+
+    // Auto-refresh notes to see AI edits
+    let _refresh = use_resource(move || {
+        let scope = scope;
+        let mut content = content;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                let text = notes::load_notes(&scope.read(), get_default_config_path());
+                if *content.read() != text {
+                    content.set(text);
+                }
+            }
+        }
+    });
+
+    rsx! {
+        div { class: "section-title", "Quick Notes" }
+        div { class: "section-desc", "Jot down notes or scratchpad text. The AI can read and update these files to store persistent context." }
+
+        div { class: "card",
+            div {
+                style: "display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--color-hairline); padding-bottom: 12px;",
+                button {
+                    class: if scope() == "project" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                    onclick: {
+                        let load_scope_notes = load_scope_notes.clone();
+                        move |_| load_scope_notes("project".to_string())
+                    },
+                    "Project Notes"
+                }
+                button {
+                    class: if scope() == "global" { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                    onclick: {
+                        let load_scope_notes = load_scope_notes.clone();
+                        move |_| load_scope_notes("global".to_string())
+                    },
+                    "Global Notes"
+                }
+            }
+
+            div { class: "form-group",
+                label { class: "form-label", 
+                    "Edit Notes ({scope} scope) - "
+                    span { style: "font-size: 11px; font-weight: normal; color: var(--color-muted);", "File: "
+                        if scope() == "global" { "~/.local/share/llama-manager/global_notes.txt" } else { "./.llama-manager-notes.txt" }
+                    }
+                }
+                textarea {
+                    class: "form-textarea",
+                    style: "height: 380px; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5; padding: 12px; background: var(--color-canvas); width: 100%; border: 1px solid var(--color-hairline); border-radius: 6px;",
+                    placeholder: "Type notes here...",
+                    value: content(),
+                    oninput: move |e| {
+                        let mut content = content;
+                        content.set(e.value());
+                    },
+                }
+            }
+
+            div {
+                style: "display: flex; justify-content: space-between; align-items: center;",
+                button {
+                    class: "btn btn-start",
+                    onclick: save_notes,
+                    "Save Notes"
+                }
+                span { style: "font-size: 12px; color: var(--color-muted); font-style: italic;", "{last_saved}" }
+            }
+        }
+    }
+}
+
+// ── Compare View (Blind Evaluations) ─────────────────────────────────────────
+
+#[component]
+fn TabCompare(config: Signal<ServerConfig>) -> Element {
+    let prompt = use_signal(String::new);
+    let model_a_url = use_signal(|| "http://127.0.0.1:8080/v1".to_string());
+    let model_a_name = use_signal(|| "local-model".to_string());
+    let model_b_url = use_signal(|| "http://127.0.0.1:11434/v1".to_string());
+    let model_b_name = use_signal(|| "ollama-model".to_string());
+    
+    let loading = use_signal(|| false);
+    let alpha_response = use_signal(String::new);
+    let beta_response = use_signal(String::new);
+    let error = use_signal(|| None::<String>);
+
+    let alpha_is_a = use_signal(|| true);
+    let revealed = use_signal(|| false);
+    let vote_result = use_signal(String::new);
+    let votes_log = use_signal(Vec::<String>::new);
+
+    let run_eval = move |_| {
+        let mut loading = loading;
+        let mut revealed = revealed;
+        let mut vote_result = vote_result;
+        let mut alpha_response = alpha_response;
+        let mut beta_response = beta_response;
+        let mut error = error;
+        let mut alpha_is_a = alpha_is_a;
+
+        let pr = prompt.read().clone();
+        if pr.trim().is_empty() { return; }
+
+        loading.set(true);
+        revealed.set(false);
+        vote_result.set(String::new());
+        alpha_response.set("Generating response...".to_string());
+        beta_response.set("Generating response...".to_string());
+        error.set(None);
+
+        let is_a = chrono::Local::now().timestamp_nanos_opt().unwrap_or(0) % 2 == 0;
+        alpha_is_a.set(is_a);
+
+        let url_a = model_a_url.read().clone();
+        let name_a = model_a_name.read().clone();
+        let url_b = model_b_url.read().clone();
+        let name_b = model_b_name.read().clone();
+
+        spawn(async move {
+            let (url_alpha, name_alpha, url_beta, name_beta) = if is_a {
+                (url_a, name_a, url_b, name_b)
+            } else {
+                (url_b, name_b, url_a, name_a)
+            };
+
+            let client = reqwest::Client::new();
+            
+            let alpha_res = async {
+                let url = format!("{}/chat/completions", url_alpha.trim_end_matches('/'));
+                let payload = serde_json::json!({
+                    "model": name_alpha,
+                    "messages": [{"role": "user", "content": pr.clone()}],
+                    "temperature": 0.7,
+                });
+                let res = client.post(&url).json(&payload).send().await;
+                match res {
+                    Ok(r) => {
+                        if r.status().is_success() {
+                            if let Ok(json) = r.json::<serde_json::Value>().await {
+                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str() {
+                                    return Ok(txt.to_string());
+                                }
+                            }
+                            Err("Failed to parse chat response".to_string())
+                        } else {
+                            Err(format!("Status code: {}", r.status()))
+                        }
+                    }
+                    Err(e) => Err(format!("Request failed: {}", e))
+                }
+            };
+
+            let beta_res = async {
+                let url = format!("{}/chat/completions", url_beta.trim_end_matches('/'));
+                let payload = serde_json::json!({
+                    "model": name_beta,
+                    "messages": [{"role": "user", "content": pr.clone()}],
+                    "temperature": 0.7,
+                });
+                let res = client.post(&url).json(&payload).send().await;
+                match res {
+                    Ok(r) => {
+                        if r.status().is_success() {
+                            if let Ok(json) = r.json::<serde_json::Value>().await {
+                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str() {
+                                    return Ok(txt.to_string());
+                                }
+                            }
+                            Err("Failed to parse chat response".to_string())
+                        } else {
+                            Err(format!("Status code: {}", r.status()))
+                        }
+                    }
+                    Err(e) => Err(format!("Request failed: {}", e))
+                }
+            };
+
+            let (a_text, b_text) = tokio::join!(alpha_res, beta_res);
+
+            match a_text {
+                Ok(txt) => {
+                    let mut alpha_response = alpha_response;
+                    alpha_response.set(txt);
+                }
+                Err(e) => {
+                    let mut alpha_response = alpha_response;
+                    let mut error = error;
+                    alpha_response.set(format!("Error: {}", e));
+                    error.set(Some(format!("Alpha Model Error: {}", e)));
+                }
+            }
+
+            match b_text {
+                Ok(txt) => {
+                    let mut beta_response = beta_response;
+                    beta_response.set(txt);
+                }
+                Err(e) => {
+                    let mut beta_response = beta_response;
+                    let mut error = error;
+                    beta_response.set(format!("Error: {}", e));
+                    error.set(Some(format!("Beta Model Error: {}", e)));
+                }
+            }
+
+            let mut loading = loading;
+            loading.set(false);
+        });
+    };
+
+    let cast_vote = move |voted_alpha: bool| {
+        let mut vote_result = vote_result;
+        let mut votes_log = votes_log;
+        let mut revealed = revealed;
+
+        let is_a = alpha_is_a.read().clone();
+        let name_a = model_a_name.read().clone();
+        let name_b = model_b_name.read().clone();
+        
+        let winning_model = if voted_alpha {
+            if is_a { name_a.clone() } else { name_b.clone() }
+        } else {
+            if is_a { name_b.clone() } else { name_a.clone() }
+        };
+
+        let losing_model = if voted_alpha {
+            if is_a { name_b } else { name_a }
+        } else {
+            if is_a { name_a } else { name_b }
+        };
+
+        let choice_text = if voted_alpha { "Model Alpha" } else { "Model Beta" };
+        vote_result.set(format!("You voted for {}! True identity: {} (Winner) vs {} (Loser)", choice_text, winning_model, losing_model));
+        
+        let log_msg = format!("Winner: {} | Loser: {} | Selected: {}", winning_model, losing_model, choice_text);
+        votes_log.write().push(log_msg);
+        revealed.set(true);
+    };
+
+    rsx! {
+        div { class: "section-title", "Blind Model Evaluation & Comparison" }
+        div { class: "section-desc", "Evaluate model quality blindly, side-by-side. Removes naming and brand bias so you can judge raw inference capabilities." }
+
+        div { class: "card",
+            style: "margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;",
+            div { class: "card-title", "Blind Evaluation Setup" }
+            
+            div {
+                style: "display: flex; gap: 16px; flex-wrap: wrap;",
+                
+                // Model A Config
+                div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
+                    div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model A Config" }
+                    div { class: "form-group", style: "margin: 0;",
+                        label { class: "form-label", "Base API URL" }
+                        input {
+                            class: "form-input",
+                            value: model_a_url(),
+                            oninput: move |e| {
+                                let mut model_a_url = model_a_url;
+                                model_a_url.set(e.value());
+                            }
+                        }
+                    }
+                    div { class: "form-group", style: "margin: 0;",
+                        label { class: "form-label", "Model Identifier" }
+                        input {
+                            class: "form-input",
+                            value: model_a_name(),
+                            oninput: move |e| {
+                                let mut model_a_name = model_a_name;
+                                model_a_name.set(e.value());
+                            }
+                        }
+                    }
+                }
+
+                // Model B Config
+                div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
+                    div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model B Config" }
+                    div { class: "form-group", style: "margin: 0;",
+                        label { class: "form-label", "Base API URL" }
+                        input {
+                            class: "form-input",
+                            value: model_b_url(),
+                            oninput: move |e| {
+                                let mut model_b_url = model_b_url;
+                                model_b_url.set(e.value());
+                            }
+                        }
+                    }
+                    div { class: "form-group", style: "margin: 0;",
+                        label { class: "form-label", "Model Identifier" }
+                        input {
+                            class: "form-input",
+                            value: model_b_name(),
+                            oninput: move |e| {
+                                let mut model_b_name = model_b_name;
+                                model_b_name.set(e.value());
+                            }
+                        }
+                    }
+                }
+            }
+
+            div { class: "form-group",
+                label { class: "form-label", "Evaluation Prompt" }
+                textarea {
+                    class: "form-textarea",
+                    style: "height: 80px;",
+                    placeholder: "e.g., Write a rust function that parses JSON without external crates and explain it...",
+                    value: prompt(),
+                    oninput: move |e| {
+                        let mut prompt = prompt;
+                        prompt.set(e.value());
+                    },
+                }
+            }
+
+            button {
+                class: "btn btn-start",
+                onclick: run_eval,
+                disabled: loading(),
+                if loading() { "Evaluating..." } else { "Run Blind Evaluation" }
+            }
+        }
+
+        if !alpha_response.read().is_empty() || !beta_response.read().is_empty() {
+            div {
+                style: "display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;",
+                
+                // Alpha response
+                div { style: "flex: 1; min-width: 300px;",
+                    div { class: "card",
+                        style: "height: 100%; border-top: 4px solid var(--color-brand-accent);",
+                        div { class: "card-title", "Model Alpha" }
+                        pre {
+                            style: "white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--color-body); line-height: 1.5; height: 350px; overflow-y: auto;",
+                            "{alpha_response}"
+                        }
+                    }
+                }
+
+                // Beta response
+                div { style: "flex: 1; min-width: 300px;",
+                    div { class: "card",
+                        style: "height: 100%; border-top: 4px solid var(--color-brand-accent);",
+                        div { class: "card-title", "Model Beta" }
+                        pre {
+                            style: "white-space: pre-wrap; font-family: inherit; font-size: 13px; color: var(--color-body); line-height: 1.5; height: 350px; overflow-y: auto;",
+                            "{beta_response}"
+                        }
+                    }
+                }
+            }
+        }
+
+        if !loading() && (!alpha_response.read().is_empty() || !beta_response.read().is_empty()) {
+            div { class: "card",
+                style: "text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;",
+                div { class: "card-title", "Submit Your Blind Vote" }
+                
+                div { style: "display: flex; gap: 12px; margin-top: 6px;",
+                    button {
+                        class: "btn btn-start",
+                        onclick: {
+                            let cast_vote = cast_vote.clone();
+                            move |_| cast_vote(true)
+                        },
+                        "Vote Model Alpha Better"
+                    }
+                    button {
+                        class: "btn btn-start",
+                        onclick: {
+                            let cast_vote = cast_vote.clone();
+                            move |_| cast_vote(false)
+                        },
+                        "Vote Model Beta Better"
+                    }
+                    button {
+                        class: "btn btn-ghost",
+                        onclick: {
+                            let mut revealed = revealed;
+                            move |_| revealed.set(true)
+                        },
+                        "Reveal True Identities Only"
+                    }
+                }
+                
+                if revealed() {
+                    div {
+                        style: "margin-top: 12px; font-weight: 600; font-size: 14.5px; color: var(--color-brand-accent); background: var(--color-surface-soft); padding: 10px 20px; border-radius: 6px; border: 1px solid var(--color-hairline);",
+                        "True Identities: Model Alpha is "
+                        strong { if alpha_is_a() { "{model_a_name()}" } else { "{model_b_name()}" } }
+                        " | Model Beta is "
+                        strong { if alpha_is_a() { "{model_b_name()}" } else { "{model_a_name()}" } }
+                    }
+                }
+
+                if !vote_result.read().is_empty() {
+                    div { style: "font-size: 13px; color: var(--color-success); font-weight: 500;",
+                        "{vote_result}"
+                    }
+                }
+            }
+        }
+
+        if !votes_log.read().is_empty() {
+            div { class: "card",
+                style: "margin-top: 20px;",
+                div { class: "card-title", "Evaluation History" }
+                ul { style: "list-style-type: decimal; margin-left: 20px;",
+                    for log in votes_log.read().iter() {
+                        li { style: "font-size: 12.5px; color: var(--color-body); margin-bottom: 4px;", "{log}" }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Deep Research View ───────────────────────────────────────────────────────
+
+#[component]
+fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
+    let query = use_signal(String::new);
+    let is_running = use_signal(|| false);
+    let log_content = use_signal(String::new);
+    let current_report = use_signal(String::new);
+    let selected_report = use_signal(String::new);
+    let reports_list = use_signal(get_previous_reports);
+
+    let start_research = move |_| {
+        let mut is_running = is_running;
+        let mut log_content = log_content;
+        let mut current_report = current_report;
+        let reports_list = reports_list;
+
+        let q = query.read().trim().to_string();
+        if q.is_empty() { return; }
+
+        is_running.set(true);
+        log_content.set("Initializing Deep Research agent...\n".to_string());
+        current_report.set(String::new());
+
+        let host = "127.0.0.1".to_string();
+        let port = 8080; // Placeholder
+
+        spawn(async move {
+            let target_model = "llama3".to_string(); // Placeholder
+            let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+            let report_filename = format!("report_{}.md", timestamp);
+            let report_path = format!("/home/notroot/.local/share/llama-manager/research/{}", report_filename);
+            let log_path = "/home/notroot/.local/share/llama-manager/research/research_log.txt";
+
+            let _ = std::fs::create_dir_all("/home/notroot/.local/share/llama-manager/research/");
+
+            let mut cmd = std::process::Command::new("uv");
+            cmd.arg("run")
+               .arg("deep_research.py")
+               .arg("--query").arg(&q)
+               .arg("--host").arg(&host)
+               .arg("--port").arg(&port.to_string())
+               .arg("--model").arg(&target_model)
+               .arg("--output").arg(&report_path)
+               .arg("--log-file").arg(log_path);
+
+            match cmd.output() {
+                Ok(output) => {
+                    if output.status.success() {
+                        if let Ok(content) = std::fs::read_to_string(&report_path) {
+                            let mut current_report = current_report;
+                            current_report.set(content);
+                        }
+                    } else {
+                        let err_msg = String::from_utf8_lossy(&output.stderr);
+                        let mut log_content = log_content;
+                        log_content.set(format!("Research process exited with error:\n{}", err_msg));
+                    }
+                }
+                Err(e) => {
+                    let mut log_content = log_content;
+                    log_content.set(format!("Failed to launch deep research process: {}", e));
+                }
+            }
+            let mut is_running = is_running;
+            is_running.set(false);
+            let mut reports_list = reports_list;
+            reports_list.set(get_previous_reports());
+        });
+    };
+
+    let _log_poller = use_resource(move || {
+        let is_running = is_running;
+        let log_content = log_content;
+        async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                if is_running() {
+                    let log_path = std::path::PathBuf::from("/home/notroot/.local/share/llama-manager/research/research_log.txt");
+                    if log_path.exists() {
+                        if let Ok(logs) = std::fs::read_to_string(&log_path) {
+                            let mut log_content = log_content;
+                            log_content.set(logs);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    let load_report = move |filename: String| {
+        let mut current_report = current_report;
+        let mut selected_report = selected_report;
+        let path = format!("/home/notroot/.local/share/llama-manager/research/{}", filename);
+        if let Ok(content) = std::fs::read_to_string(&path) {
+            current_report.set(content);
+            selected_report.set(filename);
+        }
+    };
+
+    rsx! {
+        div { class: "section-title", "Deep Research Agent" }
+        div { class: "section-desc", "Executes multi-step breadth-then-depth research loops crawling resources to compile comprehensive visual reports." }
+
+        div {
+            style: "display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;",
+            
+            // Left column: Setup and Reports list
+            div {
+                style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
+                
+                // Research Input Card
+                div { class: "card",
+                    div { class: "card-title", "New Research Campaign" }
+                    div { class: "form-group",
+                        label { class: "form-label", "Research Goal / Query" }
+                        textarea {
+                            class: "form-textarea",
+                            style: "height: 80px;",
+                            placeholder: "e.g., Explain the advancements in Gemini 1.5 Flash architecture and cache caching mechanisms...",
+                            value: query(),
+                            oninput: move |e| {
+                                let mut query = query;
+                                query.set(e.value());
+                            },
+                        }
+                    }
+                    button {
+                        class: "btn btn-start",
+                        onclick: start_research,
+                        disabled: is_running(),
+                        if is_running() { "Researching..." } else { "Launch Deep Research" }
+                    }
+                }
+
+                // Previous Reports Card
+                div { class: "card",
+                    div { class: "card-title", "Research Repository" }
+                    if reports_list.read().is_empty() {
+                        div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 20px;",
+                            "No reports in repository."
+                        }
+                    } else {
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto;",
+                            for (filename, _) in reports_list.read().iter() {
+                                button {
+                                    key: "{filename}",
+                                    class: if selected_report() == *filename { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                                    style: "text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; display: block;",
+                                    onclick: {
+                                        let name = filename.clone();
+                                        let load_report = load_report.clone();
+                                        move |_| load_report(name.clone())
+                                    },
+                                    "{filename}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Right column: Live log or Report viewer
+            div {
+                style: "flex: 2; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
+                
+                if is_running() {
+                    div { class: "card",
+                        div { class: "card-title", "Live Research Status Logs" }
+                        pre {
+                            style: "background: #1e293b; color: #38bdf8; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; padding: 12px; border-radius: 6px; height: 320px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;",
+                            "{log_content}"
+                        }
+                    }
+                } else if !current_report.read().is_empty() {
+                    div { class: "card",
+                        style: "border-top: 4px solid var(--color-brand-accent);",
+                        div {
+                            style: "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-hairline); padding-bottom: 8px; margin-bottom: 12px;",
+                            div { class: "card-title", style: "margin: 0;", "Synthesized Research Report" }
+                            span { style: "font-size: 11px; color: var(--color-muted);", "{selected_report}" }
+                        }
+                        
+                        div {
+                            style: "max-height: 600px; overflow-y: auto; padding-right: 8px;",
+                            {render_markdown(&current_report.read())}
+                        }
+                    }
+                } else {
+                    div { class: "card",
+                        style: "text-align: center; color: var(--color-muted); padding: 80px 20px;",
+                        div { style: "font-size: 40px; margin-bottom: 12px;", "🔍" }
+                        div { style: "font-weight: 500;", "Deep Research Repository" }
+                        div { style: "font-size: 12px; margin-top: 4px;", "Launch a campaign on the left or select an archived report to read." }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn get_previous_reports() -> Vec<(String, String)> {
+    let dir = std::path::PathBuf::from("/home/notroot/.local/share/llama-manager/research/");
+    let _ = std::fs::create_dir_all(&dir);
+    let mut reports = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().map_or(false, |ext| ext == "md") {
+                if let Some(filename) = path.file_name().and_then(|f| f.to_str()) {
+                    if filename.starts_with("report_") {
+                        reports.push((filename.to_string(), path.to_string_lossy().to_string()));
+                    }
+                }
+            }
+        }
+    }
+    reports.sort_by(|a, b| b.0.cmp(&a.0));
+    reports
+}
+
+fn render_markdown(text: &str) -> Element {
+    let mut in_code_block = false;
+    let mut code_content = String::new();
+    let mut code_lang = String::new();
+    
+    let mut rendered_elements = Vec::new();
+    
+    for line in text.lines() {
+        if line.starts_with("```") {
+            if in_code_block {
+                in_code_block = false;
+                let content = code_content.clone();
+                let lang = code_lang.clone();
+                rendered_elements.push(rsx! {
+                    div {
+                        style: "background: #1e293b; color: #e2e8f0; font-family: monospace; padding: 12px; border-radius: 6px; margin: 10px 0; overflow-x: auto; font-size: 13px;",
+                        div { style: "font-size: 10px; color: #94a3b8; text-transform: uppercase; margin-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;",
+                            { if lang.is_empty() { "code".to_string() } else { lang } }
+                        }
+                        pre { "{content}" }
+                    }
+                });
+                code_content.clear();
+                code_lang.clear();
+            } else {
+                in_code_block = true;
+                code_lang = line.trim_start_matches("```").trim().to_string();
+            }
+            continue;
+        }
+        
+        if in_code_block {
+            code_content.push_str(line);
+            code_content.push('\n');
+            continue;
+        }
+        
+        let trimmed = line.trim();
+        if trimmed.starts_with("# ") {
+            let heading = trimmed[2..].to_string();
+            rendered_elements.push(rsx! {
+                h1 { style: "font-size: 22px; font-weight: 700; color: var(--color-ink); margin: 20px 0 10px 0; border-bottom: 1px solid var(--color-hairline); padding-bottom: 6px;",
+                    "{heading}"
+                }
+            });
+        } else if trimmed.starts_with("## ") {
+            let heading = trimmed[3..].to_string();
+            rendered_elements.push(rsx! {
+                h2 { style: "font-size: 18px; font-weight: 600; color: var(--color-ink); margin: 16px 0 8px 0;",
+                    "{heading}"
+                }
+            });
+        } else if trimmed.starts_with("### ") {
+            let heading = trimmed[4..].to_string();
+            rendered_elements.push(rsx! {
+                h3 { style: "font-size: 15px; font-weight: 600; color: var(--color-ink); margin: 12px 0 6px 0;",
+                    "{heading}"
+                }
+            });
+        } else if trimmed.starts_with("- ") || trimmed.starts_with("* ") {
+            let li_text = trimmed[2..].to_string();
+            rendered_elements.push(rsx! {
+                ul { style: "margin: 4px 0 4px 20px; list-style-type: disc;",
+                    li { style: "font-size: 13.5px; color: var(--color-body); line-height: 1.5;", "{li_text}" }
+                }
+            });
+        } else if trimmed.starts_with("|") && trimmed.ends_with("|") {
+            rendered_elements.push(rsx! {
+                div { style: "font-family: monospace; font-size: 12.5px; background: var(--color-surface-soft); padding: 4px 10px; border-left: 3px solid var(--color-brand-accent); margin: 2px 0;",
+                    "{trimmed}"
+                }
+            });
+        } else if !trimmed.is_empty() {
+            let para = trimmed.to_string();
+            rendered_elements.push(rsx! {
+                p { style: "font-size: 13.5px; color: var(--color-body); margin: 8px 0; line-height: 1.5; text-align: justify;",
+                    "{para}"
+                }
+            });
+        }
+    }
+    
+    rsx! {
+        div { style: "display: flex; flex-direction: column; gap: 4px;",
+            for el in rendered_elements {
+                {el}
+            }
+        }
+    }
+}
+
+

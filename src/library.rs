@@ -532,9 +532,9 @@ pub fn merge_indexes(scanned: Vec<ScannedModel>, existing: Vec<ScannedModel>) ->
     merged
 }
 
-pub async fn get_target_model(model_server_port: u16, active_model_path: &str) -> String {
+pub async fn get_target_model_with_host(host: &str, model_server_port: u16, active_model_path: &str) -> String {
     let client = reqwest::Client::new();
-    let url = format!("http://127.0.0.1:{}/v1/models", model_server_port);
+    let url = format!("http://{}:{}/v1/models", host, model_server_port);
     if let Ok(res) = client.get(&url).timeout(std::time::Duration::from_secs(2)).send().await {
         #[derive(Deserialize)]
         struct ModelStatus {
@@ -586,6 +586,10 @@ pub async fn get_target_model(model_server_port: u16, active_model_path: &str) -
     }
 
     "llama-server".to_string()
+}
+
+pub async fn get_target_model(model_server_port: u16, active_model_path: &str) -> String {
+    get_target_model_with_host("127.0.0.1", model_server_port, active_model_path).await
 }
 
 fn map_pipeline_tag(tag: &str) -> String {
