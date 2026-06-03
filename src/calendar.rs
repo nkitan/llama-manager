@@ -27,8 +27,8 @@ impl std::fmt::Display for EventStatus {
 pub struct CalendarEvent {
     pub id: String,
     pub title: String,
-    pub time: String,      // Format: "YYYY-MM-DDTHH:MM:SS"
-    pub prompt: String,    // Prompt to fire when the event time is reached
+    pub time: String,   // Format: "YYYY-MM-DDTHH:MM:SS"
+    pub prompt: String, // Prompt to fire when the event time is reached
     pub status: EventStatus,
     pub result: Option<String>,
 }
@@ -109,7 +109,7 @@ impl CalendarState {
         let mut state = Self::load_unlocked();
         let mut to_fire = Vec::new();
         let now_dt = parse_datetime(now).unwrap_or_else(|_| chrono::Local::now().naive_local());
-        
+
         for ev in state.events.iter_mut() {
             if ev.status == EventStatus::Pending {
                 if let Ok(ev_dt) = parse_datetime(&ev.time) {
@@ -129,7 +129,6 @@ impl CalendarState {
         }
         to_fire
     }
-
 
     // Unlocked internal helper methods
     fn load_unlocked() -> Self {
@@ -151,8 +150,7 @@ impl CalendarState {
         }
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, content)
-            .map_err(|e| format!("IO error: {}", e))?;
+        std::fs::write(path, content).map_err(|e| format!("IO error: {}", e))?;
         Ok(())
     }
 

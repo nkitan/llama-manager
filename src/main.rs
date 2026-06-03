@@ -1,19 +1,19 @@
 #![allow(non_snake_case)]
 
+mod agent;
+mod calendar;
 mod config;
 mod library;
-mod agent;
-mod planner;
-mod calendar;
-mod todo;
 mod notes;
+mod planner;
+mod todo;
 
 use config::*;
 use dioxus::prelude::*;
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tabs
@@ -42,6 +42,7 @@ enum Tab {
     QuickNotes,
     Compare,
     DeepResearch,
+    AppSettings,
 }
 
 impl Tab {
@@ -68,18 +69,19 @@ impl Tab {
             Self::QuickNotes => "Quick Notes",
             Self::Compare => "Model Comparison (Blind)",
             Self::DeepResearch => "Deep Research Agent",
+            Self::AppSettings => "App Settings",
         }
     }
     fn icon(&self) -> &str {
         match self {
-            Self::Chat => "\u{1F4AC}",        // 💬
-            Self::Planner => "\u{1F4CB}",    // 📋
-            Self::Monitor => "\u{1F4CA}",    // 📊
-            Self::Mcp => "\u{1F6E0}",         // 🛠️
-            Self::Agents => "\u{1F9E0}",      // 🧠
-            Self::Model => "\u{1F4E6}",       // 📦
-            Self::Library => "\u{1F4DA}",     // 📚
-            Self::Download => "\u{1F4E5}",    // 📥
+            Self::Chat => "\u{1F4AC}",         // 💬
+            Self::Planner => "\u{1F4CB}",      // 📋
+            Self::Monitor => "\u{1F4CA}",      // 📊
+            Self::Mcp => "\u{1F6E0}",          // 🛠️
+            Self::Agents => "\u{1F9E0}",       // 🧠
+            Self::Model => "\u{1F4E6}",        // 📦
+            Self::Library => "\u{1F4DA}",      // 📚
+            Self::Download => "\u{1F4E5}",     // 📥
             Self::Server => "\u{1F310}",       // 🌐
             Self::Instances => "\u{1F5A5}",    // 🖥️
             Self::Context => "\u{1F4CF}",      // 📏
@@ -90,9 +92,10 @@ impl Tab {
             Self::Api => "\u{1F512}",          // 🔒
             Self::Calendar => "\u{1F4C5}",     // 📅
             Self::Todos => "\u{2705}",         // ✅
-            Self::QuickNotes => "\u{1F4DD}",    // 📝
-            Self::Compare => "\u{1F441}",       // 👁️
-            Self::DeepResearch => "\u{1F50E}",  // 🔍
+            Self::QuickNotes => "\u{1F4DD}",   // 📝
+            Self::Compare => "\u{1F441}",      // 👁️
+            Self::DeepResearch => "\u{1F50E}", // 🔍
+            Self::AppSettings => "\u{2699}",   // ⚙️
         }
     }
     #[allow(dead_code)]
@@ -119,6 +122,7 @@ impl Tab {
             Tab::QuickNotes,
             Tab::Compare,
             Tab::DeepResearch,
+            Tab::AppSettings,
         ]
     }
 }
@@ -133,69 +137,390 @@ struct ConfigSearchEntry {
 
 fn config_search_entries() -> Vec<ConfigSearchEntry> {
     vec![
-        ConfigSearchEntry { label: "llama-server path".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-llama-server-path-1".into() },
-        ConfigSearchEntry { label: "Model File (.gguf)".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-file-gguf-1".into() },
-        ConfigSearchEntry { label: "Model Alias".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-alias-1".into() },
-        ConfigSearchEntry { label: "Model Directory".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-directory-models-dir-1".into() },
-        ConfigSearchEntry { label: "Model URL".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-model-url-1".into() },
-        ConfigSearchEntry { label: "HuggingFace Repo".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-huggingface-repo-1".into() },
-        ConfigSearchEntry { label: "HuggingFace File".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-huggingface-file-1".into() },
-        ConfigSearchEntry { label: "HuggingFace Token".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-huggingface-token-1".into() },
-        ConfigSearchEntry { label: "Chat Template".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-chat-template-1".into() },
-        ConfigSearchEntry { label: "System Prompt".into(), section: "Llama-Server".into(), tab: Tab::Model, target_id: "form-system-prompt-1".into() },
-        ConfigSearchEntry { label: "Host".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-host-1".into() },
-        ConfigSearchEntry { label: "Port".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-port-1".into() },
-        ConfigSearchEntry { label: "Timeout".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-server-timeout-s-1".into() },
-        ConfigSearchEntry { label: "HTTP Threads".into(), section: "Server".into(), tab: Tab::Server, target_id: "form-http-threads-1".into() },
-        ConfigSearchEntry { label: "Context Size".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-context-size-c-1".into() },
-        ConfigSearchEntry { label: "Predict".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-max-predict-n-1".into() },
-        ConfigSearchEntry { label: "Batch Size".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-batch-size-b-1".into() },
-        ConfigSearchEntry { label: "Micro Batch Size".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-micro-batch-size-ub-1".into() },
-        ConfigSearchEntry { label: "Parallel Sequences".into(), section: "Context".into(), tab: Tab::Context, target_id: "form-parallel-sequences-np-1".into() },
-        ConfigSearchEntry { label: "GPU Layers".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-gpu-layers-ngl-1".into() },
-        ConfigSearchEntry { label: "Main GPU".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-main-gpu-mg-1".into() },
-        ConfigSearchEntry { label: "Split Mode".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-split-mode-sm-1".into() },
-        ConfigSearchEntry { label: "Tensor Split".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-tensor-split-ts-1".into() },
-        ConfigSearchEntry { label: "Cache Type K".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-k-cache-type-ctk-1".into() },
-        ConfigSearchEntry { label: "Cache Type V".into(), section: "GPU & Memory".into(), tab: Tab::Gpu, target_id: "form-v-cache-type-ctv-1".into() },
-        ConfigSearchEntry { label: "Threads".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "form-threads-t-1".into() },
-        ConfigSearchEntry { label: "Threads Batch".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "form-batch-threads-tb-1".into() },
-        ConfigSearchEntry { label: "Flash Attention".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "".into() },
-        ConfigSearchEntry { label: "No Warmup".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "".into() },
-        ConfigSearchEntry { label: "Check Tensors".into(), section: "Performance".into(), tab: Tab::Performance, target_id: "".into() },
-        ConfigSearchEntry { label: "Temperature".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-temperature-temp-1".into() },
-        ConfigSearchEntry { label: "Seed".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-seed-s-1".into() },
-        ConfigSearchEntry { label: "Top K".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-top-k-top-k-1".into() },
-        ConfigSearchEntry { label: "Top P".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-top-p-top-p-1".into() },
-        ConfigSearchEntry { label: "Min P".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-min-p-min-p-1".into() },
-        ConfigSearchEntry { label: "Repeat Penalty".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-repeat-penalty-1".into() },
-        ConfigSearchEntry { label: "Presence Penalty".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-presence-penalty-1".into() },
-        ConfigSearchEntry { label: "Frequency Penalty".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-frequency-penalty-1".into() },
-        ConfigSearchEntry { label: "Grammar".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-grammar-bnf-1".into() },
-        ConfigSearchEntry { label: "Grammar File".into(), section: "Sampling".into(), tab: Tab::Sampling, target_id: "form-grammar-file-1".into() },
-        ConfigSearchEntry { label: "Rope Scaling".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-scaling-type-1".into() },
-        ConfigSearchEntry { label: "RoPE Freq Base".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-freq-base-1".into() },
-        ConfigSearchEntry { label: "RoPE Freq Scale".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-freq-scale-1".into() },
-        ConfigSearchEntry { label: "Yarn Orig Ctx".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-yarn-orig-ctx-1".into() },
-        ConfigSearchEntry { label: "Yarn Ext Factor".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-extension-factor-1".into() },
-        ConfigSearchEntry { label: "Yarn Attn Factor".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-attention-factor-1".into() },
-        ConfigSearchEntry { label: "Yarn Beta Fast".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-beta-fast-1".into() },
-        ConfigSearchEntry { label: "Yarn Beta Slow".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-beta-slow-1".into() },
-        ConfigSearchEntry { label: "API Key".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-api-key-api-key-1".into() },
-        ConfigSearchEntry { label: "API Key File".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-api-key-file-api-key-file-1".into() },
-        ConfigSearchEntry { label: "Metrics".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
-        ConfigSearchEntry { label: "Slots".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
-        ConfigSearchEntry { label: "Slot Save Path".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-slot-save-path-1".into() },
-        ConfigSearchEntry { label: "Log Format".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "form-log-format-1".into() },
-        ConfigSearchEntry { label: "Verbose Logging".into(), section: "API & Security".into(), tab: Tab::Api, target_id: "".into() },
-        ConfigSearchEntry { label: "Model Scan Directories".into(), section: "Model Index".into(), tab: Tab::Library, target_id: "form-scan-directories-1".into() },
-        ConfigSearchEntry { label: "SearxNG URL".into(), section: "Model Index".into(), tab: Tab::Library, target_id: "form-searxng-service-url-1".into() },
-        ConfigSearchEntry { label: "Launch Optimizer".into(), section: "Server".into(), tab: Tab::Server, target_id: "launch-optimizer-1".into() },
-        ConfigSearchEntry { label: "Optimize Configs".into(), section: "Server".into(), tab: Tab::Server, target_id: "launch-optimizer-1".into() },
-        ConfigSearchEntry { label: "Chat".into(), section: "Navigation".into(), tab: Tab::Chat, target_id: "".into() },
-        ConfigSearchEntry { label: "Downloader".into(), section: "Navigation".into(), tab: Tab::Download, target_id: "".into() },
-        ConfigSearchEntry { label: "Window Transparency".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-ui-transparency".into() },
-        ConfigSearchEntry { label: "Background Tint".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-ui-bg-color".into() },
+        ConfigSearchEntry {
+            label: "llama-server path".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-llama-server-path-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Model File (.gguf)".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-model-file-gguf-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Model Alias".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-model-alias-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Model Directory".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-model-directory-models-dir-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Model URL".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-model-url-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "HuggingFace Repo".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-huggingface-repo-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "HuggingFace File".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-huggingface-file-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "HuggingFace Token".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-huggingface-token-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Chat Template".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-chat-template-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "System Prompt".into(),
+            section: "Llama-Server".into(),
+            tab: Tab::Model,
+            target_id: "form-system-prompt-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Host".into(),
+            section: "Server".into(),
+            tab: Tab::Server,
+            target_id: "form-host-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Port".into(),
+            section: "Server".into(),
+            tab: Tab::Server,
+            target_id: "form-port-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Timeout".into(),
+            section: "Server".into(),
+            tab: Tab::Server,
+            target_id: "form-server-timeout-s-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "HTTP Threads".into(),
+            section: "Server".into(),
+            tab: Tab::Server,
+            target_id: "form-http-threads-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Context Size".into(),
+            section: "Context".into(),
+            tab: Tab::Context,
+            target_id: "form-context-size-c-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Predict".into(),
+            section: "Context".into(),
+            tab: Tab::Context,
+            target_id: "form-max-predict-n-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Batch Size".into(),
+            section: "Context".into(),
+            tab: Tab::Context,
+            target_id: "form-batch-size-b-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Micro Batch Size".into(),
+            section: "Context".into(),
+            tab: Tab::Context,
+            target_id: "form-micro-batch-size-ub-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Parallel Sequences".into(),
+            section: "Context".into(),
+            tab: Tab::Context,
+            target_id: "form-parallel-sequences-np-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "GPU Layers".into(),
+            section: "GPU & Memory".into(),
+            tab: Tab::Gpu,
+            target_id: "form-gpu-layers-ngl-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Main GPU".into(),
+            section: "GPU & Memory".into(),
+            tab: Tab::Gpu,
+            target_id: "form-main-gpu-mg-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Split Mode".into(),
+            section: "GPU & Memory".into(),
+            tab: Tab::Gpu,
+            target_id: "form-split-mode-sm-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Tensor Split".into(),
+            section: "GPU & Memory".into(),
+            tab: Tab::Gpu,
+            target_id: "form-tensor-split-ts-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Cache Type K".into(),
+            section: "GPU & Memory".into(),
+            tab: Tab::Gpu,
+            target_id: "form-k-cache-type-ctk-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Cache Type V".into(),
+            section: "GPU & Memory".into(),
+            tab: Tab::Gpu,
+            target_id: "form-v-cache-type-ctv-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Threads".into(),
+            section: "Performance".into(),
+            tab: Tab::Performance,
+            target_id: "form-threads-t-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Threads Batch".into(),
+            section: "Performance".into(),
+            tab: Tab::Performance,
+            target_id: "form-batch-threads-tb-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Flash Attention".into(),
+            section: "Performance".into(),
+            tab: Tab::Performance,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "No Warmup".into(),
+            section: "Performance".into(),
+            tab: Tab::Performance,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Check Tensors".into(),
+            section: "Performance".into(),
+            tab: Tab::Performance,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Temperature".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-temperature-temp-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Seed".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-seed-s-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Top K".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-top-k-top-k-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Top P".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-top-p-top-p-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Min P".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-min-p-min-p-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Repeat Penalty".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-repeat-penalty-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Presence Penalty".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-presence-penalty-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Frequency Penalty".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-frequency-penalty-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Grammar".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-grammar-bnf-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Grammar File".into(),
+            section: "Sampling".into(),
+            tab: Tab::Sampling,
+            target_id: "form-grammar-file-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Rope Scaling".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-scaling-type-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "RoPE Freq Base".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-freq-base-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "RoPE Freq Scale".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-freq-scale-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Yarn Orig Ctx".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-yarn-orig-ctx-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Yarn Ext Factor".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-extension-factor-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Yarn Attn Factor".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-attention-factor-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Yarn Beta Fast".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-beta-fast-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Yarn Beta Slow".into(),
+            section: "Advanced".into(),
+            tab: Tab::Advanced,
+            target_id: "form-beta-slow-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "API Key".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "form-api-key-api-key-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "API Key File".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "form-api-key-file-api-key-file-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Metrics".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Slots".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Slot Save Path".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "form-slot-save-path-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Log Format".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "form-log-format-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Verbose Logging".into(),
+            section: "API & Security".into(),
+            tab: Tab::Api,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Model Scan Directories".into(),
+            section: "App Settings".into(),
+            tab: Tab::AppSettings,
+            target_id: "form-scan-directories-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "SearxNG URL".into(),
+            section: "App Settings".into(),
+            tab: Tab::AppSettings,
+            target_id: "form-searxng-service-url-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Launch Optimizer".into(),
+            section: "Server".into(),
+            tab: Tab::Server,
+            target_id: "launch-optimizer-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Optimize Configs".into(),
+            section: "Server".into(),
+            tab: Tab::Server,
+            target_id: "launch-optimizer-1".into(),
+        },
+        ConfigSearchEntry {
+            label: "Chat".into(),
+            section: "Navigation".into(),
+            tab: Tab::Chat,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Downloader".into(),
+            section: "Navigation".into(),
+            tab: Tab::Download,
+            target_id: "".into(),
+        },
+        ConfigSearchEntry {
+            label: "Window Transparency".into(),
+            section: "App Settings".into(),
+            tab: Tab::AppSettings,
+            target_id: "form-ui-transparency".into(),
+        },
+        ConfigSearchEntry {
+            label: "Background Tint / Color".into(),
+            section: "App Settings".into(),
+            tab: Tab::AppSettings,
+            target_id: "form-ui-bg-color".into(),
+        },
+        ConfigSearchEntry {
+            label: "Backdrop Glass Blur".into(),
+            section: "App Settings".into(),
+            tab: Tab::AppSettings,
+            target_id: "form-ui-blur".into(),
+        },
     ]
 }
 
@@ -245,7 +570,14 @@ html {
     background: transparent;
 }
 
-.app { display: flex; flex-direction: column; height: 100vh; background: transparent; }
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: transparent;
+    backdrop-filter: var(--ui-window-blur);
+    -webkit-backdrop-filter: var(--ui-window-blur);
+}
 
 /* ── Focus States ────────────────────────────────────────────────── */
 .btn:focus-visible,
@@ -264,8 +596,8 @@ html {
     flex-wrap: wrap; gap: 12px;
     padding: 8px 16px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-    backdrop-filter: blur(32px) saturate(190%);
-    -webkit-backdrop-filter: blur(32px) saturate(190%);
+    backdrop-filter: var(--ui-blur-topbar);
+    -webkit-backdrop-filter: var(--ui-blur-topbar);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     min-height: 52px;
@@ -308,8 +640,8 @@ html {
     width: 100%;
     max-height: 300px;
     background: rgba(15, 23, 42, 0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: var(--ui-blur-dropdown);
+    -webkit-backdrop-filter: var(--ui-blur-dropdown);
     border: 1px solid var(--color-hairline);
     border-radius: 8px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
@@ -458,8 +790,8 @@ html {
 .sidebar {
     width: 220px; min-width: 220px;
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-    backdrop-filter: blur(30px) saturate(210%);
-    -webkit-backdrop-filter: blur(30px) saturate(210%);
+    backdrop-filter: var(--ui-blur-sidebar);
+    -webkit-backdrop-filter: var(--ui-blur-sidebar);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05), 10px 0 30px rgba(0, 0, 0, 0.15);
     display: flex; flex-direction: column;
@@ -613,8 +945,8 @@ html {
 /* ── Cards ────────────────────────────────────────────────────────── */
 .card {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: var(--ui-blur-card);
+    -webkit-backdrop-filter: var(--ui-blur-card);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 14px; padding: 18px;
     display: flex; flex-direction: column; gap: 12px;
@@ -980,8 +1312,8 @@ html {
     top: calc(100% + 4px);
     left: 0;
     background: color-mix(in srgb, var(--ui-bg-color) 92%, #ffffff 8%);
-    backdrop-filter: blur(24px) saturate(180%);
-    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: var(--ui-blur-card);
+    -webkit-backdrop-filter: var(--ui-blur-card);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     min-width: 180px;
@@ -1058,12 +1390,14 @@ html {
 
 fn main() {
     dioxus::LaunchBuilder::new()
-        .with_cfg(dioxus::desktop::Config::new().with_window(
-            dioxus::desktop::WindowBuilder::new()
-                .with_title("Llama-Manager")
-                .with_transparent(true)
-                .with_decorations(false)
-        ))
+        .with_cfg(
+            dioxus::desktop::Config::new().with_window(
+                dioxus::desktop::WindowBuilder::new()
+                    .with_title("Llama-Manager")
+                    .with_transparent(true)
+                    .with_decorations(false),
+            ),
+        )
         .launch(App);
 }
 
@@ -1134,53 +1468,61 @@ fn App() -> Element {
     });
 
     // Background Calendar Prompt Trigger Watcher
-    let _calendar_watcher = use_resource(move || {
-        async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
-                let to_fire = calendar::CalendarState::checkout_firing_events(&now);
+    let _calendar_watcher = use_resource(move || async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+            let to_fire = calendar::CalendarState::checkout_firing_events(&now);
 
-                if !to_fire.is_empty() {
-                    for ev in to_fire {
-                        let host = "127.0.0.1".to_string();
-                        let port = load_default_config().port;
-                        let prompt = ev.prompt.clone();
-                        let title = ev.title.clone();
-                        let ev_id = ev.id.clone();
+            if !to_fire.is_empty() {
+                for ev in to_fire {
+                    let host = "127.0.0.1".to_string();
+                    let port = load_default_config().port;
+                    let prompt = ev.prompt.clone();
+                    let title = ev.title.clone();
+                    let ev_id = ev.id.clone();
 
-                        tokio::spawn(async move {
-                            println!("[CALENDAR TRIGGER] Event '{}' hit! Firing prompt: '{}'", title, prompt);
-                            
-                            let mut memory_manager = agent::MemoryManager::new(get_default_config_path());
-                            let mcp_registry = agent::McpRegistry::load(get_default_config_path());
-                            let target_model = library::get_target_model_with_host(&host, port, "").await;
+                    tokio::spawn(async move {
+                        println!(
+                            "[CALENDAR TRIGGER] Event '{}' hit! Firing prompt: '{}'",
+                            title, prompt
+                        );
 
-                            let result = match agent::run_agent_task(
-                                &host,
-                                port,
-                                &target_model,
-                                &prompt,
-                                &mcp_registry,
-                                &mut memory_manager,
-                                None,
-                            ).await {
-                                Ok(resp) => {
-                                    println!("[CALENDAR TRIGGER] Prompt ran successfully. Output: {}", resp.text);
-                                    format!("Success:\n{}", resp.text)
-                                }
-                                Err(e) => {
-                                    eprintln!("[CALENDAR TRIGGER] Prompt failed: {}", e);
-                                    format!("Error: {}", e)
-                                }
-                            };
+                        let mut memory_manager =
+                            agent::MemoryManager::new(get_default_config_path());
+                        let mcp_registry = agent::McpRegistry::load(get_default_config_path());
+                        let target_model =
+                            library::get_target_model_with_host(&host, port, "").await;
 
-                            let _ = calendar::CalendarState::update_event(&ev_id, |inner_ev| {
-                                inner_ev.status = calendar::EventStatus::Completed;
-                                inner_ev.result = Some(result);
-                            });
+                        let result = match agent::run_agent_task(
+                            &host,
+                            port,
+                            &target_model,
+                            &prompt,
+                            &mcp_registry,
+                            &mut memory_manager,
+                            None,
+                        )
+                        .await
+                        {
+                            Ok(resp) => {
+                                println!(
+                                    "[CALENDAR TRIGGER] Prompt ran successfully. Output: {}",
+                                    resp.text
+                                );
+                                format!("Success:\n{}", resp.text)
+                            }
+                            Err(e) => {
+                                eprintln!("[CALENDAR TRIGGER] Prompt failed: {}", e);
+                                format!("Error: {}", e)
+                            }
+                        };
+
+                        let _ = calendar::CalendarState::update_event(&ev_id, |inner_ev| {
+                            inner_ev.status = calendar::EventStatus::Completed;
+                            inner_ev.result = Some(result);
                         });
-                    }
+                    });
                 }
             }
         }
@@ -1217,13 +1559,19 @@ fn App() -> Element {
         let mut server_sig = server_expanded;
         let mut productivity_sig = productivity_expanded;
         match act {
-            Tab::Chat | Tab::Planner | Tab::Monitor | Tab::Mcp | Tab::Agents => {
+            Tab::Chat | Tab::Planner | Tab::Monitor | Tab::Mcp | Tab::Agents | Tab::AppSettings => {
                 general_sig.set(true);
             }
             Tab::Model | Tab::Library | Tab::Download | Tab::Instances => {
                 models_sig.set(true);
             }
-            Tab::Server | Tab::Context | Tab::Gpu | Tab::Performance | Tab::Sampling | Tab::Advanced | Tab::Api => {
+            Tab::Server
+            | Tab::Context
+            | Tab::Gpu
+            | Tab::Performance
+            | Tab::Sampling
+            | Tab::Advanced
+            | Tab::Api => {
                 server_sig.set(true);
             }
             Tab::Calendar | Tab::Todos | Tab::QuickNotes | Tab::Compare | Tab::DeepResearch => {
@@ -1296,26 +1644,51 @@ fn App() -> Element {
     // ── Indexer & LLM Metadata Enricher ──────────────────────────────
     let _indexer = use_resource(move || {
         async move {
-            let mut last_scan_time = std::time::Instant::now() - std::time::Duration::from_secs(600);
-            
+            let mut last_scan_time =
+                std::time::Instant::now() - std::time::Duration::from_secs(600);
+
             loop {
                 let trigger_val = scan_trigger();
                 let now = std::time::Instant::now();
                 let time_since_last = now.duration_since(last_scan_time);
-                
+
                 if time_since_last.as_secs() >= 300 || trigger_val > 0 {
                     index_status.set("Scanning directories\u{2026}".to_string());
-                    
+
                     let dirs = {
                         let cfg = config.read();
                         if cfg.model_scan_dirs.is_empty() {
                             let mut auto_dirs = Vec::new();
                             let base = "/mnt/modelsext/models";
                             let subdirs = [
-                                "3D", "all", "asr", "audio", "coder", "dflash", "diffusion", "embedding",
-                                "embodied", "image", "infographic", "mtp", "multilingual", "multimodal",
-                                "ocr", "osworld", "privacy", "research", "reshoot", "text", "timeseries",
-                                "tts", "ui", "uncensored", "video", "vision", "web", "world"
+                                "3D",
+                                "all",
+                                "asr",
+                                "audio",
+                                "coder",
+                                "dflash",
+                                "diffusion",
+                                "embedding",
+                                "embodied",
+                                "image",
+                                "infographic",
+                                "mtp",
+                                "multilingual",
+                                "multimodal",
+                                "ocr",
+                                "osworld",
+                                "privacy",
+                                "research",
+                                "reshoot",
+                                "text",
+                                "timeseries",
+                                "tts",
+                                "ui",
+                                "uncensored",
+                                "video",
+                                "vision",
+                                "web",
+                                "world",
                             ];
                             for sub in &subdirs {
                                 let p = format!("{}/{}", base, sub);
@@ -1328,14 +1701,16 @@ fn App() -> Element {
                             cfg.model_scan_dirs.clone()
                         }
                     };
-                    
+
                     if !dirs.is_empty() {
                         let existing = scanned_models.read().clone();
                         let updated = tokio::task::spawn_blocking(move || {
                             let scanned = library::scan_directories(&dirs);
                             library::merge_indexes(scanned, existing)
-                        }).await.unwrap_or_default();
-                        
+                        })
+                        .await
+                        .unwrap_or_default();
+
                         let index_path = get_default_config_path().join("model_index.json");
                         let _ = library::save_index(&index_path.to_string_lossy(), &updated);
                         scanned_models.set(updated);
@@ -1344,11 +1719,11 @@ fn App() -> Element {
                     if trigger_val > 0 {
                         *scan_trigger.write() = 0;
                     }
-                    
+
                     last_scan_time = std::time::Instant::now();
                     index_status.set("Scan completed. Idle.".to_string());
                 }
-                
+
                 // Enrichment check
                 let mut pending_indices = Vec::new();
                 for (idx, m) in scanned_models.read().iter().enumerate() {
@@ -1356,17 +1731,18 @@ fn App() -> Element {
                         pending_indices.push(idx);
                     }
                 }
-                
+
                 if !pending_indices.is_empty() {
                     let port = config.read().port;
                     let client = reqwest::Client::new();
                     let ping_url = format!("http://127.0.0.1:{}/v1/models", port);
-                    let server_active = client.get(&ping_url)
+                    let server_active = client
+                        .get(&ping_url)
                         .timeout(std::time::Duration::from_millis(500))
                         .send()
                         .await
                         .is_ok();
-                    
+
                     if server_active {
                         if let Some(&first_idx) = pending_indices.first() {
                             // Set status to enriching first
@@ -1374,24 +1750,33 @@ fn App() -> Element {
                                 let mut current = scanned_models.read().clone();
                                 current[first_idx].status = "enriching".to_string();
                                 let index_path = get_default_config_path().join("model_index.json");
-                                let _ = library::save_index(&index_path.to_string_lossy(), &current);
+                                let _ =
+                                    library::save_index(&index_path.to_string_lossy(), &current);
                                 scanned_models.set(current);
                             }
 
                             let mut model_to_enrich = scanned_models.read()[first_idx].clone();
-                            index_status.set(format!("Enriching metadata for {}\u{2026}", model_to_enrich.filename));
-                            
+                            index_status.set(format!(
+                                "Enriching metadata for {}\u{2026}",
+                                model_to_enrich.filename
+                            ));
+
                             let searx_url = config.read().searxng_url.clone();
-                            let result = library::enrich_model(&mut model_to_enrich, &searx_url, port).await;
-                            
+                            let result =
+                                library::enrich_model(&mut model_to_enrich, &searx_url, port).await;
+
                             let mut current = scanned_models.read().clone();
                             match result {
                                 Ok(_) => {
-                                    index_status.set(format!("Enriched: {}", model_to_enrich.filename));
+                                    index_status
+                                        .set(format!("Enriched: {}", model_to_enrich.filename));
                                     current[first_idx] = model_to_enrich;
                                 }
                                 Err(e) => {
-                                    index_status.set(format!("Enrichment failed for {}: {}", model_to_enrich.filename, e));
+                                    index_status.set(format!(
+                                        "Enrichment failed for {}: {}",
+                                        model_to_enrich.filename, e
+                                    ));
                                     model_to_enrich.status = "failed".to_string();
                                     current[first_idx] = model_to_enrich;
                                 }
@@ -1404,7 +1789,7 @@ fn App() -> Element {
                         index_status.set("Model server offline. Enrichment paused.".to_string());
                     }
                 }
-                
+
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             }
         }
@@ -1438,34 +1823,39 @@ fn App() -> Element {
                 selected_model.set(String::new());
                 return;
             }
-            
+
             // Parse models from log output
             // Look for lines like: "srv   load_models:     model-name"
             let mut models = Vec::new();
             let mut in_models_section = false;
-            
+
             for line in &log_data {
                 // Check if we're entering the models section
                 if line.contains("Available models") {
                     in_models_section = true;
                     continue;
                 }
-                
+
                 // Stop at the router server line
                 if in_models_section && line.contains("starting router server") {
                     break;
                 }
-                
+
                 // Extract model names from the models list
-                if in_models_section && line.contains("srv   load_models:") && !line.contains("Available models") {
-                    if let Some(model_name) = line.split("srv   load_models:").nth(1).map(|s| s.trim()) {
+                if in_models_section
+                    && line.contains("srv   load_models:")
+                    && !line.contains("Available models")
+                {
+                    if let Some(model_name) =
+                        line.split("srv   load_models:").nth(1).map(|s| s.trim())
+                    {
                         if !model_name.is_empty() && !model_name.contains("Loaded") {
                             models.push(model_name.to_string());
                         }
                     }
                 }
             }
-            
+
             available_models.set(models);
             loading_models.set(false);
         }
@@ -1485,9 +1875,14 @@ fn App() -> Element {
         } else {
             // Validate
             let cfg = config.read();
-            if cfg.model_path.is_empty() && cfg.hf_repo.is_empty() && cfg.model_url.is_empty() && cfg.model_dir.is_empty() {
+            if cfg.model_path.is_empty()
+                && cfg.hf_repo.is_empty()
+                && cfg.model_url.is_empty()
+                && cfg.model_dir.is_empty()
+            {
                 error_msg.set(Some(
-                    "Please provide a model path, HuggingFace repo, model directory, or model URL.".into(),
+                    "Please provide a model path, HuggingFace repo, model directory, or model URL."
+                        .into(),
                 ));
                 return;
             }
@@ -1601,10 +1996,20 @@ fn App() -> Element {
                 :root {{
                     --ui-transparency: {};
                     --ui-bg-color: {};
+                    --ui-blur-topbar: {};
+                    --ui-blur-sidebar: {};
+                    --ui-blur-dropdown: {};
+                    --ui-blur-card: {};
+                    --ui-window-blur: {};
                 }}
                 "#,
                 config.read().ui_transparency,
-                config.read().ui_background_color
+                config.read().ui_background_color,
+                if config.read().ui_blur { "blur(32px) saturate(190%)" } else { "none" },
+                if config.read().ui_blur { "blur(30px) saturate(210%)" } else { "none" },
+                if config.read().ui_blur { "blur(20px)" } else { "none" },
+                if config.read().ui_blur { "blur(24px) saturate(180%)" } else { "none" },
+                if config.read().ui_blur { "blur(12px)" } else { "none" },
             )}
         }
         if show_config_modal() {
@@ -2003,7 +2408,7 @@ fn App() -> Element {
                     } else {
                         "width: {sidebar_width}px; min-width: {sidebar_width}px;"
                     },
-                    
+
                     // General/Top-level section
                     div {
                         class: "sidebar-section-header interactive",
@@ -2012,7 +2417,7 @@ fn App() -> Element {
                         span { "General" }
                     }
                     if general_expanded() {
-                        for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents] {
+                        for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents, Tab::AppSettings] {
                             button {
                                 class: if active_tab() == *tab { "sidebar-item active" } else { "sidebar-item" },
                                 onclick: {
@@ -2137,10 +2542,11 @@ fn App() -> Element {
                         Tab::QuickNotes  => rsx! { TabQuickNotes  {} },
                         Tab::Compare     => rsx! { TabCompare     { config } },
                         Tab::DeepResearch => rsx! { TabDeepResearch { config } },
+                        Tab::AppSettings => rsx! { TabAppSettings { config, search_target, scan_trigger } },
                     }
 
                     // Available models
-                    if active_tab() != Tab::Chat && active_tab() != Tab::Planner && active_tab() != Tab::Monitor && active_tab() != Tab::Calendar && active_tab() != Tab::Todos && active_tab() != Tab::QuickNotes && active_tab() != Tab::Compare && active_tab() != Tab::DeepResearch && is_running && !available_models.read().is_empty() {
+                    if active_tab() != Tab::Chat && active_tab() != Tab::Planner && active_tab() != Tab::Monitor && active_tab() != Tab::Calendar && active_tab() != Tab::Todos && active_tab() != Tab::QuickNotes && active_tab() != Tab::Compare && active_tab() != Tab::DeepResearch && active_tab() != Tab::AppSettings && is_running && !available_models.read().is_empty() {
                         div { class: "card",
                             div { class: "card-title", "Available Models" }
                             if loading_models() {
@@ -2279,11 +2685,8 @@ fn TabModel(config: Signal<ServerConfig>, search_target: Signal<String>) -> Elem
 
     let pick_model_dir = move |_| {
         spawn(async move {
-            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
-                rfd::FileDialog::new()
-                    .pick_folder()
-            })
-            .await
+            if let Ok(Some(path)) =
+                tokio::task::spawn_blocking(move || rfd::FileDialog::new().pick_folder()).await
             {
                 config.write().model_dir = path.to_string_lossy().to_string();
             }
@@ -2471,7 +2874,10 @@ fn suggest_server_optimizations(cfg: &ServerConfig) -> Vec<OptimizationSuggestio
             label: "Worker threads (-t)".into(),
             current: "auto".into(),
             recommended: cpu_count.to_string(),
-            reason: format!("Use all available CPU cores ({}) for better throughput.", cpu_count),
+            reason: format!(
+                "Use all available CPU cores ({}) for better throughput.",
+                cpu_count
+            ),
             selected: false,
         });
     } else if cfg.threads > cpu_count && cpu_count > 0 {
@@ -2567,7 +2973,9 @@ fn suggest_server_optimizations(cfg: &ServerConfig) -> Vec<OptimizationSuggestio
         });
     }
 
-    if cfg.ctx_size >= 16384 && (cfg.cache_type_k == CacheType::F16 || cfg.cache_type_v == CacheType::F16) {
+    if cfg.ctx_size >= 16384
+        && (cfg.cache_type_k == CacheType::F16 || cfg.cache_type_v == CacheType::F16)
+    {
         suggestions.push(OptimizationSuggestion {
             key: "kv_cache_quant".into(),
             label: "K/V Cache Quantization".into(),
@@ -2606,7 +3014,8 @@ fn suggest_server_optimizations(cfg: &ServerConfig) -> Vec<OptimizationSuggestio
             label: "Enable Memory Mapping (mmap)".into(),
             current: "off".into(),
             recommended: "false".into(),
-            reason: "Enable memory mapping to load models instantly and reduce memory overhead.".into(),
+            reason: "Enable memory mapping to load models instantly and reduce memory overhead."
+                .into(),
             selected: false,
         });
     }
@@ -2617,35 +3026,53 @@ fn suggest_server_optimizations(cfg: &ServerConfig) -> Vec<OptimizationSuggestio
 fn apply_server_optimization(cfg: &mut ServerConfig, key: &str, value: &str) {
     match key {
         "threads" => {
-            if let Ok(v) = value.parse::<u32>() { cfg.threads = v; }
+            if let Ok(v) = value.parse::<u32>() {
+                cfg.threads = v;
+            }
         }
         "threads_batch" => {
-            if let Ok(v) = value.parse::<u32>() { cfg.threads_batch = v; }
+            if let Ok(v) = value.parse::<u32>() {
+                cfg.threads_batch = v;
+            }
         }
         "threads_http" => {
-            if let Ok(v) = value.parse::<u32>() { cfg.threads_http = v; }
+            if let Ok(v) = value.parse::<u32>() {
+                cfg.threads_http = v;
+            }
         }
         "cont_batching" => {
-            cfg.cont_batching = value.eq_ignore_ascii_case("on") || value.eq_ignore_ascii_case("enabled") || value.eq_ignore_ascii_case("true");
+            cfg.cont_batching = value.eq_ignore_ascii_case("on")
+                || value.eq_ignore_ascii_case("enabled")
+                || value.eq_ignore_ascii_case("true");
         }
         "fit" => {
-            cfg.fit = value.eq_ignore_ascii_case("on") || value.eq_ignore_ascii_case("enabled") || value.eq_ignore_ascii_case("true");
+            cfg.fit = value.eq_ignore_ascii_case("on")
+                || value.eq_ignore_ascii_case("enabled")
+                || value.eq_ignore_ascii_case("true");
         }
         "flash_attn" => {
-            cfg.flash_attn = value.eq_ignore_ascii_case("on") || value.eq_ignore_ascii_case("enabled") || value.eq_ignore_ascii_case("true");
+            cfg.flash_attn = value.eq_ignore_ascii_case("on")
+                || value.eq_ignore_ascii_case("enabled")
+                || value.eq_ignore_ascii_case("true");
         }
         "parallel" => {
-            if let Ok(v) = value.parse::<u32>() { cfg.parallel = v; }
+            if let Ok(v) = value.parse::<u32>() {
+                cfg.parallel = v;
+            }
         }
         "ubatch_size" => {
-            if let Ok(v) = value.parse::<u32>() { cfg.ubatch_size = v; }
+            if let Ok(v) = value.parse::<u32>() {
+                cfg.ubatch_size = v;
+            }
         }
         "kv_cache_quant" => {
             cfg.cache_type_k = CacheType::from_str(value);
             cfg.cache_type_v = CacheType::from_str(value);
         }
         "draft_gpu_layers" => {
-            if let Ok(v) = value.parse::<i32>() { cfg.draft_gpu_layers = v; }
+            if let Ok(v) = value.parse::<i32>() {
+                cfg.draft_gpu_layers = v;
+            }
         }
         "no_warmup" => {
             cfg.no_warmup = value.eq_ignore_ascii_case("true");
@@ -2665,7 +3092,12 @@ fn TabServer(config: Signal<ServerConfig>, search_target: Signal<String>) -> Ele
     };
 
     let apply_selected = move |_| {
-        let selected = suggestions.read().iter().filter(|s| s.selected).cloned().collect::<Vec<_>>();
+        let selected = suggestions
+            .read()
+            .iter()
+            .filter(|s| s.selected)
+            .cloned()
+            .collect::<Vec<_>>();
         if !selected.is_empty() {
             let mut cfg = config.write();
             for suggestion in selected {
@@ -2935,17 +3367,16 @@ pub struct GpuInfo {
 fn TabGpu(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let mut gpu_info = use_signal(|| None::<GpuInfo>);
 
-    let _gpu_poller = use_resource(move || {
-        async move {
-            loop {
-                let info = tokio::task::spawn_blocking(move || {
+    let _gpu_poller = use_resource(move || async move {
+        loop {
+            let info = tokio::task::spawn_blocking(move || {
                     let output = std::process::Command::new("nvidia-smi")
                         .args(&[
                             "--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total,power.draw",
                             "--format=csv,noheader,nounits"
                         ])
                         .output();
-                    
+
                     if let Ok(out) = output {
                         if out.status.success() {
                             let text = String::from_utf8_lossy(&out.stdout);
@@ -2965,19 +3396,20 @@ fn TabGpu(config: Signal<ServerConfig>, search_target: Signal<String>) -> Elemen
                     None
                 }).await.unwrap_or(None);
 
-                gpu_info.set(info);
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            }
+            gpu_info.set(info);
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
     });
 
-    let vram_pct = gpu_info().map(|info| {
-        if info.mem_total > 0.0 {
-            info.mem_used / info.mem_total * 100.0
-        } else {
-            0.0
-        }
-    }).unwrap_or(0.0);
+    let vram_pct = gpu_info()
+        .map(|info| {
+            if info.mem_total > 0.0 {
+                info.mem_used / info.mem_total * 100.0
+            } else {
+                0.0
+            }
+        })
+        .unwrap_or(0.0);
 
     rsx! {
         div { class: "section-title", "GPU & Memory" }
@@ -3763,55 +4195,6 @@ fn TabAdvanced(config: Signal<ServerConfig>, search_target: Signal<String>) -> E
                 }
             }
         }
-
-        // UI Settings (Liquid Glass Controls)
-        div { class: "card",
-            div { class: "card-title", "UI Settings & Liquid Glass" }
-            div { class: "form-row",
-                div { class: "form-group",
-                    label { r#for: "form-ui-transparency", class: "form-label", "Window Transparency ({config.read().ui_transparency * 100.0:.0}%)" }
-                    input {
-                        id: "form-ui-transparency",
-                        class: "form-input",
-                        r#type: "range",
-                        min: "0.0",
-                        max: "1.0",
-                        step: "0.05",
-                        value: config.read().ui_transparency.to_string(),
-                        oninput: move |e: Event<FormData>| {
-                            if let Ok(v) = e.value().parse::<f32>() {
-                                config.write().ui_transparency = v;
-                            }
-                        }
-                    }
-                    div { class: "form-hint", "0% = Solid window. Higher values make the window transparent with a glass color tint." }
-                }
-                div { class: "form-group",
-                    label { r#for: "form-ui-bg-color", class: "form-label", "Background Tint / Color" }
-                    div { class: "input-group",
-                        input {
-                            id: "form-ui-bg-color",
-                            class: "form-input",
-                            r#type: "color",
-                            value: config.read().ui_background_color.clone(),
-                            oninput: move |e: Event<FormData>| {
-                                config.write().ui_background_color = e.value();
-                            }
-                        }
-                        input {
-                            class: "form-input",
-                            r#type: "text",
-                            style: "width: 120px;",
-                            value: config.read().ui_background_color.clone(),
-                            oninput: move |e: Event<FormData>| {
-                                config.write().ui_background_color = e.value();
-                            }
-                        }
-                    }
-                    div { class: "form-hint", "Color of the solid window or background color of the glass tint." }
-                }
-            }
-        }
     }
 }
 
@@ -3963,7 +4346,6 @@ fn TabLibrary(
     scan_trigger: Signal<u64>,
     search_target: Signal<String>,
 ) -> Element {
-    let mut input_text = use_signal(String::new);
     let mut error_local = use_signal(|| None::<String>);
     let mut library_view_mode = use_signal(|| "index".to_string());
 
@@ -3982,33 +4364,11 @@ fn TabLibrary(
     let collapsed_families = use_signal(Vec::<String>::new);
     let collapsed_versions = use_signal(Vec::<String>::new);
 
-    let browse_dir = move |_| {
-        let mut config = config;
-        let mut scan_trigger = scan_trigger;
-        spawn(async move {
-            if let Ok(Some(path)) = tokio::task::spawn_blocking(move || {
-                rfd::FileDialog::new().pick_folder()
-            })
-            .await
-            {
-                let path_str = path.to_string_lossy().to_string();
-                let mut current_dirs = config.read().model_scan_dirs.clone();
-                if !current_dirs.contains(&path_str) {
-                    current_dirs.push(path_str);
-                    config.write().model_scan_dirs = current_dirs;
-                    *scan_trigger.write() += 1;
-                }
-            }
-        });
-    };
-
     let force_scan = move |_| {
         *scan_trigger.write() += 1;
     };
 
-    let is_family_collapsed = move |fam: &str| {
-        collapsed_families.read().contains(&fam.to_string())
-    };
+    let is_family_collapsed = move |fam: &str| collapsed_families.read().contains(&fam.to_string());
 
     let toggle_family = move |fam: String| {
         let mut collapsed_families = collapsed_families;
@@ -4021,9 +4381,8 @@ fn TabLibrary(
         collapsed_families.set(current);
     };
 
-    let is_version_collapsed = move |ver: &str| {
-        collapsed_versions.read().contains(&ver.to_string())
-    };
+    let is_version_collapsed =
+        move |ver: &str| collapsed_versions.read().contains(&ver.to_string());
 
     let toggle_version = move |ver: String| {
         let mut collapsed_versions = collapsed_versions;
@@ -4072,149 +4431,29 @@ fn TabLibrary(
                     "\u{1F4CA} Enrichment Progress"
                 }
             }
-            button {
-                class: "btn btn-ghost btn-sm",
-                style: "color: var(--color-warning); border-color: var(--color-hairline);",
-                onclick: enrich_all_models,
-                "\u{26A1} Enrich All Models"
+            div { style: "display: flex; gap: 8px;",
+                button {
+                    class: "btn btn-ghost btn-sm",
+                    style: "color: var(--color-warning); border-color: var(--color-hairline);",
+                    onclick: enrich_all_models,
+                    "\u{26A1} Enrich All Models"
+                }
+                button {
+                    class: "btn btn-ghost btn-sm",
+                    style: "color: var(--color-brand-accent); border-color: var(--color-hairline);",
+                    onclick: force_scan,
+                    "\u{1F50E} Scan & Index Now"
+                }
             }
         }
 
         if library_view_mode() == "index" {
-            // Directories Configuration
+            // Indexed Models List
             div { class: "card",
-            div { class: "card-title", "Scan Directories" }
-
-            div { class: "form-group",
-                label { r#for: "form-scan-directories-1", class: "form-label", "Directories to Scan" }
-                div { class: "input-group",
-                    div {
-                        class: "tag-input-container form-input",
-                        style: "display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; min-height: 38px; cursor: text;",
-                        onclick: move |_| {
-                            // Focus can be handled naturally by the user clicking the transparent input
-                        },
-                        for (idx, dir) in config.read().model_scan_dirs.iter().enumerate() {
-                            div {
-                                key: "{dir}",
-                                class: "tag-badge",
-                                span { {dir.clone()} }
-                                button {
-                                    r#type: "button",
-                                    onclick: move |e| {
-                                        e.stop_propagation();
-                                        config.write().model_scan_dirs.remove(idx);
-                                        *scan_trigger.write() += 1;
-                                    },
-                                    "\u{2715}"
-                                }
-                            }
-                        }
-                        input {
-                            id: "form-scan-directories-1",
-                            autofocus: search_target.read().as_str() == "form-scan-directories-1",
-                            r#type: "text",
-                            style: "border: none; outline: none; background: transparent; color: var(--color-ink); font-size: 14px; flex: 1; min-width: 150px; padding: 2px 0;",
-                            value: input_text(),
-                            placeholder: if config.read().model_scan_dirs.is_empty() { "Type directory path and press Enter or comma..." } else { "" },
-                            oninput: move |e: Event<FormData>| {
-                                let val = e.value();
-                                if val.contains(',') {
-                                    let parts: Vec<String> = val.split(',')
-                                        .map(|s| s.trim().to_string())
-                                        .filter(|s| !s.is_empty())
-                                        .collect();
-                                    
-                                    let last_is_incomplete = !val.ends_with(',');
-                                    let mut to_add = parts.clone();
-                                    let mut remainder = String::new();
-                                    if last_is_incomplete && !parts.is_empty() {
-                                        remainder = to_add.pop().unwrap();
-                                    }
-                                    
-                                    if !to_add.is_empty() {
-                                        let mut current = config.read().model_scan_dirs.clone();
-                                        let mut added = false;
-                                        for p in to_add {
-                                            if !current.contains(&p) {
-                                                current.push(p);
-                                                added = true;
-                                            }
-                                        }
-                                        if added {
-                                            config.write().model_scan_dirs = current;
-                                            *scan_trigger.write() += 1;
-                                        }
-                                    }
-                                    input_text.set(remainder);
-                                } else {
-                                    input_text.set(val);
-                                }
-                            },
-                            onkeydown: move |e: KeyboardEvent| {
-                                if e.key() == Key::Enter {
-                                    let val = input_text.read().trim().to_string();
-                                    if !val.is_empty() {
-                                        let mut current = config.read().model_scan_dirs.clone();
-                                        if !current.contains(&val) {
-                                            current.push(val);
-                                            config.write().model_scan_dirs = current;
-                                            *scan_trigger.write() += 1;
-                                        }
-                                    }
-                                    input_text.set(String::new());
-                                } else if e.key() == Key::Backspace && input_text.read().is_empty() {
-                                    let mut current = config.read().model_scan_dirs.clone();
-                                    if !current.is_empty() {
-                                        current.pop();
-                                        config.write().model_scan_dirs = current;
-                                        *scan_trigger.write() += 1;
-                                    }
-                                }
-                            },
-                            onblur: move |_| {
-                                let val = input_text.read().trim().to_string();
-                                if !val.is_empty() {
-                                    let mut current = config.read().model_scan_dirs.clone();
-                                    if !current.contains(&val) {
-                                        current.push(val.clone());
-                                        config.write().model_scan_dirs = current;
-                                        *scan_trigger.write() += 1;
-                                    }
-                                }
-                                input_text.set(String::new());
-                            }
-                        }
-                    }
-                    button { class: "btn-browse", onclick: browse_dir, "Browse & Add" }
+                div { style: "display: flex; align-items: center; justify-content: space-between;",
+                    div { class: "card-title", "Indexed Models ({scanned_models.read().len()})" }
+                    div { class: "form-hint", style: "margin: 0;", "Status: " span { style: "color: #a78bfa; font-weight: 600;", "{index_status()}" } }
                 }
-                div { class: "form-hint", "List of directories to search for models. Type paths and separate with commas or Enter." }
-            }
-
-            // SearXNG URL configuration
-            div { class: "form-group", style: "margin-top: 14px;",
-                label { r#for: "form-searxng-service-url-1", class: "form-label", "SearXNG Service URL" }
-                input {
-                    id: "form-searxng-service-url-1",
-                    autofocus: search_target.read().as_str() == "form-searxng-service-url-1",
-                    class: "form-input",
-                    value: config.read().searxng_url.clone(),
-                    placeholder: "http://localhost:8888",
-                    oninput: move |e: Event<FormData>| config.write().searxng_url = e.value(),
-                }
-                div { class: "form-hint", "SearXNG URL used to fetch internet search results for models." }
-            }
-
-            // Actions & Status
-            div { style: "display: flex; align-items: center; justify-content: space-between; margin-top: 18px; padding-top: 14px; border-top: 1px solid #232640;",
-                div { class: "form-hint", "Status: " span { style: "color: #a78bfa; font-weight: 600;", "{index_status()}" } }
-                button { class: "btn btn-ghost btn-sm", onclick: force_scan, "\u{1F50E} Scan & Index Now" }
-            }
-        }
-
-        // Indexed Models List
-        div { class: "card",
-            div { class: "card-title", "Indexed Models ({scanned_models.read().len()})" }
 
             if scanned_models.read().is_empty() {
                 div { class: "log-empty", "No models indexed yet. Add scan directories and run a scan." }
@@ -4655,7 +4894,11 @@ fn parse_input_targets(input: &str) -> Vec<TargetItem> {
                 format!("{}-{}", prefix, filename)
             } else {
                 if let Some(last_dash) = filename.rfind('-') {
-                    format!("{}{}", filename[..last_dash].to_lowercase(), &filename[last_dash..])
+                    format!(
+                        "{}{}",
+                        filename[..last_dash].to_lowercase(),
+                        &filename[last_dash..]
+                    )
                 } else {
                     filename.to_lowercase()
                 }
@@ -4674,7 +4917,10 @@ fn parse_input_targets(input: &str) -> Vec<TargetItem> {
     targets
 }
 
-fn parse_tmux_progress(lines: &[String], targets: &[TargetItem]) -> (Option<usize>, f32, String, String) {
+fn parse_tmux_progress(
+    lines: &[String],
+    targets: &[TargetItem],
+) -> (Option<usize>, f32, String, String) {
     fn extract_percentage(line: &str) -> Option<f32> {
         if let Some(pct_pos) = line.find('%') {
             let mut start = pct_pos;
@@ -4718,14 +4964,26 @@ fn parse_tmux_progress(lines: &[String], targets: &[TargetItem]) -> (Option<usiz
         if let Some(idx) = lower.find("eta") {
             let after = line[idx + 3..].trim_start_matches(&[':', ' '][..]).trim();
             if !after.is_empty() {
-                return Some(after.split_whitespace().next().unwrap_or("Unknown").to_string());
+                return Some(
+                    after
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                );
             }
         }
 
         if let Some(start) = lower.find("remaining") {
             let after = line[start..].split(':').nth(1).unwrap_or("").trim();
             if !after.is_empty() {
-                return Some(after.split_whitespace().next().unwrap_or("Unknown").to_string());
+                return Some(
+                    after
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or("Unknown")
+                        .to_string(),
+                );
             }
         }
 
@@ -4747,7 +5005,10 @@ fn parse_tmux_progress(lines: &[String], targets: &[TargetItem]) -> (Option<usiz
                 target.line.rsplit('/').next().unwrap_or("").to_lowercase(),
             ];
 
-            if search_terms.iter().any(|term| !term.is_empty() && lower_line.contains(term)) {
+            if search_terms
+                .iter()
+                .any(|term| !term.is_empty() && lower_line.contains(term))
+            {
                 active_idx = Some(idx);
                 break 'outer;
             }
@@ -4832,7 +5093,10 @@ fn generate_dw_script(input: &str) -> String {
             if repo_name.ends_with(".git") {
                 repo_name = repo_name[..repo_name.len() - 4].to_string();
             }
-            script.push_str(&format!("git clone {} ./{}/{}\n", trimmed, base_dir, repo_name));
+            script.push_str(&format!(
+                "git clone {} ./{}/{}\n",
+                trimmed, base_dir, repo_name
+            ));
         } else if trimmed.starts_with("http") {
             let parts: Vec<&str> = trimmed.split('/').collect();
             let repo = if parts.len() > 4 { parts[4] } else { "unknown" };
@@ -4843,21 +5107,33 @@ fn generate_dw_script(input: &str) -> String {
                 format!("{}-{}", prefix, filename)
             } else {
                 if let Some(last_dash) = filename.rfind('-') {
-                    format!("{}{}", filename[..last_dash].to_lowercase(), &filename[last_dash..])
+                    format!(
+                        "{}{}",
+                        filename[..last_dash].to_lowercase(),
+                        &filename[last_dash..]
+                    )
                 } else {
                     filename.to_lowercase()
                 }
             };
 
-            script.push_str(&format!("aria2c -c -x 16 -s 16 -o ./{}/{} {}\n", base_dir, target_name, trimmed));
+            script.push_str(&format!(
+                "aria2c -c -x 16 -s 16 -o ./{}/{} {}\n",
+                base_dir, target_name, trimmed
+            ));
         } else {
             let repo_name = trimmed.split('/').last().unwrap_or("");
             let target_dir = repo_name.to_lowercase();
-            script.push_str(&format!("hf download {} --local-dir ./{}/{}\n", trimmed, base_dir, target_dir));
+            script.push_str(&format!(
+                "hf download {} --local-dir ./{}/{}\n",
+                trimmed, base_dir, target_dir
+            ));
         }
     }
 
-    script.push_str("\n# Keep tmux window open for 10 seconds after completion to see the final logs\n");
+    script.push_str(
+        "\n# Keep tmux window open for 10 seconds after completion to see the final logs\n",
+    );
     script.push_str("sleep 10\n");
     script
 }
@@ -4885,7 +5161,9 @@ fn TabDownload(search_target: Signal<String>) -> Element {
                         .status()
                         .map(|status| status.success())
                         .unwrap_or(false)
-                }).await.unwrap_or(false);
+                })
+                .await
+                .unwrap_or(false);
 
                 is_downloading.set(has_session);
 
@@ -4896,7 +5174,8 @@ fn TabDownload(search_target: Signal<String>) -> Element {
                             .current_dir(get_default_config_path())
                             .args(&["capture-pane", "-pt", "hf_downloads"])
                             .output()
-                    }).await;
+                    })
+                    .await;
 
                     if let Ok(Ok(out)) = output {
                         if out.status.success() {
@@ -4952,7 +5231,8 @@ fn TabDownload(search_target: Signal<String>) -> Element {
                     .current_dir(get_default_config_path())
                     .arg(dw_path)
                     .status()
-            }).await;
+            })
+            .await;
 
             match run_status {
                 Ok(Ok(status)) if status.success() => {
@@ -4975,7 +5255,8 @@ fn TabDownload(search_target: Signal<String>) -> Element {
                     .current_dir(get_default_config_path())
                     .args(&["kill-session", "-t", "hf_downloads"])
                     .status()
-            }).await;
+            })
+            .await;
 
             match kill_status {
                 Ok(Ok(status)) if status.success() => {
@@ -5038,7 +5319,7 @@ fn TabDownload(search_target: Signal<String>) -> Element {
             // Right Card: Dynamic progress bar monitor
             div { class: "card", style: "flex: 1 1 400px; display: flex; flex-direction: column;",
                 div { class: "card-title", "Live Download Monitor" }
-                
+
                 div { style: "display: flex; align-items: center; gap: 8px; margin-bottom: 16px; font-size: 13.5px;",
                     div {
                         class: if is_downloading() { "status-dot running" } else { "status-dot stopped" },
@@ -5075,7 +5356,7 @@ fn TabDownload(search_target: Signal<String>) -> Element {
                                 div {
                                     key: "{idx}",
                                     style: "background: var(--color-surface-soft); border: 1px solid var(--color-hairline); padding: 12px; border-radius: 8px; display: flex; flex-direction: column; gap: 8px;",
-                                    
+
                                     div { style: "display: flex; justify-content: space-between; align-items: center; font-size: 13px;",
                                         span { style: "font-weight: 600; color: var(--color-ink); word-break: break-all;", "{target.name}" }
                                         if is_active {
@@ -5152,7 +5433,9 @@ fn perform_send(
         return;
     }
 
-    messages.write().push(("user".to_string(), text.clone(), None));
+    messages
+        .write()
+        .push(("user".to_string(), text.clone(), None));
     current_input.set(String::new());
     is_generating.set(true);
     chat_error.set(None);
@@ -5173,7 +5456,11 @@ fn perform_send(
             };
             let mut memory_manager = agent::MemoryManager::new(get_default_config_path());
             let mcp_registry = agent::McpRegistry::load(get_default_config_path());
-            let searxng_url = if config.read().searxng_url.is_empty() { None } else { Some(config.read().searxng_url.clone()) };
+            let searxng_url = if config.read().searxng_url.is_empty() {
+                None
+            } else {
+                Some(config.read().searxng_url.clone())
+            };
 
             match agent::run_agent_task(
                 &host,
@@ -5183,9 +5470,13 @@ fn perform_send(
                 &mcp_registry,
                 &mut memory_manager,
                 searxng_url,
-            ).await {
+            )
+            .await
+            {
                 Ok(resp) => {
-                    messages.write().push(("assistant".to_string(), resp.text, Some(resp.logs)));
+                    messages
+                        .write()
+                        .push(("assistant".to_string(), resp.text, Some(resp.logs)));
                 }
                 Err(e) => {
                     chat_error.set(Some(format!("Agent execution failed: {}", e)));
@@ -5234,20 +5525,31 @@ fn perform_send(
                         }
 
                         if let Ok(chat_res) = res.json::<ChatResponse>().await {
-                            if let Some(content) = chat_res.choices
+                            if let Some(content) = chat_res
+                                .choices
                                 .and_then(|c| c.first().cloned())
                                 .and_then(|c| c.message)
                                 .and_then(|m| m.content)
                             {
-                                messages.write().push(("assistant".to_string(), content, None));
+                                messages
+                                    .write()
+                                    .push(("assistant".to_string(), content, None));
                             } else {
-                                chat_error.set(Some("Invalid response format received from model server.".to_string()));
+                                chat_error.set(Some(
+                                    "Invalid response format received from model server."
+                                        .to_string(),
+                                ));
                             }
                         } else {
-                            chat_error.set(Some("Failed to parse JSON response from model server.".to_string()));
+                            chat_error.set(Some(
+                                "Failed to parse JSON response from model server.".to_string(),
+                            ));
                         }
                     } else {
-                        chat_error.set(Some(format!("Model server returned error status: {}", res.status())));
+                        chat_error.set(Some(format!(
+                            "Model server returned error status: {}",
+                            res.status()
+                        )));
                     }
                 }
                 Err(e) => {
@@ -5275,59 +5577,63 @@ fn TabChat(
     let mut chat_models = use_signal(Vec::<String>::new);
     let mut selected_chat_model = use_signal(String::new);
 
-    let _server_checker = use_resource(move || {
-        async move {
-            loop {
-                let (host, port) = if let Some((h, p)) = routed_instance.read().clone() {
-                    (h, p)
-                } else {
-                    ("127.0.0.1".to_string(), config.read().port)
-                };
-                let client = reqwest::Client::new();
-                let url = format!("http://{}:{}/v1/models", host, port);
-                let online = match client.get(&url).timeout(std::time::Duration::from_secs(1)).send().await {
-                    Ok(res) => {
-                        if res.status().is_success() {
-                            #[derive(serde::Deserialize)]
-                            struct ModelInfo {
-                                id: String,
-                            }
-                            #[derive(serde::Deserialize)]
-                            struct ModelsList {
-                                data: Vec<ModelInfo>,
-                            }
-                            if let Ok(list) = res.json::<ModelsList>().await {
-                                let names: Vec<String> = list.data.into_iter().map(|m| m.id).collect();
-                                if !names.contains(&selected_chat_model.read()) {
-                                    if let Some(first) = names.first() {
-                                        selected_chat_model.set(first.clone());
-                                    } else {
-                                        selected_chat_model.set(String::new());
-                                    }
-                                }
-                                chat_models.set(names);
-                            }
-                            true
-                        } else {
-                            false
+    let _server_checker = use_resource(move || async move {
+        loop {
+            let (host, port) = if let Some((h, p)) = routed_instance.read().clone() {
+                (h, p)
+            } else {
+                ("127.0.0.1".to_string(), config.read().port)
+            };
+            let client = reqwest::Client::new();
+            let url = format!("http://{}:{}/v1/models", host, port);
+            let online = match client
+                .get(&url)
+                .timeout(std::time::Duration::from_secs(1))
+                .send()
+                .await
+            {
+                Ok(res) => {
+                    if res.status().is_success() {
+                        #[derive(serde::Deserialize)]
+                        struct ModelInfo {
+                            id: String,
                         }
+                        #[derive(serde::Deserialize)]
+                        struct ModelsList {
+                            data: Vec<ModelInfo>,
+                        }
+                        if let Ok(list) = res.json::<ModelsList>().await {
+                            let names: Vec<String> = list.data.into_iter().map(|m| m.id).collect();
+                            if !names.contains(&selected_chat_model.read()) {
+                                if let Some(first) = names.first() {
+                                    selected_chat_model.set(first.clone());
+                                } else {
+                                    selected_chat_model.set(String::new());
+                                }
+                            }
+                            chat_models.set(names);
+                        }
+                        true
+                    } else {
+                        false
                     }
-                    Err(_) => false,
-                };
-                server_status.set(online);
-                if !online {
-                    chat_models.set(Vec::new());
-                    selected_chat_model.set(String::new());
                 }
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                Err(_) => false,
+            };
+            server_status.set(online);
+            if !online {
+                chat_models.set(Vec::new());
+                selected_chat_model.set(String::new());
             }
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
     });
 
     let clear_chat = move |_| {
         messages.write().clear();
         chat_error.set(None);
-    };    rsx! {
+    };
+    rsx! {
         if !immersive_mode() {
             div { class: "section-title", "Interactive Model Chat" }
             div { class: "section-desc", "Have live conversations with the loaded model. Start the model server from the Server tab to begin." }
@@ -5373,7 +5679,7 @@ fn TabChat(
             } else {
                 "display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px; overflow: hidden;"
             },
-            
+
             div {
                 style: "display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: var(--color-canvas); border-bottom: 1px solid var(--color-hairline);",
                 span { style: "font-weight: 600; color: var(--color-ink);", "💬 Chat Session" }
@@ -5464,7 +5770,7 @@ fn TabChat(
                         }
                     }
                 }
-                
+
                 if is_generating() {
                     div {
                         style: "display: flex; justify-content: flex-start;",
@@ -5506,14 +5812,13 @@ fn TabChat(
     }
 }
 
-
 // ── Instances Tab ────────────────────────────────────────────────────────────
 
 #[derive(Clone)]
 struct LlamaInstance {
     hostname: String,
     port: u16,
-    status: String,  // "online", "offline", "checking"
+    status: String, // "online", "offline", "checking"
     models: Vec<String>,
 }
 
@@ -5547,24 +5852,33 @@ fn TabInstances(
                     let port = *port;
                     let client = reqwest::Client::new();
                     let url = format!("http://127.0.0.1:{}/v1/models", port);
-                    
+
                     match tokio::time::timeout(
                         std::time::Duration::from_millis(500),
-                        client.get(&url).send()
-                    ).await {
+                        client.get(&url).send(),
+                    )
+                    .await
+                    {
                         Ok(Ok(response)) => {
                             if response.status().is_success() {
                                 if let Ok(body) = response.text().await {
-                                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
-                                        let models = json.get("data")
+                                    if let Ok(json) =
+                                        serde_json::from_str::<serde_json::Value>(&body)
+                                    {
+                                        let models = json
+                                            .get("data")
                                             .and_then(|d| d.as_array())
                                             .map(|arr| {
                                                 arr.iter()
-                                                    .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(String::from))
+                                                    .filter_map(|m| {
+                                                        m.get("id")
+                                                            .and_then(|id| id.as_str())
+                                                            .map(String::from)
+                                                    })
                                                     .collect()
                                             })
                                             .unwrap_or_default();
-                                        
+
                                         instances.push(LlamaInstance {
                                             hostname: "127.0.0.1".to_string(),
                                             port,
@@ -5584,24 +5898,33 @@ fn TabInstances(
                     if !common_ports.contains(&inst.port) {
                         let client = reqwest::Client::new();
                         let url = format!("http://{}:{}/v1/models", inst.hostname, inst.port);
-                        
+
                         match tokio::time::timeout(
                             std::time::Duration::from_millis(500),
-                            client.get(&url).send()
-                        ).await {
+                            client.get(&url).send(),
+                        )
+                        .await
+                        {
                             Ok(Ok(response)) => {
                                 if response.status().is_success() {
                                     if let Ok(body) = response.text().await {
-                                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
-                                            let models = json.get("data")
+                                        if let Ok(json) =
+                                            serde_json::from_str::<serde_json::Value>(&body)
+                                        {
+                                            let models = json
+                                                .get("data")
                                                 .and_then(|d| d.as_array())
                                                 .map(|arr| {
                                                     arr.iter()
-                                                        .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(String::from))
+                                                        .filter_map(|m| {
+                                                            m.get("id")
+                                                                .and_then(|id| id.as_str())
+                                                                .map(String::from)
+                                                        })
                                                         .collect()
                                                 })
                                                 .unwrap_or_default();
-                                            
+
                                             instances.push(LlamaInstance {
                                                 hostname: inst.hostname.clone(),
                                                 port: inst.port,
@@ -5638,7 +5961,10 @@ fn TabInstances(
             let hostname = custom_hostname_input().trim().to_string();
             if !hostname.is_empty() {
                 let mut instances = detected_instances.read().clone();
-                if !instances.iter().any(|i| i.hostname == hostname && i.port == port) {
+                if !instances
+                    .iter()
+                    .any(|i| i.hostname == hostname && i.port == port)
+                {
                     instances.push(LlamaInstance {
                         hostname,
                         port,
@@ -5864,12 +6190,8 @@ fn TabInstances(
     }
 }
 
-
 #[component]
-fn TabMcp(
-    config: Signal<ServerConfig>,
-    search_target: Signal<String>,
-) -> Element {
+fn TabMcp(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let base_dir = get_default_config_path();
     let mut mcp_registry = use_signal(move || agent::McpRegistry::load(base_dir.clone()));
 
@@ -5888,7 +6210,9 @@ fn TabMcp(
         let name = tool_name.read().trim().to_string();
         let desc = tool_desc.read().trim().to_string();
         if name.is_empty() || desc.is_empty() {
-            mcp_error.set(Some("Tool name and description cannot be empty.".to_string()));
+            mcp_error.set(Some(
+                "Tool name and description cannot be empty.".to_string(),
+            ));
             return;
         }
 
@@ -5899,7 +6223,8 @@ fn TabMcp(
                     mcp_error.set(Some("Command is required for local tools.".to_string()));
                     return;
                 }
-                let args_vec: Vec<String> = local_args.read()
+                let args_vec: Vec<String> = local_args
+                    .read()
                     .split(',')
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
@@ -5925,7 +6250,8 @@ fn TabMcp(
                 for line in remote_headers.read().lines() {
                     let parts: Vec<&str> = line.splitn(2, ':').collect();
                     if parts.len() == 2 {
-                        headers_map.insert(parts[0].trim().to_string(), parts[1].trim().to_string());
+                        headers_map
+                            .insert(parts[0].trim().to_string(), parts[1].trim().to_string());
                     }
                 }
                 agent::McpTool {
@@ -5983,7 +6309,7 @@ fn TabMcp(
         // Add a new Tool Card
         div { class: "card", style: "margin-bottom: 16px;",
             div { class: "card-title", "Add New MCP Tool" }
-            
+
             div { style: "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px;",
                 div { class: "form-group",
                     label { class: "form-label", "Tool Name" }
@@ -6091,7 +6417,7 @@ fn TabMcp(
         // List Registered Tools
         div { class: "card",
             div { class: "card-title", "Active MCP Tools Registry ({mcp_registry.read().tools.len()})" }
-            
+
             if mcp_registry.read().tools.is_empty() {
                 div { style: "text-align: center; color: var(--color-muted); padding: 24px;", "No custom MCP tools registered yet." }
             } else {
@@ -6175,12 +6501,12 @@ fn compute_node_positions(
     let mut idx = 0;
     for m in global_mems.iter().chain(project_mems.iter()) {
         id_map.insert(m.id.clone(), idx);
-        
+
         let angle = idx as f64 * 2.0 * std::f64::consts::PI / total as f64;
         let r = 100.0;
         let x = width / 2.0 + r * angle.cos();
         let y = height / 2.0 + r * angle.sin();
-        
+
         nodes.push(GraphNode {
             id: m.id.clone(),
             title: m.title.clone(),
@@ -6236,11 +6562,11 @@ fn compute_node_positions(
                 let dy = nodes[j].y - nodes[i].y;
                 let dist_sq = dx * dx + dy * dy + 0.1;
                 let dist = dist_sq.sqrt();
-                
+
                 let f = (dist * dist) / k;
                 let force_x = (dx / dist) * f * 0.5;
                 let force_y = (dy / dist) * f * 0.5;
-                
+
                 dxs[i] += force_x;
                 dys[i] += force_y;
                 dxs[j] -= force_x;
@@ -6264,13 +6590,11 @@ fn compute_node_positions(
 }
 
 #[component]
-fn TabAgents(
-    config: Signal<ServerConfig>,
-    search_target: Signal<String>,
-) -> Element {
-    let mut memory_manager = use_signal(move || agent::MemoryManager::new(get_default_config_path()));
+fn TabAgents(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
+    let mut memory_manager =
+        use_signal(move || agent::MemoryManager::new(get_default_config_path()));
     let mut memory_trigger = use_signal(|| 0);
-    
+
     // Editor Form States
     let mut selected_mem = use_signal(|| None::<agent::Memory>);
     let mut edit_id = use_signal(String::new);
@@ -6279,7 +6603,7 @@ fn TabAgents(
     let mut edit_tags = use_signal(String::new);
     let mut edit_links = use_signal(Vec::<String>::new);
     let mut edit_content = use_signal(String::new);
-    
+
     // UI filters
     let mut search_query = use_signal(String::new);
     let mut show_new_form = use_signal(|| false);
@@ -6296,31 +6620,46 @@ fn TabAgents(
     let _trigger = memory_trigger.read(); // establish reactive dependency
     let global_mems = memory_manager.read().global_memories.clone();
     let project_mems = memory_manager.read().project_memories.clone();
-    
-    let all_memories: Vec<agent::Memory> = global_mems.iter().cloned().chain(project_mems.iter().cloned()).collect();
+
+    let all_memories: Vec<agent::Memory> = global_mems
+        .iter()
+        .cloned()
+        .chain(project_mems.iter().cloned())
+        .collect();
 
     // Filters based on search query
     let query = search_query.read().to_lowercase();
-    let filtered_globals: Vec<agent::Memory> = global_mems.iter()
-        .filter(|m| m.title.to_lowercase().contains(&query) || m.tags.iter().any(|t| t.to_lowercase().contains(&query)))
+    let filtered_globals: Vec<agent::Memory> = global_mems
+        .iter()
+        .filter(|m| {
+            m.title.to_lowercase().contains(&query)
+                || m.tags.iter().any(|t| t.to_lowercase().contains(&query))
+        })
         .cloned()
         .collect();
-    let filtered_projects: Vec<agent::Memory> = project_mems.iter()
-        .filter(|m| m.title.to_lowercase().contains(&query) || m.tags.iter().any(|t| t.to_lowercase().contains(&query)))
+    let filtered_projects: Vec<agent::Memory> = project_mems
+        .iter()
+        .filter(|m| {
+            m.title.to_lowercase().contains(&query)
+                || m.tags.iter().any(|t| t.to_lowercase().contains(&query))
+        })
         .cloned()
         .collect();
 
     let selected_id = if show_new_form() {
         edit_id.read().clone()
     } else {
-        selected_mem.read().as_ref().map_or(String::new(), |m| m.id.clone())
+        selected_mem
+            .read()
+            .as_ref()
+            .map_or(String::new(), |m| m.id.clone())
     };
 
     // Graph variables
     let graph_width = 540.0;
     let graph_height = 420.0;
     let positions = compute_node_positions(&global_mems, &project_mems, graph_width, graph_height);
-    
+
     let mut edges = Vec::new();
     let mut id_set = std::collections::HashSet::new();
     for n in &positions {
@@ -6383,18 +6722,18 @@ fn TabAgents(
         // Notion Editor and Node Graph Layout
         div {
             style: "display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 24px;",
-            
+
             // Notion-like Document Editor Workspace (60% equivalent)
             div {
                 style: "flex: 3; min-width: 500px; display: flex; flex-direction: column;",
-                
+
                 div {
                     style: "display: flex; border: 1px solid var(--color-hairline); border-radius: 8px; overflow: hidden; background: var(--color-canvas); min-height: 520px;",
-                    
+
                     // Notion Sidebar (List of memories)
                     div {
                         style: "width: 200px; border-right: 1px solid var(--color-hairline); background: rgba(248, 250, 252, 0.5); display: flex; flex-direction: column; padding: 12px; gap: 12px;",
-                        
+
                         // Sidebar Header
                         div {
                             style: "display: flex; justify-content: space-between; align-items: center;",
@@ -6429,7 +6768,7 @@ fn TabAgents(
                         // Memories list
                         div {
                             style: "flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;",
-                            
+
                             // Global Memories
                             div {
                                 style: "display: flex; flex-direction: column; gap: 4px;",
@@ -6440,7 +6779,7 @@ fn TabAgents(
                                     for m in &filtered_globals {
                                         div {
                                             key: "{m.id}",
-                                            style: format!("font-size: 12.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: background 0.15s; {} ", 
+                                            style: format!("font-size: 12.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: background 0.15s; {} ",
                                                 if selected_id == m.id || (show_new_form() && edit_id() == m.id) { "background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600;" } else { "color: var(--color-body);" }
                                             ),
                                             onclick: {
@@ -6473,7 +6812,7 @@ fn TabAgents(
                                     for m in &filtered_projects {
                                         div {
                                             key: "{m.id}",
-                                            style: format!("font-size: 12.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: background 0.15s; {} ", 
+                                            style: format!("font-size: 12.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 6px; transition: background 0.15s; {} ",
                                                 if selected_id == m.id || (show_new_form() && edit_id() == m.id) { "background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600;" } else { "color: var(--color-body);" }
                                             ),
                                             onclick: {
@@ -6501,7 +6840,7 @@ fn TabAgents(
                     // Notion Editor Workspace Area
                     div {
                         style: "flex: 1; display: flex; flex-direction: column; padding: 24px; background: #ffffff;",
-                        
+
                         if selected_mem.read().is_some() || show_new_form() {
                             // Title Area (Borderless, Large Notion Title)
                             input {
@@ -6514,7 +6853,7 @@ fn TabAgents(
                             // Meta Properties
                             div {
                                 style: "display: grid; grid-template-columns: 80px 1fr; gap: 10px; font-size: 13px; color: var(--color-muted); border-bottom: 1px solid var(--color-hairline); padding-bottom: 16px; margin-bottom: 16px;",
-                                
+
                                 // Scope
                                 span { style: "display: flex; align-items: center;", "🌐 Scope" }
                                 select {
@@ -6586,7 +6925,7 @@ fn TabAgents(
                             // Save & Cancel Buttons
                             div {
                                 style: "display: flex; justify-content: space-between; border-top: 1px solid var(--color-hairline); padding-top: 16px;",
-                                
+
                                 if selected_mem.read().is_some() {
                                     button {
                                         class: "btn btn-ghost btn-sm",
@@ -6675,7 +7014,7 @@ fn TabAgents(
                     }
                 }
             }
-            
+
             // Obsidian-like Node Graph (40% equivalent)
             div {
                 style: "flex: 2; min-width: 320px; display: flex; flex-direction: column;",
@@ -6694,7 +7033,7 @@ fn TabAgents(
                             }
                         }
                     }
-                    
+
                     if positions.is_empty() {
                         div {
                             style: "flex: 1; display: flex; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas); font-style: italic; color: var(--color-muted); font-size: 12.5px; height: 420px;",
@@ -6708,7 +7047,7 @@ fn TabAgents(
                                 height: "100%",
                                 view_box: "0 0 540 420",
                                 style: "background: var(--color-canvas); border-radius: 8px; border: 1px solid var(--color-hairline);",
-                                
+
                                 defs {
                                     pattern {
                                         id: "graph-grid",
@@ -6788,7 +7127,7 @@ fn TabAgents(
                                             },
                                             onmouseleave: move |_| hovered_node.set(None),
                                             style: "cursor: pointer;",
-                                            
+
                                             circle {
                                                 cx: "{node.x}",
                                                 cy: "{node.y}",
@@ -6798,7 +7137,7 @@ fn TabAgents(
                                                 stroke_width: "2.5",
                                                 style: "transition: all 0.2s ease;",
                                             }
-                                            
+
                                             text {
                                                 x: "{node.x}",
                                                 y: "{node.y - 14.0}",
@@ -6812,7 +7151,7 @@ fn TabAgents(
                                     }
                                 })}
                             }
-                            
+
                             // Floating node tooltip
                             if let Some(hover_id) = hovered_node.read().clone() {
                                 if let Some(node) = positions.iter().find(|n| n.id == hover_id) {
@@ -6865,10 +7204,7 @@ fn TabAgents(
 }
 
 #[component]
-fn TabPlanner(
-    config: Signal<ServerConfig>,
-    search_target: Signal<String>,
-) -> Element {
+fn TabPlanner(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let tasks_path = crate::get_default_config_path().join("planner_tasks.json");
     let mut planner_state = use_signal(|| crate::planner::PlannerState::load(tasks_path.clone()));
     let tasks_path_sig = use_signal(|| tasks_path);
@@ -6882,13 +7218,11 @@ fn TabPlanner(
     let mut new_status = use_signal(|| crate::planner::TaskStatus::Todo);
 
     // Periodic synchronization
-    let _refresh_tasks = use_resource(move || {
-        async move {
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                let loaded = crate::planner::PlannerState::load(tasks_path_sig.read().clone());
-                planner_state.set(loaded);
-            }
+    let _refresh_tasks = use_resource(move || async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            let loaded = crate::planner::PlannerState::load(tasks_path_sig.read().clone());
+            planner_state.set(loaded);
         }
     });
 
@@ -6911,7 +7245,7 @@ fn TabPlanner(
         let mut state = planner_state.write();
         state.tasks.push(new_task);
         let _ = state.save(tasks_path_sig.read().clone());
-        
+
         // Reset fields
         new_title.set(String::new());
         new_summary.set(String::new());
@@ -6919,10 +7253,30 @@ fn TabPlanner(
     };
 
     let columns = vec![
-        (crate::planner::TaskStatus::Backlog, "Backlog", "📁", "border-top: 4px solid #64748b; background: rgba(100, 116, 139, 0.05);"),
-        (crate::planner::TaskStatus::Todo, "To Do", "📋", "border-top: 4px solid #2563eb; background: rgba(37, 99, 235, 0.05);"),
-        (crate::planner::TaskStatus::InProgress, "In Progress", "⚡", "border-top: 4px solid #d97706; background: rgba(217, 119, 6, 0.05);"),
-        (crate::planner::TaskStatus::Done, "Done", "✅", "border-top: 4px solid #059669; background: rgba(5, 150, 105, 0.05);"),
+        (
+            crate::planner::TaskStatus::Backlog,
+            "Backlog",
+            "📁",
+            "border-top: 4px solid #64748b; background: rgba(100, 116, 139, 0.05);",
+        ),
+        (
+            crate::planner::TaskStatus::Todo,
+            "To Do",
+            "📋",
+            "border-top: 4px solid #2563eb; background: rgba(37, 99, 235, 0.05);",
+        ),
+        (
+            crate::planner::TaskStatus::InProgress,
+            "In Progress",
+            "⚡",
+            "border-top: 4px solid #d97706; background: rgba(217, 119, 6, 0.05);",
+        ),
+        (
+            crate::planner::TaskStatus::Done,
+            "Done",
+            "✅",
+            "border-top: 4px solid #059669; background: rgba(5, 150, 105, 0.05);",
+        ),
     ];
 
     rsx! {
@@ -7027,7 +7381,7 @@ fn TabPlanner(
                 }
             }
         }
- 
+
         // Kanban Board Grid
         div {
             style: "display: flex; gap: 16px; overflow-x: auto; flex-grow: 1; min-height: 500px; padding-bottom: 24px; align-items: flex-start;",
@@ -7035,7 +7389,7 @@ fn TabPlanner(
                 div {
                     key: "{col_name}",
                     style: "flex: 1; min-width: 250px; background: #ffffff; border-radius: 8px; border: 1px solid var(--color-hairline); display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.02);",
-                    
+
                     // Column Header
                     div {
                         style: "padding: 10px 14px; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--color-hairline); border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; {col_style} color: var(--color-ink);",
@@ -7049,7 +7403,7 @@ fn TabPlanner(
                     // Column Task Cards
                     div {
                         style: "padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 200px; max-height: calc(100vh - 250px); overflow-y: auto;",
-                        
+
                         if !planner_state.read().tasks.iter().any(|t| t.status == col_status) {
                             div {
                                 style: "margin: auto; text-align: center; color: var(--color-muted-soft); font-size: 11px; padding: 24px 0;",
@@ -7060,7 +7414,7 @@ fn TabPlanner(
                                 div {
                                     key: "{task.id}",
                                     style: "background: var(--color-canvas); border: 1px solid var(--color-hairline); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 6px; transition: transform 0.15s, box-shadow 0.15s; cursor: default;",
-                                    
+
                                     // Card Badges
                                     div {
                                         style: "display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px;",
@@ -7099,7 +7453,7 @@ fn TabPlanner(
                                     // Controls / Movement and deletion
                                     div {
                                         style: "display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 4px;",
-                                        
+
                                         select {
                                             class: "form-select",
                                             style: "font-size: 10.5px; padding: 1px 4px; height: 20px; width: auto; background: #fff;",
@@ -7153,10 +7507,7 @@ fn TabPlanner(
 }
 
 #[component]
-fn TabMonitor(
-    config: Signal<ServerConfig>,
-    search_target: Signal<String>,
-) -> Element {
+fn TabMonitor(config: Signal<ServerConfig>, search_target: Signal<String>) -> Element {
     let monitor_path = crate::get_default_config_path().join("agent_activities.json");
     let mut monitor_state = use_signal(|| crate::planner::MonitorState::load(monitor_path.clone()));
 
@@ -7188,13 +7539,13 @@ fn TabMonitor(
 
         div {
             style: "display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start;",
-            
+
             // Left Column: Agents Registry / Status List
             div {
                 style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
                 div { class: "card",
                     div { class: "card-title", "Agent Subprocesses" }
-                    
+
                     if monitor_state.read().agents.is_empty() {
                         div { style: "text-align: center; color: var(--color-muted); font-style: italic; font-size: 12.5px; padding: 20px;",
                             "No active or registered agents found."
@@ -7256,7 +7607,7 @@ fn TabMonitor(
                     } else {
                         div {
                             style: "display: flex; flex-direction: column; gap: 8px; max-height: 450px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.4; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: #1e293b; color: #e2e8f0;",
-                            
+
                             // Render from latest to oldest
                             for event in monitor_state.read().events.iter().rev() {
                                 div {
@@ -7346,13 +7697,13 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
 
         div {
             style: "display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;",
-            
+
             // Left column: Schedule form
             div {
                 style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
                 div { class: "card",
                     div { class: "card-title", "Schedule Trigger Event" }
-                    
+
                     div { class: "form-group",
                         label { class: "form-label", "Event Title" }
                         input {
@@ -7407,7 +7758,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                 style: "flex: 2; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
                 div { class: "card",
                     div { class: "card-title", "Scheduled Events" }
-                    
+
                     if state.read().events.is_empty() {
                         div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 40px;",
                             "No events scheduled yet."
@@ -7419,12 +7770,12 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                 div {
                                     key: "{ev.id}",
                                     style: "border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; background: var(--color-canvas);",
-                                    
+
                                     div {
                                         style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px;",
                                         div {
                                             div { style: "font-weight: 600; color: var(--color-ink); font-size: 14px;", "{ev.title}" }
-                                            div { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 2px;", 
+                                            div { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 2px;",
                                                 "Trigger: {ev.time}"
                                             }
                                         }
@@ -7450,7 +7801,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                             }
                                         }
                                     }
-                                    
+
                                     div {
                                         style: "font-size: 12.5px; background: var(--color-surface-card); border: 1px solid var(--color-hairline); border-radius: 4px; padding: 8px; margin-bottom: 6px; color: var(--color-body); word-break: break-all;",
                                         strong { "Prompt: " }
@@ -7476,7 +7827,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
                                                 },
                                                 if expanded_event.read().as_ref() == Some(&ev.id) { "Hide Run Output" } else { "Show Run Output" }
                                             }
-                                            
+
                                             if expanded_event.read().as_ref() == Some(&ev.id) {
                                                 pre {
                                                     style: "margin-top: 8px; background: #1e293b; color: #e2e8f0; font-family: monospace; font-size: 11.5px; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 250px; overflow-y: auto;",
@@ -7501,7 +7852,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
 fn TabTodos() -> Element {
     let todo_text = use_signal(String::new);
     let todo_scope = use_signal(|| "project".to_string());
-    
+
     let project_todos = use_signal(|| todo::TodoList::load_project(get_default_config_path()));
     let global_todos = use_signal(|| todo::TodoList::load_global());
 
@@ -7510,14 +7861,26 @@ fn TabTodos() -> Element {
         let mut global_todos = global_todos;
         let mut todo_text = todo_text;
         let text = todo_text.read().trim().to_string();
-        if text.is_empty() { return; }
-        
+        if text.is_empty() {
+            return;
+        }
+
         let scope_str = todo_scope.read().clone();
-        let scope = if scope_str == "global" { todo::TodoScope::Global } else { todo::TodoScope::Project };
+        let scope = if scope_str == "global" {
+            todo::TodoScope::Global
+        } else {
+            todo::TodoScope::Project
+        };
         let now = chrono::Local::now().to_rfc3339();
         let id = format!("todo-{}", chrono::Local::now().timestamp_millis());
 
-        let entry = todo::TodoEntry { id, text, scope, status: todo::TodoStatus::Pending, created_at: now };
+        let entry = todo::TodoEntry {
+            id,
+            text,
+            scope,
+            status: todo::TodoStatus::Pending,
+            created_at: now,
+        };
         if todo::TodoList::add_todo(entry, get_default_config_path()).is_ok() {
             global_todos.set(todo::TodoList::load_global());
             project_todos.set(todo::TodoList::load_project(get_default_config_path()));
@@ -7596,13 +7959,13 @@ fn TabTodos() -> Element {
 
         div {
             style: "display: flex; gap: 20px; flex-wrap: wrap;",
-            
+
             // Project Scope Card
             div {
                 style: "flex: 1; min-width: 300px;",
                 div { class: "card",
                     div { class: "card-title", "Project-wide Todos" }
-                    
+
                     if project_todos.read().items.is_empty() {
                         div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 25px;",
                             "No project todos."
@@ -7614,7 +7977,7 @@ fn TabTodos() -> Element {
                                 div {
                                     key: "{item.id}",
                                     style: "display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-hairline); padding: 8px 12px; border-radius: 6px; background: var(--color-canvas);",
-                                    
+
                                     div {
                                         style: "display: flex; flex-direction: column; gap: 2px;",
                                         span {
@@ -7623,7 +7986,7 @@ fn TabTodos() -> Element {
                                         }
                                         span { style: "font-size: 10px; color: var(--color-muted-soft);", "ID: {item.id}" }
                                     }
-                                    
+
                                     div { style: "display: flex; gap: 6px;",
                                         if item.status == todo::TodoStatus::Pending {
                                             button {
@@ -7662,7 +8025,7 @@ fn TabTodos() -> Element {
                 style: "flex: 1; min-width: 300px;",
                 div { class: "card",
                     div { class: "card-title", "Global Todos" }
-                    
+
                     if global_todos.read().items.is_empty() {
                         div { style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 25px;",
                             "No global todos."
@@ -7674,7 +8037,7 @@ fn TabTodos() -> Element {
                                 div {
                                     key: "{item.id}",
                                     style: "display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--color-hairline); padding: 8px 12px; border-radius: 6px; background: var(--color-canvas);",
-                                    
+
                                     div {
                                         style: "display: flex; flex-direction: column; gap: 2px;",
                                         span {
@@ -7683,7 +8046,7 @@ fn TabTodos() -> Element {
                                         }
                                         span { style: "font-size: 10px; color: var(--color-muted-soft);", "ID: {item.id}" }
                                     }
-                                    
+
                                     div { style: "display: flex; gap: 6px;",
                                         if item.status == todo::TodoStatus::Pending {
                                             button {
@@ -7789,7 +8152,7 @@ fn TabQuickNotes() -> Element {
             }
 
             div { class: "form-group",
-                label { class: "form-label", 
+                label { class: "form-label",
                     "Edit Notes ({scope} scope) - "
                     span { style: "font-size: 11px; font-weight: normal; color: var(--color-muted);", "File: "
                         if scope() == "global" { "~/.local/share/llama-manager/global_notes.txt" } else { "./.llama-manager-notes.txt" }
@@ -7829,7 +8192,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
     let model_a_name = use_signal(|| "local-model".to_string());
     let model_b_url = use_signal(|| "http://127.0.0.1:11434/v1".to_string());
     let model_b_name = use_signal(|| "ollama-model".to_string());
-    
+
     let loading = use_signal(|| false);
     let alpha_response = use_signal(String::new);
     let beta_response = use_signal(String::new);
@@ -7850,7 +8213,9 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
         let mut alpha_is_a = alpha_is_a;
 
         let pr = prompt.read().clone();
-        if pr.trim().is_empty() { return; }
+        if pr.trim().is_empty() {
+            return;
+        }
 
         loading.set(true);
         revealed.set(false);
@@ -7875,7 +8240,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
             };
 
             let client = reqwest::Client::new();
-            
+
             let alpha_res = async {
                 let url = format!("{}/chat/completions", url_alpha.trim_end_matches('/'));
                 let payload = serde_json::json!({
@@ -7888,7 +8253,8 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
                     Ok(r) => {
                         if r.status().is_success() {
                             if let Ok(json) = r.json::<serde_json::Value>().await {
-                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str() {
+                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str()
+                                {
                                     return Ok(txt.to_string());
                                 }
                             }
@@ -7897,7 +8263,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
                             Err(format!("Status code: {}", r.status()))
                         }
                     }
-                    Err(e) => Err(format!("Request failed: {}", e))
+                    Err(e) => Err(format!("Request failed: {}", e)),
                 }
             };
 
@@ -7913,7 +8279,8 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
                     Ok(r) => {
                         if r.status().is_success() {
                             if let Ok(json) = r.json::<serde_json::Value>().await {
-                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str() {
+                                if let Some(txt) = json["choices"][0]["message"]["content"].as_str()
+                                {
                                     return Ok(txt.to_string());
                                 }
                             }
@@ -7922,7 +8289,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
                             Err(format!("Status code: {}", r.status()))
                         }
                     }
-                    Err(e) => Err(format!("Request failed: {}", e))
+                    Err(e) => Err(format!("Request failed: {}", e)),
                 }
             };
 
@@ -7967,7 +8334,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
         let is_a = alpha_is_a.read().clone();
         let name_a = model_a_name.read().clone();
         let name_b = model_b_name.read().clone();
-        
+
         let winning_model = if voted_alpha {
             if is_a { name_a.clone() } else { name_b.clone() }
         } else {
@@ -7980,10 +8347,20 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
             if is_a { name_a } else { name_b }
         };
 
-        let choice_text = if voted_alpha { "Model Alpha" } else { "Model Beta" };
-        vote_result.set(format!("You voted for {}! True identity: {} (Winner) vs {} (Loser)", choice_text, winning_model, losing_model));
-        
-        let log_msg = format!("Winner: {} | Loser: {} | Selected: {}", winning_model, losing_model, choice_text);
+        let choice_text = if voted_alpha {
+            "Model Alpha"
+        } else {
+            "Model Beta"
+        };
+        vote_result.set(format!(
+            "You voted for {}! True identity: {} (Winner) vs {} (Loser)",
+            choice_text, winning_model, losing_model
+        ));
+
+        let log_msg = format!(
+            "Winner: {} | Loser: {} | Selected: {}",
+            winning_model, losing_model, choice_text
+        );
         votes_log.write().push(log_msg);
         revealed.set(true);
     };
@@ -7995,10 +8372,10 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
         div { class: "card",
             style: "margin-bottom: 20px; display: flex; flex-direction: column; gap: 12px;",
             div { class: "card-title", "Blind Evaluation Setup" }
-            
+
             div {
                 style: "display: flex; gap: 16px; flex-wrap: wrap;",
-                
+
                 // Model A Config
                 div { style: "flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 8px;",
                     div { style: "font-weight: 600; font-size: 13px; color: var(--color-ink);", "Model A Config" }
@@ -8079,7 +8456,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
         if !alpha_response.read().is_empty() || !beta_response.read().is_empty() {
             div {
                 style: "display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;",
-                
+
                 // Alpha response
                 div { style: "flex: 1; min-width: 300px;",
                     div { class: "card",
@@ -8110,7 +8487,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
             div { class: "card",
                 style: "text-align: center; display: flex; flex-direction: column; gap: 12px; align-items: center;",
                 div { class: "card-title", "Submit Your Blind Vote" }
-                
+
                 div { style: "display: flex; gap: 12px; margin-top: 6px;",
                     button {
                         class: "btn btn-start",
@@ -8137,7 +8514,7 @@ fn TabCompare(config: Signal<ServerConfig>) -> Element {
                         "Reveal True Identities Only"
                     }
                 }
-                
+
                 if revealed() {
                     div {
                         style: "margin-top: 12px; font-weight: 600; font-size: 14.5px; color: var(--color-brand-accent); background: var(--color-surface-soft); padding: 10px 20px; border-radius: 6px; border: 1px solid var(--color-hairline);",
@@ -8188,7 +8565,9 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
         let reports_list = reports_list;
 
         let q = query.read().trim().to_string();
-        if q.is_empty() { return; }
+        if q.is_empty() {
+            return;
+        }
 
         is_running.set(true);
         log_content.set("Initializing Deep Research agent...\n".to_string());
@@ -8201,20 +8580,29 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
             let target_model = "llama3".to_string(); // Placeholder
             let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
             let report_filename = format!("report_{}.md", timestamp);
-            let report_path = format!("/home/notroot/.local/share/llama-manager/research/{}", report_filename);
+            let report_path = format!(
+                "/home/notroot/.local/share/llama-manager/research/{}",
+                report_filename
+            );
             let log_path = "/home/notroot/.local/share/llama-manager/research/research_log.txt";
 
             let _ = std::fs::create_dir_all("/home/notroot/.local/share/llama-manager/research/");
 
             let mut cmd = std::process::Command::new("uv");
             cmd.arg("run")
-               .arg("deep_research.py")
-               .arg("--query").arg(&q)
-               .arg("--host").arg(&host)
-               .arg("--port").arg(&port.to_string())
-               .arg("--model").arg(&target_model)
-               .arg("--output").arg(&report_path)
-               .arg("--log-file").arg(log_path);
+                .arg("deep_research.py")
+                .arg("--query")
+                .arg(&q)
+                .arg("--host")
+                .arg(&host)
+                .arg("--port")
+                .arg(&port.to_string())
+                .arg("--model")
+                .arg(&target_model)
+                .arg("--output")
+                .arg(&report_path)
+                .arg("--log-file")
+                .arg(log_path);
 
             match cmd.output() {
                 Ok(output) => {
@@ -8226,7 +8614,8 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
                     } else {
                         let err_msg = String::from_utf8_lossy(&output.stderr);
                         let mut log_content = log_content;
-                        log_content.set(format!("Research process exited with error:\n{}", err_msg));
+                        log_content
+                            .set(format!("Research process exited with error:\n{}", err_msg));
                     }
                 }
                 Err(e) => {
@@ -8248,7 +8637,9 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 if is_running() {
-                    let log_path = std::path::PathBuf::from("/home/notroot/.local/share/llama-manager/research/research_log.txt");
+                    let log_path = std::path::PathBuf::from(
+                        "/home/notroot/.local/share/llama-manager/research/research_log.txt",
+                    );
                     if log_path.exists() {
                         if let Ok(logs) = std::fs::read_to_string(&log_path) {
                             let mut log_content = log_content;
@@ -8263,7 +8654,10 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
     let load_report = move |filename: String| {
         let mut current_report = current_report;
         let mut selected_report = selected_report;
-        let path = format!("/home/notroot/.local/share/llama-manager/research/{}", filename);
+        let path = format!(
+            "/home/notroot/.local/share/llama-manager/research/{}",
+            filename
+        );
         if let Ok(content) = std::fs::read_to_string(&path) {
             current_report.set(content);
             selected_report.set(filename);
@@ -8276,11 +8670,11 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
 
         div {
             style: "display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start;",
-            
+
             // Left column: Setup and Reports list
             div {
                 style: "flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 16px;",
-                
+
                 // Research Input Card
                 div { class: "card",
                     div { class: "card-title", "New Research Campaign" }
@@ -8336,7 +8730,7 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
             // Right column: Live log or Report viewer
             div {
                 style: "flex: 2; min-width: 400px; display: flex; flex-direction: column; gap: 16px;",
-                
+
                 if is_running() {
                     div { class: "card",
                         div { class: "card-title", "Live Research Status Logs" }
@@ -8353,7 +8747,7 @@ fn TabDeepResearch(config: Signal<ServerConfig>) -> Element {
                             div { class: "card-title", style: "margin: 0;", "Synthesized Research Report" }
                             span { style: "font-size: 11px; color: var(--color-muted);", "{selected_report}" }
                         }
-                        
+
                         div {
                             style: "max-height: 600px; overflow-y: auto; padding-right: 8px;",
                             {render_markdown(&current_report.read())}
@@ -8396,9 +8790,9 @@ fn render_markdown(text: &str) -> Element {
     let mut in_code_block = false;
     let mut code_content = String::new();
     let mut code_lang = String::new();
-    
+
     let mut rendered_elements = Vec::new();
-    
+
     for line in text.lines() {
         if line.starts_with("```") {
             if in_code_block {
@@ -8422,13 +8816,13 @@ fn render_markdown(text: &str) -> Element {
             }
             continue;
         }
-        
+
         if in_code_block {
             code_content.push_str(line);
             code_content.push('\n');
             continue;
         }
-        
+
         let trimmed = line.trim();
         if trimmed.starts_with("# ") {
             let heading = trimmed[2..].to_string();
@@ -8473,7 +8867,7 @@ fn render_markdown(text: &str) -> Element {
             });
         }
     }
-    
+
     rsx! {
         div { style: "display: flex; flex-direction: column; gap: 4px;",
             for el in rendered_elements {
@@ -8507,41 +8901,84 @@ struct SimEdge {
 
 #[component]
 fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
-    let mut episodic_buffer = use_signal(|| vec![
-        EpisodicLog { text: "Session initiated: connected to model server".to_string(), timestamp: "23:15:00".to_string() },
-        EpisodicLog { text: "Executed search for local memory context".to_string(), timestamp: "23:15:05".to_string() },
-        EpisodicLog { text: "User queried: 'Optimize CUDA configurations'".to_string(), timestamp: "23:15:10".to_string() },
-    ]);
+    let mut episodic_buffer = use_signal(|| {
+        vec![
+            EpisodicLog {
+                text: "Session initiated: connected to model server".to_string(),
+                timestamp: "23:15:00".to_string(),
+            },
+            EpisodicLog {
+                text: "Executed search for local memory context".to_string(),
+                timestamp: "23:15:05".to_string(),
+            },
+            EpisodicLog {
+                text: "User queried: 'Optimize CUDA configurations'".to_string(),
+                timestamp: "23:15:10".to_string(),
+            },
+        ]
+    });
     let mut sim_divergence_threshold = use_signal(|| 0.40_f64);
     let mut calculated_divergence_score = use_signal(|| 0.15_f64);
     let mut new_log_input = use_signal(String::new);
     let mut anim_consolidating = use_signal(|| false);
 
-    let mut global_semantic_nodes = use_signal(|| vec![
-        SimNode { id: "project".to_string(), label: "Project Core".to_string(), x: 270.0, y: 210.0 },
-        SimNode { id: "user_preferences".to_string(), label: "User Preferences".to_string(), x: 130.0, y: 110.0 },
-        SimNode { id: "tech_stack".to_string(), label: "Tech Stack (Rust/Dioxus)".to_string(), x: 410.0, y: 110.0 },
-    ]);
+    let mut global_semantic_nodes = use_signal(|| {
+        vec![
+            SimNode {
+                id: "project".to_string(),
+                label: "Project Core".to_string(),
+                x: 270.0,
+                y: 210.0,
+            },
+            SimNode {
+                id: "user_preferences".to_string(),
+                label: "User Preferences".to_string(),
+                x: 130.0,
+                y: 110.0,
+            },
+            SimNode {
+                id: "tech_stack".to_string(),
+                label: "Tech Stack (Rust/Dioxus)".to_string(),
+                x: 410.0,
+                y: 110.0,
+            },
+        ]
+    });
 
-    let mut global_semantic_edges = use_signal(|| vec![
-        SimEdge { source: "user_preferences".to_string(), target: "project".to_string() },
-        SimEdge { source: "project".to_string(), target: "tech_stack".to_string() },
-    ]);
+    let mut global_semantic_edges = use_signal(|| {
+        vec![
+            SimEdge {
+                source: "user_preferences".to_string(),
+                target: "project".to_string(),
+            },
+            SimEdge {
+                source: "project".to_string(),
+                target: "tech_stack".to_string(),
+            },
+        ]
+    });
 
     let add_log = move |_| {
         let text = new_log_input.read().trim().to_string();
-        if text.is_empty() { return; }
+        if text.is_empty() {
+            return;
+        }
         let now = chrono::Local::now().format("%H:%M:%S").to_string();
-        episodic_buffer.write().push(EpisodicLog { text, timestamp: now });
+        episodic_buffer.write().push(EpisodicLog {
+            text,
+            timestamp: now,
+        });
         let current_score = *calculated_divergence_score.read();
         calculated_divergence_score.set((current_score + 0.12).min(1.0));
         new_log_input.set(String::new());
     };
 
     let trigger_consolidation = move |_| {
-        if episodic_buffer.read().is_empty() { return; }
+        if episodic_buffer.read().is_empty() {
+            return;
+        }
         anim_consolidating.set(true);
-        
+
         let node_label = if let Some(last_log) = episodic_buffer.read().last() {
             let t = last_log.text.trim();
             let clean = if t.len() > 22 {
@@ -8561,22 +8998,30 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
         } else {
             "Consolidated Node".to_string()
         };
-        
+
         let node_id = format!("node_{}", chrono::Local::now().timestamp_millis());
-        
+
         let node_count = global_semantic_nodes.read().len() as f64;
         let angle = node_count * 2.0 * std::f64::consts::PI / 6.0;
         let radius = 120.0;
         let x = 270.0 + radius * angle.cos();
         let y = 210.0 + radius * angle.sin();
-        
-        let new_node = SimNode { id: node_id.clone(), label: node_label, x, y };
+
+        let new_node = SimNode {
+            id: node_id.clone(),
+            label: node_label,
+            x,
+            y,
+        };
         global_semantic_nodes.write().push(new_node);
-        global_semantic_edges.write().push(SimEdge { source: "project".to_string(), target: node_id });
-        
+        global_semantic_edges.write().push(SimEdge {
+            source: "project".to_string(),
+            target: node_id,
+        });
+
         episodic_buffer.write().clear();
         calculated_divergence_score.set(0.05);
-        
+
         spawn(async move {
             tokio::time::sleep(std::time::Duration::from_millis(800)).await;
             anim_consolidating.set(false);
@@ -8586,7 +9031,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
     rsx! {
         div {
             style: "display: flex; gap: 20px; flex-wrap: wrap; width: 100%;",
-            
+
             // Left Column: Episodic Buffer
             div {
                 style: "flex: 1.2; min-width: 320px; display: flex; flex-direction: column; gap: 16px;",
@@ -8596,7 +9041,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                         span { style: "font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);", "📋 Episodic Buffer (Event Graph)" }
                         span { class: "badge", style: "background: #f1f5f9; color: #475569; font-size: 11px;", "{episodic_buffer.read().len()} Transient Events" }
                     }
-                    
+
                     // Log Entries List
                     div {
                         style: "flex: 1; overflow-y: auto; max-height: 220px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; padding-right: 4px; min-height: 120px;",
@@ -8632,7 +9077,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                         div {
                             style: "width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; position: relative;",
                             div {
-                                style: format!("height: 100%; width: {}%; background: {}; transition: width 0.4s ease, background 0.3s;", 
+                                style: format!("height: 100%; width: {}%; background: {}; transition: width 0.4s ease, background 0.3s;",
                                     (calculated_divergence_score() * 100.0).min(100.0),
                                     if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() { "#ef4444" } else if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() * 0.7 { "#f59e0b" } else { "#10b981" }
                                 )
@@ -8651,7 +9096,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                     // Simulation Controls / Inputs
                     div {
                         style: "display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--color-hairline); padding-top: 14px;",
-                        
+
                         // Slider Input
                         div {
                             style: "display: flex; flex-direction: column; gap: 4px;",
@@ -8716,7 +9161,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                     }
                 }
             }
-            
+
             // Right Column: Global Semantic Graph Visualizer
             div {
                 style: "flex: 1.8; min-width: 400px; display: flex; flex-direction: column;",
@@ -8735,7 +9180,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                             }
                         }
                     }
-                    
+
                     // Interactive SVG view for semantic graph
                     div {
                         style: "position: relative; width: 100%; height: 420px; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-hairline); background: var(--color-canvas);",
@@ -8743,7 +9188,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                             width: "100%",
                             height: "100%",
                             view_box: "0 0 540 420",
-                            
+
                             defs {
                                 pattern {
                                     id: "sim-grid",
@@ -8758,13 +9203,13 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                                     }
                                 }
                             }
-                            
+
                             rect {
                                 width: "100%",
                                 height: "100%",
                                 fill: "url(#sim-grid)",
                             }
-                            
+
                             // Draw Edges
                             for edge in global_semantic_edges.read().iter() {
                                 if let (Some(s_node), Some(t_node)) = (
@@ -8782,14 +9227,14 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                                     }
                                 }
                             }
-                            
+
                             // Draw Nodes
                             for node in global_semantic_nodes.read().iter() {
                                 {
                                     let is_core = node.id == "project" || node.id == "user_preferences" || node.id == "tech_stack";
                                     let node_fill = if is_core { "#1e293b" } else { "#6366f1" };
                                     let radius = if node.id == "project" { 14.0 } else if is_core { 10.0 } else { 8.5 };
-                                    
+
                                     rsx! {
                                         g {
                                             key: "{node.id}",
@@ -8816,7 +9261,7 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
                                 }
                             }
                         }
-                        
+
                         // Overlay consolidation animation
                         if anim_consolidating() {
                             div {
@@ -8835,5 +9280,225 @@ fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
     }
 }
 
+#[component]
+fn TabAppSettings(
+    config: Signal<ServerConfig>,
+    search_target: Signal<String>,
+    scan_trigger: Signal<u64>,
+) -> Element {
+    let mut input_text = use_signal(String::new);
 
+    let browse_dir = move |_| {
+        let mut config = config;
+        let mut scan_trigger = scan_trigger;
+        spawn(async move {
+            if let Ok(Some(path)) =
+                tokio::task::spawn_blocking(move || rfd::FileDialog::new().pick_folder()).await
+            {
+                let path_str = path.to_string_lossy().to_string();
+                let mut current_dirs = config.read().model_scan_dirs.clone();
+                if !current_dirs.contains(&path_str) {
+                    current_dirs.push(path_str);
+                    config.write().model_scan_dirs = current_dirs;
+                    *scan_trigger.write() += 1;
+                }
+            }
+        });
+    };
 
+    rsx! {
+        div { class: "section-title", "App Settings" }
+        div { class: "section-desc", "Configure Llama-Manager client settings, window transparency, backdrop blur, search engine integration, and model scan paths." }
+
+        // Card 1: UI & Aesthetics
+        div { class: "card",
+            div { class: "card-title", "UI Settings & Liquid Glass" }
+            div { class: "form-row",
+                div { class: "form-group",
+                    label { r#for: "form-ui-transparency", class: "form-label", "Window Transparency ({config.read().ui_transparency * 100.0:.0}%)" }
+                    input {
+                        id: "form-ui-transparency",
+                        autofocus: search_target.read().as_str() == "form-ui-transparency",
+                        class: "form-input",
+                        r#type: "range",
+                        min: "0.0",
+                        max: "1.0",
+                        step: "0.05",
+                        value: config.read().ui_transparency.to_string(),
+                        oninput: move |e: Event<FormData>| {
+                            if let Ok(v) = e.value().parse::<f32>() {
+                                config.write().ui_transparency = v;
+                            }
+                        }
+                    }
+                    div { class: "form-hint", "0% = Solid window. Higher values make the window transparent with a glass color tint." }
+                }
+                div { class: "form-group",
+                    label { r#for: "form-ui-bg-color", class: "form-label", "Background Tint / Color" }
+                    div { class: "input-group",
+                        input {
+                            id: "form-ui-bg-color",
+                            autofocus: search_target.read().as_str() == "form-ui-bg-color",
+                            class: "form-input",
+                            r#type: "color",
+                            value: config.read().ui_background_color.clone(),
+                            oninput: move |e: Event<FormData>| {
+                                config.write().ui_background_color = e.value();
+                            }
+                        }
+                        input {
+                            class: "form-input",
+                            r#type: "text",
+                            style: "width: 120px;",
+                            value: config.read().ui_background_color.clone(),
+                            oninput: move |e: Event<FormData>| {
+                                config.write().ui_background_color = e.value();
+                            }
+                        }
+                    }
+                    div { class: "form-hint", "Color of the solid window or background color of the glass tint." }
+                }
+            }
+            // Backdrop Blur Toggle
+            div { class: "toggle-row", style: "margin-top: 12px;",
+                div { class: "toggle-info",
+                    div { class: "toggle-name", "Backdrop Glass Blur" }
+                    div { class: "toggle-desc", "Apply smooth depth blur underneath glass panels and the main application window." }
+                }
+                div {
+                    id: "form-ui-blur",
+                    class: if config.read().ui_blur { "toggle-switch on" } else { "toggle-switch" },
+                    onclick: move |_| {
+                        let current = config.read().ui_blur;
+                        config.write().ui_blur = !current;
+                    },
+                    div { class: "toggle-thumb" }
+                }
+            }
+        }
+
+        // Card 2: Model Scan Directories
+        div { class: "card",
+            div { class: "card-title", "Scan Directories" }
+            div { class: "form-group",
+                label { r#for: "form-scan-directories-1", class: "form-label", "Directories to Scan" }
+                div { class: "input-group",
+                    div {
+                        class: "tag-input-container form-input",
+                        style: "display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; min-height: 38px; cursor: text;",
+                        for (idx, dir) in config.read().model_scan_dirs.iter().enumerate() {
+                            div {
+                                key: "{dir}",
+                                class: "tag-badge",
+                                span { {dir.clone()} }
+                                button {
+                                    r#type: "button",
+                                    onclick: move |e| {
+                                        e.stop_propagation();
+                                        config.write().model_scan_dirs.remove(idx);
+                                        *scan_trigger.write() += 1;
+                                    },
+                                    "\u{2715}"
+                                }
+                            }
+                        }
+                        input {
+                            id: "form-scan-directories-1",
+                            autofocus: search_target.read().as_str() == "form-scan-directories-1",
+                            r#type: "text",
+                            style: "border: none; outline: none; background: transparent; color: var(--color-ink); font-size: 14px; flex: 1; min-width: 150px; padding: 2px 0;",
+                            value: input_text(),
+                            placeholder: if config.read().model_scan_dirs.is_empty() { "Type directory path and press Enter or comma..." } else { "" },
+                            oninput: move |e: Event<FormData>| {
+                                let val = e.value();
+                                if val.contains(',') {
+                                    let parts: Vec<String> = val.split(',')
+                                        .map(|s| s.trim().to_string())
+                                        .filter(|s| !s.is_empty())
+                                        .collect();
+
+                                    let last_is_incomplete = !val.ends_with(',');
+                                    let mut to_add = parts.clone();
+                                    let mut remainder = String::new();
+                                    if last_is_incomplete && !parts.is_empty() {
+                                        remainder = to_add.pop().unwrap();
+                                    }
+
+                                    if !to_add.is_empty() {
+                                        let mut current = config.read().model_scan_dirs.clone();
+                                        let mut added = false;
+                                        for p in to_add {
+                                            if !current.contains(&p) {
+                                                current.push(p);
+                                                added = true;
+                                            }
+                                        }
+                                        if added {
+                                            config.write().model_scan_dirs = current;
+                                            *scan_trigger.write() += 1;
+                                        }
+                                    }
+                                    input_text.set(remainder);
+                                } else {
+                                    input_text.set(val);
+                                }
+                            },
+                            onkeydown: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter {
+                                    let val = input_text.read().trim().to_string();
+                                    if !val.is_empty() {
+                                        let mut current = config.read().model_scan_dirs.clone();
+                                        if !current.contains(&val) {
+                                            current.push(val);
+                                            config.write().model_scan_dirs = current;
+                                            *scan_trigger.write() += 1;
+                                        }
+                                    }
+                                    input_text.set(String::new());
+                                } else if e.key() == Key::Backspace && input_text.read().is_empty() {
+                                    let mut current = config.read().model_scan_dirs.clone();
+                                    if !current.is_empty() {
+                                        current.pop();
+                                        config.write().model_scan_dirs = current;
+                                        *scan_trigger.write() += 1;
+                                    }
+                                }
+                            },
+                            onblur: move |_| {
+                                let val = input_text.read().trim().to_string();
+                                if !val.is_empty() {
+                                    let mut current = config.read().model_scan_dirs.clone();
+                                    if !current.contains(&val) {
+                                        current.push(val.clone());
+                                        config.write().model_scan_dirs = current;
+                                        *scan_trigger.write() += 1;
+                                    }
+                                }
+                                input_text.set(String::new());
+                            }
+                        }
+                    }
+                    button { class: "btn-browse", onclick: browse_dir, "Browse & Add" }
+                }
+                div { class: "form-hint", "List of directories to search for models. Type paths and separate with commas or Enter." }
+            }
+        }
+
+        // Card 3: Deep Research Search Engine Integration
+        div { class: "card",
+            div { class: "card-title", "Search Engine Integration" }
+            div { class: "form-group",
+                label { r#for: "form-searxng-service-url-1", class: "form-label", "SearXNG Service URL" }
+                input {
+                    id: "form-searxng-service-url-1",
+                    autofocus: search_target.read().as_str() == "form-searxng-service-url-1",
+                    class: "form-input",
+                    value: config.read().searxng_url.clone(),
+                    placeholder: "http://localhost:8888",
+                    oninput: move |e: Event<FormData>| config.write().searxng_url = e.value(),
+                }
+                div { class: "form-hint", "SearXNG instance URL used for the Deep Research search tool and automatic model library enrichment." }
+            }
+        }
+    }
+}

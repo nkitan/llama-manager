@@ -154,8 +154,7 @@ impl TodoList {
     fn save_unlocked(&self, path: PathBuf) -> Result<(), String> {
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, content)
-            .map_err(|e| format!("IO error: {}", e))?;
+        std::fs::write(path, content).map_err(|e| format!("IO error: {}", e))?;
         Ok(())
     }
 }

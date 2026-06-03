@@ -73,24 +73,24 @@ pub fn clean_query_name(name: &str) -> String {
 
     // Remove common quantization / format suffixes
     let suffixes = [
-        "-Q8_0", "-Q4_0", "-Q4_K_M", "-Q5_K_M", "-Q6_K", "-Q8_K_XL", "-Q4_K_XL",
-        "-Q8_K_P", "-Q2_K_XL", "-Q2_K", "-BF16", "-f16", ".f16", ".dflash",
-        "_Q8_0", "_Q4_0", "_Q4_K_M", "_Q5_K_M", "_Q6_K", "_Q8_K_XL", "_Q4_K_XL",
-        ".Q8_0", ".Q4_0", ".Q4_K_M", ".Q5_K_M", ".Q6_K", ".Q8_K_XL", ".Q4_K_XL"
+        "-Q8_0", "-Q4_0", "-Q4_K_M", "-Q5_K_M", "-Q6_K", "-Q8_K_XL", "-Q4_K_XL", "-Q8_K_P",
+        "-Q2_K_XL", "-Q2_K", "-BF16", "-f16", ".f16", ".dflash", "_Q8_0", "_Q4_0", "_Q4_K_M",
+        "_Q5_K_M", "_Q6_K", "_Q8_K_XL", "_Q4_K_XL", ".Q8_0", ".Q4_0", ".Q4_K_M", ".Q5_K_M",
+        ".Q6_K", ".Q8_K_XL", ".Q4_K_XL",
     ];
     for suffix in &suffixes {
         q = q.replace(suffix, "");
         q = q.replace(&suffix.to_lowercase(), "");
     }
-    
+
     // Replace - and _ with space, but keep . when it separates digits
     q = q.replace("-", " ").replace("_", " ");
     let chars: Vec<char> = q.chars().collect();
     let mut cleaned = String::new();
     for i in 0..chars.len() {
         if chars[i] == '.' {
-            let prev_is_digit = i > 0 && chars[i-1].is_ascii_digit();
-            let next_is_digit = i + 1 < chars.len() && chars[i+1].is_ascii_digit();
+            let prev_is_digit = i > 0 && chars[i - 1].is_ascii_digit();
+            let next_is_digit = i + 1 < chars.len() && chars[i + 1].is_ascii_digit();
             if prev_is_digit && next_is_digit {
                 cleaned.push('.');
             } else {
@@ -211,7 +211,10 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
     } else if name_lower.contains("sensenova") {
         "Sensenova".to_string()
     } else {
-        let first_word = filename.split(|c| c == '-' || c == '_' || c == '.' || c == ' ').next().unwrap_or("Other");
+        let first_word = filename
+            .split(|c| c == '-' || c == '_' || c == '.' || c == ' ')
+            .next()
+            .unwrap_or("Other");
         if first_word.len() > 2 && first_word.chars().all(|c| c.is_alphabetic()) {
             let mut c = first_word.chars();
             match c.next() {
@@ -227,7 +230,10 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
     let version = if family == "Qwen" {
         if name_lower.contains("qwen3-next") || name_lower.contains("coder-next") {
             "Qwen 3-Next".to_string()
-        } else if name_lower.contains("qwen3.6") || name_lower.contains("qwen-3.6") || name_lower.contains("qwopus3.6") {
+        } else if name_lower.contains("qwen3.6")
+            || name_lower.contains("qwen-3.6")
+            || name_lower.contains("qwopus3.6")
+        {
             "Qwen 3.6".to_string()
         } else if name_lower.contains("qwen3.5") || name_lower.contains("qwen-3.5") {
             "Qwen 3.5".to_string()
@@ -243,7 +249,10 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
             "Qwen (Other)".to_string()
         }
     } else if family == "Gemma" {
-        if name_lower.contains("gemma4") || name_lower.contains("gemma-4") || name_lower.contains("supergemma4") {
+        if name_lower.contains("gemma4")
+            || name_lower.contains("gemma-4")
+            || name_lower.contains("supergemma4")
+        {
             "Gemma 4".to_string()
         } else if name_lower.contains("gemma3") || name_lower.contains("gemma-3") {
             "Gemma 3".to_string()
@@ -269,7 +278,11 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
             "Ernie (Other)".to_string()
         }
     } else if family == "Bonsai" || family == "Ternary Bonsai" {
-        let prefix = if family == "Ternary Bonsai" { "Ternary Bonsai" } else { "Bonsai" };
+        let prefix = if family == "Ternary Bonsai" {
+            "Ternary Bonsai"
+        } else {
+            "Bonsai"
+        };
         if name_lower.contains("1.7b") {
             format!("{} 1.7B", prefix)
         } else if name_lower.contains("4b") {
@@ -357,9 +370,13 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
     // 3. Extract Tags (Quantization, Uncensored, Thinking, etc.)
     let mut tags = Vec::new();
 
-    if name_lower.contains(".gguf") { tags.push("GGUF".to_string()); }
-    else if name_lower.contains(".safetensors") { tags.push("Safetensors".to_string()); }
-    else if name_lower.contains(".ckpt") { tags.push("CKPT".to_string()); }
+    if name_lower.contains(".gguf") {
+        tags.push("GGUF".to_string());
+    } else if name_lower.contains(".safetensors") {
+        tags.push("Safetensors".to_string());
+    } else if name_lower.contains(".ckpt") {
+        tags.push("CKPT".to_string());
+    }
 
     // Manual tokenizer for custom tags like quants or other features
     let separators = ['-', '.', ' ', '(', ')', '[', ']'];
@@ -372,10 +389,18 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
         }
         let p_lower = p.to_lowercase();
 
-        if p_lower.contains("qwen") || p_lower.contains("gemma") || p_lower.contains("phi") || p_lower.contains("ernie") || p_lower.contains("bonsai") {
+        if p_lower.contains("qwen")
+            || p_lower.contains("gemma")
+            || p_lower.contains("phi")
+            || p_lower.contains("ernie")
+            || p_lower.contains("bonsai")
+        {
             continue;
         }
-        if p_lower.ends_with('b') && p_lower.len() >= 2 && p_lower.chars().nth(0).unwrap().is_ascii_digit() {
+        if p_lower.ends_with('b')
+            && p_lower.len() >= 2
+            && p_lower.chars().nth(0).unwrap().is_ascii_digit()
+        {
             continue;
         }
 
@@ -386,7 +411,11 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
             let third = p_lower.chars().nth(2).unwrap();
             third.is_ascii_digit()
         } else {
-            p_lower == "bf16" || p_lower == "f16" || p_lower == "fp16" || p_lower == "f32" || p_lower == "fp32"
+            p_lower == "bf16"
+                || p_lower == "f16"
+                || p_lower == "fp16"
+                || p_lower == "f32"
+                || p_lower == "fp32"
         };
 
         if is_quant {
@@ -431,12 +460,19 @@ pub fn parse_model_hierarchy(filename: &str) -> ModelHierarchy {
         tags.push("Coder".to_string());
     }
 
-    ModelHierarchy { family, version, tags }
+    ModelHierarchy {
+        family,
+        version,
+        tags,
+    }
 }
 
 fn is_supported_model_file(path: &Path) -> bool {
     if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
-        matches!(extension.to_lowercase().as_str(), "gguf" | "safetensors" | "ckpt")
+        matches!(
+            extension.to_lowercase().as_str(),
+            "gguf" | "safetensors" | "ckpt"
+        )
     } else {
         false
     }
@@ -532,10 +568,19 @@ pub fn merge_indexes(scanned: Vec<ScannedModel>, existing: Vec<ScannedModel>) ->
     merged
 }
 
-pub async fn get_target_model_with_host(host: &str, model_server_port: u16, active_model_path: &str) -> String {
+pub async fn get_target_model_with_host(
+    host: &str,
+    model_server_port: u16,
+    active_model_path: &str,
+) -> String {
     let client = reqwest::Client::new();
     let url = format!("http://{}:{}/v1/models", host, model_server_port);
-    if let Ok(res) = client.get(&url).timeout(std::time::Duration::from_secs(2)).send().await {
+    if let Ok(res) = client
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(2))
+        .send()
+        .await
+    {
         #[derive(Deserialize)]
         struct ModelStatus {
             value: Option<String>,
@@ -562,7 +607,13 @@ pub async fn get_target_model_with_host(host: &str, model_server_port: u16, acti
                     }
                 }
                 // 2. Try to find a suitable text model that is available in the router list
-                let preferred = ["bonsai-4b", "bonsai-8b", "bonsai-1.7b", "nanbeige4.1-3b-Q8_0", "qwen3.6-27b-Q4_K_M"];
+                let preferred = [
+                    "bonsai-4b",
+                    "bonsai-8b",
+                    "bonsai-1.7b",
+                    "nanbeige4.1-3b-Q8_0",
+                    "qwen3.6-27b-Q4_K_M",
+                ];
                 for pref in &preferred {
                     if models.iter().any(|m| m.id.as_deref() == Some(*pref)) {
                         return pref.to_string();
@@ -609,12 +660,15 @@ fn map_pipeline_tag(tag: &str) -> String {
         "question-answering" => "Question Answering".to_string(),
         "text-classification" => "Text Classification".to_string(),
         _ => {
-            let parts: Vec<String> = tag.split('-')
+            let parts: Vec<String> = tag
+                .split('-')
                 .map(|p| {
                     let mut chars = p.chars();
                     match chars.next() {
                         None => String::new(),
-                        Some(f) => f.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+                        Some(f) => {
+                            f.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase()
+                        }
                     }
                 })
                 .collect();
@@ -636,14 +690,24 @@ pub async fn enrich_model(
     headers.insert("Accept", reqwest::header::HeaderValue::from_static(
         "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
     ));
-    headers.insert("Accept-Language", reqwest::header::HeaderValue::from_static(
-        "en-US,en;q=0.9"
-    ));
-    headers.insert("Sec-Ch-Ua", reqwest::header::HeaderValue::from_static(
-        "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\""
-    ));
-    headers.insert("Sec-Ch-Ua-Mobile", reqwest::header::HeaderValue::from_static("?0"));
-    headers.insert("Sec-Ch-Ua-Platform", reqwest::header::HeaderValue::from_static("\"Linux\""));
+    headers.insert(
+        "Accept-Language",
+        reqwest::header::HeaderValue::from_static("en-US,en;q=0.9"),
+    );
+    headers.insert(
+        "Sec-Ch-Ua",
+        reqwest::header::HeaderValue::from_static(
+            "\"Not_A Brand\";v=\"8\", \"Chromium\";v=\"120\", \"Google Chrome\";v=\"120\"",
+        ),
+    );
+    headers.insert(
+        "Sec-Ch-Ua-Mobile",
+        reqwest::header::HeaderValue::from_static("?0"),
+    );
+    headers.insert(
+        "Sec-Ch-Ua-Platform",
+        reqwest::header::HeaderValue::from_static("\"Linux\""),
+    );
     headers.insert("Dnt", reqwest::header::HeaderValue::from_static("1"));
 
     let client = reqwest::Client::builder()
@@ -663,7 +727,8 @@ pub async fn enrich_model(
         pipeline_tag: Option<String>,
     }
 
-    if let Ok(res) = client.get("https://huggingface.co/api/models")
+    if let Ok(res) = client
+        .get("https://huggingface.co/api/models")
         .query(&[("search", &hf_query), ("limit", &"10".to_string())])
         .send()
         .await
@@ -684,7 +749,8 @@ pub async fn enrich_model(
     // Try backup query if no pipeline tag found
     if found_use_case.is_none() {
         let backup_query = format!("{} {}", model.family, model.version);
-        if let Ok(res) = client.get("https://huggingface.co/api/models")
+        if let Ok(res) = client
+            .get("https://huggingface.co/api/models")
             .query(&[("search", &backup_query), ("limit", &"10".to_string())])
             .send()
             .await
@@ -715,12 +781,17 @@ pub async fn enrich_model(
 
     // If use_case is still "Unknown" or HF link is empty, or to enrich other fields (clean name, parameters size, github link),
     // query SearXNG + LLM!
-    if model.use_case == "Unknown" || model.hf_link.is_empty() || model.clean_name == "Unknown" || model.clean_name.is_empty() {
+    if model.use_case == "Unknown"
+        || model.hf_link.is_empty()
+        || model.clean_name == "Unknown"
+        || model.clean_name.is_empty()
+    {
         let clean = clean_query_name(&model.filename);
         let query = format!("{} model Hugging Face github", clean);
 
         let search_url = format!("{}/search", searxng_url.trim_end_matches('/'));
-        if let Ok(res) = client.get(&search_url)
+        if let Ok(res) = client
+            .get(&search_url)
             .query(&[("q", &query), ("format", &"json".to_string())])
             .send()
             .await
@@ -736,7 +807,10 @@ pub async fn enrich_model(
                             let content = item.content.clone().unwrap_or_default();
                             search_results_text.push_str(&format!(
                                 "Result {}:\nTitle: {}\nURL: {}\nSnippet: {}\n\n",
-                                i + 1, title, url, content
+                                i + 1,
+                                title,
+                                url,
+                                content
                             ));
                         }
 
@@ -760,12 +834,13 @@ pub async fn enrich_model(
                               \"github_link\": \"...\"\n\
                             }}\n\
                             Do not include any other text, markdown formatting, or explanation. Just the raw JSON object.",
-                            model.filename,
-                            search_results_text
+                            model.filename, search_results_text
                         );
 
-                        let target_model = get_target_model(model_server_port, &model.filename).await;
-                        let llm_url = format!("http://127.0.0.1:{}/v1/chat/completions", model_server_port);
+                        let target_model =
+                            get_target_model(model_server_port, &model.filename).await;
+                        let llm_url =
+                            format!("http://127.0.0.1:{}/v1/chat/completions", model_server_port);
                         let payload = serde_json::json!({
                             "model": target_model,
                             "messages": [
@@ -794,7 +869,8 @@ pub async fn enrich_model(
                                 }
 
                                 if let Ok(chat_response) = llm_res.json::<ChatResponse>().await {
-                                    if let Some(content) = chat_response.choices
+                                    if let Some(content) = chat_response
+                                        .choices
                                         .and_then(|c| c.first().cloned())
                                         .and_then(|c| c.message)
                                         .and_then(|m| m.content)
@@ -803,17 +879,32 @@ pub async fn enrich_model(
                                             if !parsed.name.is_empty() && parsed.name != "..." {
                                                 model.clean_name = parsed.name;
                                             }
-                                            if model.use_case == "Unknown" && !parsed.use_case.is_empty() && parsed.use_case != "..." {
+                                            if model.use_case == "Unknown"
+                                                && !parsed.use_case.is_empty()
+                                                && parsed.use_case != "..."
+                                            {
                                                 model.use_case = parsed.use_case;
                                             }
-                                            if model.hf_link.is_empty() && !parsed.hf_link.is_empty() && parsed.hf_link != "..." {
+                                            if model.hf_link.is_empty()
+                                                && !parsed.hf_link.is_empty()
+                                                && parsed.hf_link != "..."
+                                            {
                                                 model.hf_link = parsed.hf_link;
                                             }
-                                            if !parsed.github_link.is_empty() && parsed.github_link != "..." {
+                                            if !parsed.github_link.is_empty()
+                                                && parsed.github_link != "..."
+                                            {
                                                 model.github_link = parsed.github_link;
                                             }
-                                            if !parsed.size.is_empty() && parsed.size != "..." && parsed.size != "Unknown" {
-                                                model.size_info = format!("{} ({})", format_size(model.size_bytes), parsed.size);
+                                            if !parsed.size.is_empty()
+                                                && parsed.size != "..."
+                                                && parsed.size != "Unknown"
+                                            {
+                                                model.size_info = format!(
+                                                    "{} ({})",
+                                                    format_size(model.size_bytes),
+                                                    parsed.size
+                                                );
                                             }
                                         }
                                     }

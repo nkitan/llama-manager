@@ -288,11 +288,11 @@ impl Default for ServerConfig {
             cont_batching: true,
 
             // GPU & Memory  (sane defaults)
-            gpu_layers: -1,           // offload all layers
+            gpu_layers: -1, // offload all layers
             split_mode: SplitMode::Layer,
             tensor_split: String::new(),
             main_gpu: 0,
-            fit: true,                 // --fit on  ← sane default
+            fit: true, // --fit on  ← sane default
             mlock: false,
             no_mmap: false,
             no_kv_offload: false,
@@ -300,9 +300,9 @@ impl Default for ServerConfig {
             cache_type_v: CacheType::F16,
 
             // Performance  (sane defaults)
-            threads: 0,               // 0 = auto-detect
-            threads_batch: 0,         // 0 = auto-detect
-            flash_attn: true,         // -fa  ← sane default
+            threads: 0,       // 0 = auto-detect
+            threads_batch: 0, // 0 = auto-detect
+            flash_attn: true, // -fa  ← sane default
             no_warmup: false,
             check_tensors: false,
 
@@ -461,7 +461,10 @@ impl ServerConfig {
             a.extend(["-tb".into(), self.threads_batch.to_string()]);
         }
         // -fa requires a value: on, off, or auto
-        a.extend(["-fa".into(), if self.flash_attn { "on" } else { "off" }.into()]);
+        a.extend([
+            "-fa".into(),
+            if self.flash_attn { "on" } else { "off" }.into(),
+        ]);
         if self.no_warmup {
             a.push("--no-warmup".into());
         }
@@ -475,13 +478,22 @@ impl ServerConfig {
         a.extend(["--top-p".into(), format!("{:.2}", self.top_p)]);
         a.extend(["--min-p".into(), format!("{:.2}", self.min_p)]);
         if (self.repeat_penalty - 1.0).abs() > 0.001 {
-            a.extend(["--repeat-penalty".into(), format!("{:.2}", self.repeat_penalty)]);
+            a.extend([
+                "--repeat-penalty".into(),
+                format!("{:.2}", self.repeat_penalty),
+            ]);
         }
         if self.presence_penalty.abs() > 0.001 {
-            a.extend(["--presence-penalty".into(), format!("{:.2}", self.presence_penalty)]);
+            a.extend([
+                "--presence-penalty".into(),
+                format!("{:.2}", self.presence_penalty),
+            ]);
         }
         if self.frequency_penalty.abs() > 0.001 {
-            a.extend(["--frequency-penalty".into(), format!("{:.2}", self.frequency_penalty)]);
+            a.extend([
+                "--frequency-penalty".into(),
+                format!("{:.2}", self.frequency_penalty),
+            ]);
         }
         if self.seed != -1 {
             a.extend(["-s".into(), self.seed.to_string()]);
@@ -511,7 +523,10 @@ impl ServerConfig {
                 a.extend(["--yarn-ext-factor".into(), self.yarn_ext_factor.to_string()]);
             }
             if (self.yarn_attn_factor - 1.0).abs() > 0.001 {
-                a.extend(["--yarn-attn-factor".into(), self.yarn_attn_factor.to_string()]);
+                a.extend([
+                    "--yarn-attn-factor".into(),
+                    self.yarn_attn_factor.to_string(),
+                ]);
             }
         }
 

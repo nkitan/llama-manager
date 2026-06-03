@@ -11,8 +11,7 @@ pub fn load_notes(scope: &str, base_dir: PathBuf) -> String {
     let _guard = get_notes_mutex().lock().unwrap();
     let path = if scope == "global" {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/home/notroot".to_string());
-        std::path::PathBuf::from(home)
-            .join(".local/share/llama-manager/global_notes.txt")
+        std::path::PathBuf::from(home).join(".local/share/llama-manager/global_notes.txt")
     } else {
         base_dir.join(".llama-manager-notes.txt")
     };
@@ -28,8 +27,7 @@ pub fn save_notes(scope: &str, content: &str, base_dir: PathBuf) -> Result<(), S
     let _guard = get_notes_mutex().lock().map_err(|e| e.to_string())?;
     let path = if scope == "global" {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/home/notroot".to_string());
-        std::path::PathBuf::from(home)
-            .join(".local/share/llama-manager/global_notes.txt")
+        std::path::PathBuf::from(home).join(".local/share/llama-manager/global_notes.txt")
     } else {
         base_dir.join(".llama-manager-notes.txt")
     };
@@ -38,7 +36,6 @@ pub fn save_notes(scope: &str, content: &str, base_dir: PathBuf) -> Result<(), S
         let _ = std::fs::create_dir_all(parent);
     }
 
-    std::fs::write(&path, content)
-        .map_err(|e| format!("Failed to write notes: {}", e))?;
+    std::fs::write(&path, content).map_err(|e| format!("Failed to write notes: {}", e))?;
     Ok(())
 }

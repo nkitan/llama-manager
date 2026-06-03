@@ -1,10 +1,10 @@
+use crate::calendar::{CalendarEvent, CalendarState, EventStatus};
+use crate::notes;
+use crate::todo::{TodoEntry, TodoList, TodoScope, TodoStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
-use crate::todo::{TodoList, TodoEntry, TodoScope, TodoStatus};
-use crate::calendar::{CalendarState, CalendarEvent, EventStatus};
-use crate::notes;
 
 // ── Memory System ────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ pub struct Memory {
     pub created_at: String,
     pub tags: Vec<String>,
     pub links: Vec<String>,
-    pub scope: String,      // "global" or "project"
+    pub scope: String, // "global" or "project"
     pub content: String,
 }
 
@@ -55,10 +55,10 @@ pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
     }
     let frontmatter = parts[1];
     mem.content = parts[2].trim().to_string();
-    
+
     let mut in_tags = false;
     let mut in_links = false;
-    
+
     for line in frontmatter.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -69,7 +69,7 @@ pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
             in_links = false;
             let val = trimmed["tags:".len()..].trim();
             if val.starts_with('[') && val.ends_with(']') {
-                mem.tags = val[1..val.len()-1]
+                mem.tags = val[1..val.len() - 1]
                     .split(',')
                     .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
                     .filter(|s| !s.is_empty())
@@ -83,7 +83,7 @@ pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
             in_links = true;
             let val = trimmed["links:".len()..].trim();
             if val.starts_with('[') && val.ends_with(']') {
-                mem.links = val[1..val.len()-1]
+                mem.links = val[1..val.len() - 1]
                     .split(',')
                     .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
                     .filter(|s| !s.is_empty())
@@ -93,7 +93,11 @@ pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
             continue;
         }
         if trimmed.starts_with('-') || trimmed.starts_with('*') {
-            let val = trimmed[1..].trim().trim_matches('"').trim_matches('\'').to_string();
+            let val = trimmed[1..]
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string();
             if in_tags {
                 mem.tags.push(val);
             } else if in_links {
@@ -103,12 +107,24 @@ pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
         }
         if let Some(pos) = trimmed.find(':') {
             let key = trimmed[..pos].trim();
-            let val = trimmed[pos+1..].trim().trim_matches('"').trim_matches('\'').to_string();
+            let val = trimmed[pos + 1..]
+                .trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .to_string();
             match key {
-                "id" => { mem.id = val; }
-                "title" => { mem.title = val; }
-                "created_at" => { mem.created_at = val; }
-                "scope" => { mem.scope = val; }
+                "id" => {
+                    mem.id = val;
+                }
+                "title" => {
+                    mem.title = val;
+                }
+                "created_at" => {
+                    mem.created_at = val;
+                }
+                "scope" => {
+                    mem.scope = val;
+                }
                 _ => {}
             }
         }
@@ -123,11 +139,11 @@ pub fn parse_memory(file_content: &str) -> Result<Memory, String> {
 pub fn query_chroma_memories(query: &str) -> Vec<String> {
     let mut cmd = Command::new("uv");
     cmd.arg("run")
-       .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
-       .arg("query")
-       .arg("--text")
-       .arg(query);
-    
+        .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
+        .arg("query")
+        .arg("--text")
+        .arg(query);
+
     let mut retrieved = Vec::new();
     if let Ok(output) = cmd.output() {
         if output.status.success() {
@@ -149,18 +165,23 @@ pub fn query_chroma_memories(query: &str) -> Vec<String> {
 pub fn save_chroma_memory(text: &str, scope: &str) -> Result<(), String> {
     let mut cmd = Command::new("uv");
     cmd.arg("run")
-       .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
-       .arg("add")
-       .arg("--text")
-       .arg(text)
-       .arg("--scope")
-       .arg(scope);
-    
-    let output = cmd.output().map_err(|e| format!("Failed to spawn command: {}", e))?;
+        .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
+        .arg("add")
+        .arg("--text")
+        .arg(text)
+        .arg("--scope")
+        .arg(scope);
+
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to spawn command: {}", e))?;
     if output.status.success() {
         Ok(())
     } else {
-        Err(format!("ChromaDB failed: {}", String::from_utf8_lossy(&output.stderr)))
+        Err(format!(
+            "ChromaDB failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ))
     }
 }
 
@@ -219,8 +240,12 @@ impl MemoryManager {
                             continue;
                         }
                         let now = chrono::Local::now().to_rfc3339();
-                        let id = format!("mem-{}-{}", scope, chrono::Local::now().timestamp_millis() + i as i64);
-                        
+                        let id = format!(
+                            "mem-{}-{}",
+                            scope,
+                            chrono::Local::now().timestamp_millis() + i as i64
+                        );
+
                         let title = m_text.lines().next().unwrap_or("Migrated Memory").trim();
                         let title_truncated = if title.len() > 50 {
                             format!("{}...", &title[..47])
@@ -279,19 +304,28 @@ impl MemoryManager {
         let _ = std::fs::create_dir_all(dir);
         let path = dir.join(format!("{}.md", mem.id));
         let content = serialize_memory(&mem);
-        std::fs::write(&path, content)
-            .map_err(|e| format!("Failed to write memory: {}", e))?;
+        std::fs::write(&path, content).map_err(|e| format!("Failed to write memory: {}", e))?;
 
         if mem.scope == "global" {
             self.global_memories.retain(|m| m.id != mem.id);
             self.global_memories.push(mem.clone());
-            self.global_memories.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-            self.global_store.memories = self.global_memories.iter().map(|m| m.content.clone()).collect();
+            self.global_memories
+                .sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            self.global_store.memories = self
+                .global_memories
+                .iter()
+                .map(|m| m.content.clone())
+                .collect();
         } else {
             self.project_memories.retain(|m| m.id != mem.id);
             self.project_memories.push(mem.clone());
-            self.project_memories.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-            self.project_store.memories = self.project_memories.iter().map(|m| m.content.clone()).collect();
+            self.project_memories
+                .sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            self.project_store.memories = self
+                .project_memories
+                .iter()
+                .map(|m| m.content.clone())
+                .collect();
         }
         Ok(())
     }
@@ -304,15 +338,24 @@ impl MemoryManager {
         };
         let path = dir.join(format!("{}.md", id));
         if path.exists() {
-            std::fs::remove_file(path).map_err(|e| format!("Failed to delete memory file: {}", e))?;
+            std::fs::remove_file(path)
+                .map_err(|e| format!("Failed to delete memory file: {}", e))?;
         }
 
         if scope == "global" {
             self.global_memories.retain(|m| m.id != id);
-            self.global_store.memories = self.global_memories.iter().map(|m| m.content.clone()).collect();
+            self.global_store.memories = self
+                .global_memories
+                .iter()
+                .map(|m| m.content.clone())
+                .collect();
         } else {
             self.project_memories.retain(|m| m.id != id);
-            self.project_store.memories = self.project_memories.iter().map(|m| m.content.clone()).collect();
+            self.project_store.memories = self
+                .project_memories
+                .iter()
+                .map(|m| m.content.clone())
+                .collect();
         }
         Ok(())
     }
@@ -356,7 +399,11 @@ impl MemoryManager {
         }
         let now = chrono::Local::now().to_rfc3339();
         let id = format!("mem-project-{}", chrono::Local::now().timestamp_millis());
-        let title = text.lines().next().unwrap_or("Manual Project Memory").trim();
+        let title = text
+            .lines()
+            .next()
+            .unwrap_or("Manual Project Memory")
+            .trim();
         let title_truncated = if title.len() > 50 {
             format!("{}...", &title[..47])
         } else {
@@ -390,11 +437,11 @@ impl MemoryManager {
         self.project_memories.clear();
         self.global_store.memories.clear();
         self.project_store.memories.clear();
-        
+
         let mut cmd = Command::new("uv");
         cmd.arg("run")
-           .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
-           .arg("clear");
+            .arg("/home/notroot/Work/llama-manager/chroma_memory.py")
+            .arg("clear");
         let _ = cmd.output();
     }
 }
@@ -455,8 +502,7 @@ impl McpRegistry {
         let path = base_dir.join("mcp_tools.json");
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, content)
-            .map_err(|e| format!("IO Error: {}", e))?;
+        std::fs::write(path, content).map_err(|e| format!("IO Error: {}", e))?;
         Ok(())
     }
 
@@ -465,12 +511,18 @@ impl McpRegistry {
         name: &str,
         arguments: &HashMap<String, String>,
     ) -> Result<String, String> {
-        let tool = self.tools.iter().find(|t| t.name == name)
+        let tool = self
+            .tools
+            .iter()
+            .find(|t| t.name == name)
             .ok_or_else(|| format!("Tool '{}' not found in registry", name))?;
 
         match tool.tool_type {
             McpType::Local => {
-                let cmd_str = tool.command.as_ref().ok_or_else(|| "Local tool has no command configured".to_string())?;
+                let cmd_str = tool
+                    .command
+                    .as_ref()
+                    .ok_or_else(|| "Local tool has no command configured".to_string())?;
                 let mut cmd = Command::new(cmd_str);
 
                 if let Some(ref raw_args) = tool.args {
@@ -483,18 +535,28 @@ impl McpRegistry {
                     }
                 }
 
-                let output = cmd.output().map_err(|e| format!("Failed to spawn local command: {}", e))?;
+                let output = cmd
+                    .output()
+                    .map_err(|e| format!("Failed to spawn local command: {}", e))?;
                 let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
                 let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
 
                 if output.status.success() {
                     Ok(stdout)
                 } else {
-                    Err(format!("Command exited with status code: {:?}\nStdout: {}\nStderr: {}", output.status.code(), stdout, stderr))
+                    Err(format!(
+                        "Command exited with status code: {:?}\nStdout: {}\nStderr: {}",
+                        output.status.code(),
+                        stdout,
+                        stderr
+                    ))
                 }
             }
             McpType::Remote => {
-                let raw_url = tool.url.as_ref().ok_or_else(|| "Remote tool has no URL configured".to_string())?;
+                let raw_url = tool
+                    .url
+                    .as_ref()
+                    .ok_or_else(|| "Remote tool has no URL configured".to_string())?;
                 let mut url = raw_url.clone();
                 for (k, v) in arguments {
                     url = url.replace(&format!("{{{{{}}}}}", k), v);
@@ -504,7 +566,9 @@ impl McpRegistry {
                 if tool.ssl_verify_off {
                     client_builder = client_builder.danger_accept_invalid_certs(true);
                 }
-                let client = client_builder.build().map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+                let client = client_builder
+                    .build()
+                    .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
                 let mut request = client.post(&url);
                 if let Some(ref headers) = tool.headers {
@@ -516,8 +580,14 @@ impl McpRegistry {
                 // Send arguments as JSON payload
                 request = request.json(arguments);
 
-                let response = request.send().await.map_err(|e| format!("HTTP request failed: {}", e))?;
-                let text = response.text().await.map_err(|e| format!("Failed to read HTTP body: {}", e))?;
+                let response = request
+                    .send()
+                    .await
+                    .map_err(|e| format!("HTTP request failed: {}", e))?;
+                let text = response
+                    .text()
+                    .await
+                    .map_err(|e| format!("Failed to read HTTP body: {}", e))?;
                 Ok(text)
             }
         }
@@ -532,7 +602,11 @@ impl WebBrowserLayer {
     pub async fn search(query: &str, searxng_url: Option<&str>) -> Result<String, String> {
         // Try SearXNG if provided, otherwise fallback to DuckDuckGo html search
         if let Some(s_url) = searxng_url {
-            let url = format!("{}/search?q={}&format=json", s_url, urlencoding::encode(query));
+            let url = format!(
+                "{}/search?q={}&format=json",
+                s_url,
+                urlencoding::encode(query)
+            );
             let client = reqwest::Client::new();
             if let Ok(res) = client.get(&url).send().await {
                 if let Ok(json) = res.json::<serde_json::Value>().await {
@@ -542,7 +616,13 @@ impl WebBrowserLayer {
                             let title = r.get("title").and_then(|t| t.as_str()).unwrap_or("");
                             let link = r.get("url").and_then(|u| u.as_str()).unwrap_or("");
                             let content = r.get("content").and_then(|c| c.as_str()).unwrap_or("");
-                            summary.push_str(&format!("{}. [{}]({})\n   {}\n\n", i + 1, title, link, content));
+                            summary.push_str(&format!(
+                                "{}. [{}]({})\n   {}\n\n",
+                                i + 1,
+                                title,
+                                link,
+                                content
+                            ));
                         }
                     }
                     if !summary.is_empty() {
@@ -553,7 +633,10 @@ impl WebBrowserLayer {
         }
 
         // DuckDuckGo fallback
-        let ddg_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
+        let ddg_url = format!(
+            "https://html.duckduckgo.com/html/?q={}",
+            urlencoding::encode(query)
+        );
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
             .build()
@@ -574,7 +657,7 @@ impl WebBrowserLayer {
                             let raw_snippet = &html[sn_start..sn_start + snippet_end];
                             // Strip HTML tags from snippet
                             let snippet = Self::strip_html_tags(raw_snippet);
-                            
+
                             // Find corresponding title and link nearby (prior to snippet)
                             let slice_before = &html[cursor..idx];
                             let mut title = "Web Search Result".to_string();
@@ -593,7 +676,9 @@ impl WebBrowserLayer {
                                 if let Some(title_start) = t_slice.find('>') {
                                     let title_st = title_start + 1;
                                     if let Some(title_end) = t_slice[title_st..].find("</a>") {
-                                        title = Self::strip_html_tags(&t_slice[title_st..title_st + title_end]);
+                                        title = Self::strip_html_tags(
+                                            &t_slice[title_st..title_st + title_end],
+                                        );
                                     }
                                 }
                             }
@@ -612,7 +697,13 @@ impl WebBrowserLayer {
                 } else {
                     let mut summary = String::new();
                     for (i, (title, link, snippet)) in results.iter().enumerate() {
-                        summary.push_str(&format!("{}. [{}]({})\n   {}\n\n", i + 1, title, link, snippet));
+                        summary.push_str(&format!(
+                            "{}. [{}]({})\n   {}\n\n",
+                            i + 1,
+                            title,
+                            link,
+                            snippet
+                        ));
                     }
                     Ok(summary)
                 }
@@ -624,7 +715,10 @@ impl WebBrowserLayer {
     pub async fn scrape(url: &str) -> Result<String, String> {
         // Support browser-harness, camofox, cloakbrowser if present on command line
         // Otherwise fallback to HTTP reqwest with user agent
-        let has_harness = Command::new("browser-harness").arg("--help").output().is_ok();
+        let has_harness = Command::new("browser-harness")
+            .arg("--help")
+            .output()
+            .is_ok();
         let has_camofox = Command::new("camofox").arg("--help").output().is_ok();
 
         if has_harness {
@@ -667,10 +761,13 @@ impl WebBrowserLayer {
                     .filter(|l| !l.is_empty())
                     .collect::<Vec<&str>>()
                     .join("\n");
-                
+
                 // Truncate to avoid blowing up context window
                 if clean_text.len() > 10000 {
-                    Ok(format!("{}... [Truncated for brevity]", &clean_text[..10000]))
+                    Ok(format!(
+                        "{}... [Truncated for brevity]",
+                        &clean_text[..10000]
+                    ))
                 } else {
                     Ok(clean_text)
                 }
@@ -684,7 +781,7 @@ impl WebBrowserLayer {
         let mut in_tag = false;
         let mut in_script_style = false;
         let mut current_tag = String::new();
-        
+
         let chars: Vec<char> = html.chars().collect();
         let mut i = 0;
         while i < chars.len() {
@@ -750,7 +847,11 @@ pub async fn run_agent_task(
     let monitor_path = crate::get_default_config_path().join("agent_activities.json");
     {
         let mut monitor_state = crate::planner::MonitorState::load(monitor_path.clone());
-        monitor_state.add_event(model, &format!("Started task: {}", task_prompt), monitor_path.clone());
+        monitor_state.add_event(
+            model,
+            &format!("Started task: {}", task_prompt),
+            monitor_path.clone(),
+        );
     }
 
     // Assemble memory block
@@ -775,27 +876,62 @@ pub async fn run_agent_task(
     }
 
     // Load TODO list items and inject into system prompt
-    let project_todos = TodoList::load_project(memory_manager.project_dir.parent().unwrap().to_path_buf());
+    let project_todos =
+        TodoList::load_project(memory_manager.project_dir.parent().unwrap().to_path_buf());
     let global_todos = TodoList::load_global();
-    
+
     let mut todos_context = String::new();
     todos_context.push_str("\nActive Todo Items:\n");
     todos_context.push_str("Global Todos:\n");
-    for item in global_todos.items.iter().filter(|i| i.status == TodoStatus::Pending) {
-        todos_context.push_str(&format!("  - [{}] (ID: {}): {}\n", item.scope, item.id, item.text));
+    for item in global_todos
+        .items
+        .iter()
+        .filter(|i| i.status == TodoStatus::Pending)
+    {
+        todos_context.push_str(&format!(
+            "  - [{}] (ID: {}): {}\n",
+            item.scope, item.id, item.text
+        ));
     }
     todos_context.push_str("Project Todos:\n");
-    for item in project_todos.items.iter().filter(|i| i.status == TodoStatus::Pending) {
-        todos_context.push_str(&format!("  - [{}] (ID: {}): {}\n", item.scope, item.id, item.text));
+    for item in project_todos
+        .items
+        .iter()
+        .filter(|i| i.status == TodoStatus::Pending)
+    {
+        todos_context.push_str(&format!(
+            "  - [{}] (ID: {}): {}\n",
+            item.scope, item.id, item.text
+        ));
     }
 
     // Load Quick Notes and inject into system prompt
-    let project_notes = notes::load_notes("project", memory_manager.project_dir.parent().unwrap().to_path_buf());
-    let global_notes = notes::load_notes("global", memory_manager.project_dir.parent().unwrap().to_path_buf());
+    let project_notes = notes::load_notes(
+        "project",
+        memory_manager.project_dir.parent().unwrap().to_path_buf(),
+    );
+    let global_notes = notes::load_notes(
+        "global",
+        memory_manager.project_dir.parent().unwrap().to_path_buf(),
+    );
     let mut notes_context = String::new();
     notes_context.push_str("\nQuick Notes:\n");
-    notes_context.push_str(&format!("Global Notes: {}\n", if global_notes.is_empty() { "(empty)".to_string() } else { global_notes }));
-    notes_context.push_str(&format!("Project Notes: {}\n", if project_notes.is_empty() { "(empty)".to_string() } else { project_notes }));
+    notes_context.push_str(&format!(
+        "Global Notes: {}\n",
+        if global_notes.is_empty() {
+            "(empty)".to_string()
+        } else {
+            global_notes
+        }
+    ));
+    notes_context.push_str(&format!(
+        "Project Notes: {}\n",
+        if project_notes.is_empty() {
+            "(empty)".to_string()
+        } else {
+            project_notes
+        }
+    ));
 
     // Assemble tool block
     let mut tools_context = String::new();
@@ -803,9 +939,12 @@ pub async fn run_agent_task(
     tools_context.push_str("1. web_search(query): Query search engines for web pages.\n");
     tools_context.push_str("2. web_scrape(url): Extract textual data from a URL.\n");
     tools_context.push_str("3. spawn_subagent(prompt): Spawn a subagent to focus on a particular subtask asynchronously.\n");
-    tools_context.push_str("4. add_todo(text, scope): Create a todo entry (scope can be 'project' or 'global').\n");
+    tools_context.push_str(
+        "4. add_todo(text, scope): Create a todo entry (scope can be 'project' or 'global').\n",
+    );
     tools_context.push_str("5. complete_todo(id, scope): Mark a todo entry as completed (scope can be 'project' or 'global').\n");
-    tools_context.push_str("6. read_notes(scope): Read quick notes (scope can be 'project' or 'global').\n");
+    tools_context
+        .push_str("6. read_notes(scope): Read quick notes (scope can be 'project' or 'global').\n");
     tools_context.push_str("7. update_notes(content, scope): Update/write quick notes (scope can be 'project' or 'global').\n");
     tools_context.push_str("8. add_calendar_event(title, time, prompt): Schedule calendar event (time format YYYY-MM-DDTHH:MM:SS).\n");
     tools_context.push_str("9. list_calendar_events(): List scheduled calendar events.\n");
@@ -851,20 +990,27 @@ pub async fn run_agent_task(
             "temperature": 0.2,
         });
 
-        let res = client.post(&llm_url)
+        let res = client
+            .post(&llm_url)
             .json(&payload)
             .send()
             .await
             .map_err(|e| format!("Error contacting model server: {}", e))?;
 
         if !res.status().is_success() {
-            return Err(format!("Model server returned error status: {}", res.status()));
+            return Err(format!(
+                "Model server returned error status: {}",
+                res.status()
+            ));
         }
 
-        let resp_json = res.json::<ChatResponse>().await
+        let resp_json = res
+            .json::<ChatResponse>()
+            .await
             .map_err(|e| format!("Failed to parse model response: {}", e))?;
 
-        let assistant_msg = resp_json.choices
+        let assistant_msg = resp_json
+            .choices
             .and_then(|c| c.first().cloned())
             .and_then(|c| c.message)
             .and_then(|m| m.content)
@@ -881,10 +1027,19 @@ pub async fn run_agent_task(
                     let full_arg_start = name_end + arg_start + 1;
                     if let Some(tag_end) = inner_slice[full_arg_start..].find("</tool_call>") {
                         let args_str = &inner_slice[full_arg_start..full_arg_start + tag_end];
-                        logs.push(format!("Executing Tool: {} with arguments: {}", tool_name, args_str.trim()));
+                        logs.push(format!(
+                            "Executing Tool: {} with arguments: {}",
+                            tool_name,
+                            args_str.trim()
+                        ));
                         {
-                            let mut monitor_state = crate::planner::MonitorState::load(monitor_path.clone());
-                            monitor_state.add_event(model, &format!("Executing Tool: {}", tool_name), monitor_path.clone());
+                            let mut monitor_state =
+                                crate::planner::MonitorState::load(monitor_path.clone());
+                            monitor_state.add_event(
+                                model,
+                                &format!("Executing Tool: {}", tool_name),
+                                monitor_path.clone(),
+                            );
                         }
 
                         // Try to parse arguments map
@@ -913,36 +1068,80 @@ pub async fn run_agent_task(
                             }
                             "add_todo" => {
                                 let text = arguments.get("text").cloned().unwrap_or_default();
-                                let scope_str = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                let scope = if scope_str == "global" { TodoScope::Global } else { TodoScope::Project };
+                                let scope_str = arguments
+                                    .get("scope")
+                                    .cloned()
+                                    .unwrap_or_else(|| "project".to_string());
+                                let scope = if scope_str == "global" {
+                                    TodoScope::Global
+                                } else {
+                                    TodoScope::Project
+                                };
                                 let now = chrono::Local::now().to_rfc3339();
-                                let id = format!("todo-{}", chrono::Local::now().timestamp_millis());
-                                let entry = TodoEntry { id: id.clone(), text, scope, status: TodoStatus::Pending, created_at: now };
-                                match TodoList::add_todo(entry, memory_manager.project_dir.parent().unwrap().to_path_buf()) {
+                                let id =
+                                    format!("todo-{}", chrono::Local::now().timestamp_millis());
+                                let entry = TodoEntry {
+                                    id: id.clone(),
+                                    text,
+                                    scope,
+                                    status: TodoStatus::Pending,
+                                    created_at: now,
+                                };
+                                match TodoList::add_todo(
+                                    entry,
+                                    memory_manager.project_dir.parent().unwrap().to_path_buf(),
+                                ) {
                                     Ok(_) => Ok(format!("Added todo item with ID: {}", id)),
                                     Err(e) => Err(format!("Failed to add todo: {}", e)),
                                 }
                             }
                             "complete_todo" => {
                                 let id = arguments.get("id").cloned().unwrap_or_default();
-                                let scope_str = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                let scope = if scope_str == "global" { TodoScope::Global } else { TodoScope::Project };
-                                match TodoList::complete_todo(&id, scope, memory_manager.project_dir.parent().unwrap().to_path_buf()) {
+                                let scope_str = arguments
+                                    .get("scope")
+                                    .cloned()
+                                    .unwrap_or_else(|| "project".to_string());
+                                let scope = if scope_str == "global" {
+                                    TodoScope::Global
+                                } else {
+                                    TodoScope::Project
+                                };
+                                match TodoList::complete_todo(
+                                    &id,
+                                    scope,
+                                    memory_manager.project_dir.parent().unwrap().to_path_buf(),
+                                ) {
                                     Ok(_) => Ok(format!("Completed todo: {}", id)),
                                     Err(e) => Err(format!("Failed to complete todo: {}", e)),
                                 }
                             }
                             "read_notes" => {
-                                let scope = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                let n = notes::load_notes(&scope, memory_manager.project_dir.parent().unwrap().to_path_buf());
+                                let scope = arguments
+                                    .get("scope")
+                                    .cloned()
+                                    .unwrap_or_else(|| "project".to_string());
+                                let n = notes::load_notes(
+                                    &scope,
+                                    memory_manager.project_dir.parent().unwrap().to_path_buf(),
+                                );
                                 Ok(format!("Notes (scope: {}):\n{}", scope, n))
                             }
                             "update_notes" => {
                                 let content = arguments.get("content").cloned().unwrap_or_default();
-                                let scope = arguments.get("scope").cloned().unwrap_or_else(|| "project".to_string());
-                                match notes::save_notes(&scope, &content, memory_manager.project_dir.parent().unwrap().to_path_buf()) {
-                                    Ok(_) => Ok(format!("Successfully updated notes for scope: {}", scope)),
-                                    Err(e) => Err(format!("Failed to save notes: {}", e))
+                                let scope = arguments
+                                    .get("scope")
+                                    .cloned()
+                                    .unwrap_or_else(|| "project".to_string());
+                                match notes::save_notes(
+                                    &scope,
+                                    &content,
+                                    memory_manager.project_dir.parent().unwrap().to_path_buf(),
+                                ) {
+                                    Ok(_) => Ok(format!(
+                                        "Successfully updated notes for scope: {}",
+                                        scope
+                                    )),
+                                    Err(e) => Err(format!("Failed to save notes: {}", e)),
                                 }
                             }
                             "add_calendar_event" => {
@@ -967,20 +1166,33 @@ pub async fn run_agent_task(
                                 let state = CalendarState::load();
                                 let mut res_str = String::from("Scheduled Calendar Events:\n");
                                 for ev in &state.events {
-                                    res_str.push_str(&format!("- [{}] (ID: {}): {} at {}, prompt: '{}'\n", 
-                                        ev.status, ev.id, ev.title, ev.time, ev.prompt));
+                                    res_str.push_str(&format!(
+                                        "- [{}] (ID: {}): {} at {}, prompt: '{}'\n",
+                                        ev.status, ev.id, ev.title, ev.time, ev.prompt
+                                    ));
                                 }
                                 Ok(res_str)
                             }
                             "spawn_subagent" => {
-                                let sub_prompt = arguments.get("prompt").cloned().unwrap_or_default();
-                                logs.push(format!("[Subagent] Spawning subagent for subtask: {}", sub_prompt));
+                                let sub_prompt =
+                                    arguments.get("prompt").cloned().unwrap_or_default();
+                                logs.push(format!(
+                                    "[Subagent] Spawning subagent for subtask: {}",
+                                    sub_prompt
+                                ));
                                 {
-                                    let mut monitor_state = crate::planner::MonitorState::load(monitor_path.clone());
-                                    monitor_state.add_event(model, &format!("Spawning subagent: {}", sub_prompt), monitor_path.clone());
+                                    let mut monitor_state =
+                                        crate::planner::MonitorState::load(monitor_path.clone());
+                                    monitor_state.add_event(
+                                        model,
+                                        &format!("Spawning subagent: {}", sub_prompt),
+                                        monitor_path.clone(),
+                                    );
                                 }
                                 // Subagents run recursively with same model and host, but step limit is lower
-                                let mut box_memory = MemoryManager::new(memory_manager.global_dir.parent().unwrap().to_path_buf());
+                                let mut box_memory = MemoryManager::new(
+                                    memory_manager.global_dir.parent().unwrap().to_path_buf(),
+                                );
                                 match Box::pin(run_agent_task(
                                     host,
                                     port,
@@ -989,24 +1201,34 @@ pub async fn run_agent_task(
                                     mcp_registry,
                                     &mut box_memory,
                                     searxng_url.clone(),
-                                )).await {
+                                ))
+                                .await
+                                {
                                     Ok(sub_resp) => {
                                         for log in sub_resp.logs {
                                             logs.push(format!("[Subagent Log] {}", log));
                                         }
-                                        Ok(format!("Subagent completed successfully. Output: {}", sub_resp.text))
+                                        Ok(format!(
+                                            "Subagent completed successfully. Output: {}",
+                                            sub_resp.text
+                                        ))
                                     }
                                     Err(e) => Err(format!("Subagent failed: {}", e)),
                                 }
                             }
-                            _ => {
-                                mcp_registry.execute_tool(tool_name, &arguments).await
-                            }
+                            _ => mcp_registry.execute_tool(tool_name, &arguments).await,
                         };
 
                         let tool_result_str = match execution_result {
                             Ok(res) => {
-                                logs.push(format!("Tool execution success: {}", if res.len() > 120 { format!("{}...", &res[..120]) } else { res.clone() }));
+                                logs.push(format!(
+                                    "Tool execution success: {}",
+                                    if res.len() > 120 {
+                                        format!("{}...", &res[..120])
+                                    } else {
+                                        res.clone()
+                                    }
+                                ));
                                 format!("Tool execution result:\n{}", res)
                             }
                             Err(e) => {
@@ -1064,13 +1286,15 @@ pub async fn run_agent_task(
     if let Ok(res) = client.post(&llm_url).json(&reflection_payload).send().await {
         if res.status().is_success() {
             if let Ok(resp_json) = res.json::<ChatResponse>().await {
-                if let Some(content) = resp_json.choices
+                if let Some(content) = resp_json
+                    .choices
                     .and_then(|c| c.first().cloned())
                     .and_then(|c| c.message)
                     .and_then(|m| m.content)
                 {
                     // Clean content from JSON markers if LLM uses markdown blocks
-                    let json_str = content.trim()
+                    let json_str = content
+                        .trim()
                         .trim_start_matches("```json")
                         .trim_start_matches("```")
                         .trim_end_matches("```")
@@ -1100,7 +1324,10 @@ pub async fn run_agent_task(
     }
 
     // Save interaction to ChromaDB so the agent learns/remembers
-    let interaction_summary = format!("User task prompt: {}\nAgent response: {}", task_prompt, final_response);
+    let interaction_summary = format!(
+        "User task prompt: {}\nAgent response: {}",
+        task_prompt, final_response
+    );
     let _ = save_chroma_memory(&interaction_summary, "project");
 
     {

@@ -59,7 +59,8 @@ impl PlannerState {
         default_state.tasks.push(KanbanTask {
             id: "task-2".to_string(),
             title: "Internet Research on Hermes-Agent".to_string(),
-            summary: "Search repositories and documentation for core implementation examples".to_string(),
+            summary: "Search repositories and documentation for core implementation examples"
+                .to_string(),
             assigned_agent: "WebResearcher".to_string(),
             status: TaskStatus::InProgress,
             priority: "Medium".to_string(),
@@ -72,8 +73,7 @@ impl PlannerState {
     pub fn save(&self, path: PathBuf) -> Result<(), String> {
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, content)
-            .map_err(|e| format!("IO error: {}", e))?;
+        std::fs::write(path, content).map_err(|e| format!("IO error: {}", e))?;
         Ok(())
     }
 }
@@ -141,8 +141,7 @@ impl MonitorState {
     pub fn save(&self, path: PathBuf) -> Result<(), String> {
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| format!("Serialization error: {}", e))?;
-        std::fs::write(path, content)
-            .map_err(|e| format!("IO error: {}", e))?;
+        std::fs::write(path, content).map_err(|e| format!("IO error: {}", e))?;
         Ok(())
     }
 
