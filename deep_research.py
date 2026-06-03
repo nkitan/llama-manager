@@ -12,6 +12,7 @@ import urllib.parse
 import argparse
 import datetime
 import re
+import hashlib
 import requests
 from bs4 import BeautifulSoup
 
@@ -20,8 +21,11 @@ def log_progress(log_file, message):
     formatted = f"[{timestamp}] {message}"
     print(formatted)
     if log_file:
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(formatted + "\n")
+        try:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(formatted + "\n")
+        except Exception as e:
+            print(f"Error writing to log file: {e}", file=sys.stderr)
 
 def call_llm(host, port, model, system_prompt, user_prompt, temperature=0.2):
     url = f"http://{host}:{port}/v1/chat/completions"
@@ -42,8 +46,7 @@ def call_llm(host, port, model, system_prompt, user_prompt, temperature=0.2):
         print(f"Error calling LLM at {url}: {e}", file=sys.stderr)
         return ""
 
-def search_duckduckgo(query, limit=5):
-    # Search DuckDuckGo HTML search page
+def search_duckduckgo(query, limit=4):
     url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -55,7 +58,6 @@ def search_duckduckgo(query, limit=5):
         soup = BeautifulSoup(res.text, "html.parser")
         for a in soup.find_all("a", class_="result__url"):
             href = a.get("href", "")
-            # ddg links are sometimes wrapped in /l/?kh=...&uddg=URL
             parsed = urllib.parse.urlparse(href)
             target_url = href
             if parsed.path == "/l/":
@@ -63,7 +65,6 @@ def search_duckduckgo(query, limit=5):
                 if "uddg" in qs:
                     target_url = qs["uddg"][0]
             
-            # Find snippet and title
             title = ""
             snippet = ""
             parent = a.find_parent("div", class_="links_main")
@@ -96,65 +97,45 @@ def scrape_url(url):
         res.raise_for_status()
         soup = BeautifulSoup(res.text, "html.parser")
         
-        # Remove scripts, styles, nav elements
         for elem in soup(["script", "style", "nav", "footer", "header"]):
             elem.extract()
             
         text = soup.get_text(separator=" ")
-        # Clean text
         text = re.sub(r'\s+', ' ', text).strip()
         
-        # Truncate
-        if len(text) > 8000:
-            text = text[:8000] + "... [truncated]"
+        # Limit scraped text length to prevent context bloat but capture enough details
+        if len(text) > 12000:
+            text = text[:12000] + "... [truncated]"
         return text
     except Exception as e:
         return f"Failed to scrape: {e}"
 
-def generate_sub_queries(query, host, port, model, log_file):
-    system_prompt = "You are a research query planner. Output only a JSON array of 3 distinct, search-friendly queries related to the topic."
-    user_prompt = f"Topic to research: '{query}'\nGenerate 3 search engine queries to gather a broad base of information. Output as a JSON array of strings: [\"q1\", \"q2\", \"q3\"]."
-    
-    log_progress(log_file, "Planning research queries...")
-    response = call_llm(host, port, model, system_prompt, user_prompt)
-    
-    # Try parsing JSON
-    try:
-        # Clean JSON markdown fences
-        clean = response.strip().strip("`").strip()
-        if clean.startswith("json"):
-            clean = clean[4:].strip()
-        queries = json.loads(clean)
-        if isinstance(queries, list):
-            return queries[:3]
-    except Exception:
-        pass
-        
-    # Fallback to regex split or simple queries
-    queries = [f"{query} overview", f"{query} details", f"{query} latest news"]
-    return queries
+class TaskNode:
+    def __init__(self, task_id, query, dependencies=None):
+        self.id = task_id
+        self.query = query
+        self.dependencies = dependencies or []
+        self.status = "pending"  # pending, running, completed, failed
+        self.results = []
 
-def generate_depth_queries(query, gathered_notes, host, port, model, log_file):
-    system_prompt = "You are an analytical researcher. Based on the notes gathered so far, generate 2 specific follow-up search queries to deep-dive into unanswered questions or verify facts."
-    user_prompt = f"Research Topic: {query}\n\nGathered Notes:\n{gathered_notes}\n\nOutput exactly a JSON array of 2 follow-up search queries: [\"q1\", \"q2\"]."
-    
-    log_progress(log_file, "Synthesizing phase 1 and planning deep-dive queries...")
-    response = call_llm(host, port, model, system_prompt, user_prompt)
-    
+def parse_json_safely(text):
     try:
-        clean = response.strip().strip("`").strip()
+        clean = text.strip().strip("`").strip()
         if clean.startswith("json"):
             clean = clean[4:].strip()
-        queries = json.loads(clean)
-        if isinstance(queries, list):
-            return queries[:2]
+        return json.loads(clean)
     except Exception:
-        pass
-        
-    return [f"{query} specifications", f"{query} analysis"]
+        # Simple fallback parsing using regex
+        try:
+            m = re.search(r'\[\s*".*?"\s*\]', text, re.DOTALL)
+            if m:
+                return json.loads(m.group(0))
+        except Exception:
+            pass
+        return None
 
 def main():
-    parser = argparse.ArgumentParser(description="Multi-step Deep Research Agent")
+    parser = argparse.ArgumentParser(description="Systems-Grade Deep Research Engine")
     parser.add_argument("--query", required=True, help="Research query")
     parser.add_argument("--host", default="127.0.0.1", help="Llama server host")
     parser.add_argument("--port", type=int, default=8080, help="Llama server port")
@@ -164,95 +145,218 @@ def main():
     
     args = parser.parse_args()
     
-    # Clear log file
     if args.log_file:
-        with open(args.log_file, "w", encoding="utf-8") as f:
-            f.write("")
+        try:
+            with open(args.log_file, "w", encoding="utf-8") as f:
+                f.write("")
+        except Exception:
+            pass
             
-    log_progress(args.log_file, f"Starting Deep Research: '{args.query}'")
+    log_progress(args.log_file, "🚀 Dynamic Deep Orchestration initialized.")
+    log_progress(args.log_file, f"Query Target: '{args.query}'")
     
-    # Phase 1: Breadth Search Planning
-    queries = generate_sub_queries(args.query, args.host, args.port, args.model, args.log_file)
-    log_progress(args.log_file, f"Phase 1 sub-queries: {queries}")
+    # ── 1. External Knowledge Buffer Setup ──────────────────────────────────
+    output_dir = os.path.dirname(args.output)
+    buffer_dir = os.path.join(output_dir, "knowledge_buffer")
+    os.makedirs(buffer_dir, exist_ok=True)
+    log_progress(args.log_file, f"📁 External Knowledge Buffer linked at: {buffer_dir}")
     
-    sources = []
-    scraped_content = {}
-    
-    # Search and Crawl Phase 1
-    for q in queries:
-        log_progress(args.log_file, f"Searching for: '{q}'")
-        search_results = search_duckduckgo(q, limit=3)
-        for r in search_results:
-            url = r["url"]
-            if url not in scraped_content:
-                log_progress(args.log_file, f"Found source: {r['title']} ({url})")
-                sources.append(r)
-                log_progress(args.log_file, f"Scraping text from: {url}")
-                text = scrape_url(url)
-                scraped_content[url] = {
-                    "title": r["title"],
-                    "content": text
-                }
-                
-    # Phase 1 Synthesis
-    notes_summary = ""
-    for url, info in scraped_content.items():
-        notes_summary += f"Source: {info['title']} ({url})\nContent excerpt: {info['content'][:800]}\n\n"
-        
-    # Phase 2: Depth Search Planning
-    depth_queries = generate_depth_queries(args.query, notes_summary[:6000], args.host, args.port, args.model, args.log_file)
-    log_progress(args.log_file, f"Phase 2 deep-dive queries: {depth_queries}")
-    
-    # Search and Crawl Phase 2
-    for q in depth_queries:
-        log_progress(args.log_file, f"Deep-dive searching for: '{q}'")
-        search_results = search_duckduckgo(q, limit=2)
-        for r in search_results:
-            url = r["url"]
-            if url not in scraped_content:
-                log_progress(args.log_file, f"Found deep source: {r['title']} ({url})")
-                sources.append(r)
-                log_progress(args.log_file, f"Scraping text from: {url}")
-                text = scrape_url(url)
-                scraped_content[url] = {
-                    "title": r["title"],
-                    "content": text
-                }
-                
-    # Compile All Context
-    full_context = "RESEARCH SOURCES AND EXTRACTS:\n\n"
-    for i, (url, info) in enumerate(scraped_content.items(), 1):
-        full_context += f"[{i}] Title: {info['title']}\nURL: {url}\nContent:\n{info['content']}\n\n---\n\n"
-        
-    log_progress(args.log_file, "Synthesizing final research report...")
-    
-    system_prompt = (
-        "You are an Elite Research Scientist. Synthesize all provided source extracts into a comprehensive, "
-        "highly informative visual Markdown report.\n"
-        "Requirements:\n"
-        "1. Write clear, analytical sections with a logical flow.\n"
-        "2. Add a comparison table or structured matrix comparing key elements.\n"
-        "3. Provide a Mermaid diagram depicting the workflow, system design, or relationship map.\n"
-        "4. Quote sources and provide inline citations referencing the sources.\n"
-        "5. Output ONLY the markdown content of the report without any extra talking."
+    # ── 2. Task DAG Construction ─────────────────────────────────────────────
+    log_progress(args.log_file, "🕸️ Designing Dynamic Task Dependency Graph (DAG)...")
+    planner_prompt = (
+        "You are an Elite Research Architect. Decompose the research topic into a Directed Acyclic Graph (DAG) "
+        "of 3 distinct search-oriented sub-tasks. Each task must have a unique ID, a specific search query, "
+        "and list any dependencies on other task IDs. Output ONLY a valid JSON object in this format:\n"
+        "{\n"
+        "  \"tasks\": [\n"
+        "    {\"id\": \"t1\", \"query\": \"query matching first subtopic\", \"dependencies\": []},\n"
+        "    {\"id\": \"t2\", \"query\": \"query matching second subtopic\", \"dependencies\": [\"t1\"]},\n"
+        "    {\"id\": \"t3\", \"query\": \"query matching third subtopic\", \"dependencies\": []}\n"
+        "  ]\n"
+        "}"
     )
+    user_prompt = f"Topic to research: '{args.query}'\nGenerate the research task DAG:"
     
-    user_prompt = f"Research Query: {args.query}\n\n{full_context}\n\nWrite the final visual research report now:"
+    planner_res = call_llm(args.host, args.port, args.model, planner_prompt, user_prompt)
+    dag_json = parse_json_safely(planner_res)
     
-    report = call_llm(args.host, args.port, args.model, system_prompt, user_prompt, temperature=0.3)
+    tasks = {}
+    if dag_json and "tasks" in dag_json:
+        for t_data in dag_json["tasks"]:
+            t_id = t_data.get("id")
+            query = t_data.get("query")
+            deps = t_data.get("dependencies", [])
+            tasks[t_id] = TaskNode(t_id, query, deps)
+            log_progress(args.log_file, f"  └─ Task [{t_id}]: '{query}' (dependencies: {deps})")
+    else:
+        # Fallback DAG
+        tasks["t1"] = TaskNode("t1", f"{args.query} core concepts", [])
+        tasks["t2"] = TaskNode("t2", f"{args.query} architecture and components", ["t1"])
+        tasks["t3"] = TaskNode("t3", f"{args.query} industry applications case studies", [])
+        log_progress(args.log_file, "  └─ [Fallback DAG loaded due to parser layout mismatch]")
+
+    # ── 3. DAG Execution Loop with Dynamic Rewiring ──────────────────────────
+    executed_count = 0
+    scraped_sources = []
+    scraped_urls = set()
     
-    # Append sources section if not already present
-    if "References" not in report and "Sources" not in report:
-        report += "\n\n## Sources and References\n"
-        for i, s in enumerate(sources, 1):
-            report += f"- [{i}] [{s['title']}]({s['url']}) - {s['snippet']}\n"
+    while any(t.status == "pending" for t in tasks.values()) and executed_count < 10:
+        # Find tasks that have all dependencies met
+        runnable = []
+        for t_id, task in tasks.items():
+            if task.status == "pending":
+                deps_met = all(tasks[dep].status == "completed" for dep in task.dependencies if dep in tasks)
+                if deps_met:
+                    runnable.append(task)
+                    
+        if not runnable:
+            # Break deadlocks
+            for t_id, task in tasks.items():
+                if task.status == "pending":
+                    runnable.append(task)
+                    break
+                    
+        for task in runnable:
+            task.status = "running"
+            log_progress(args.log_file, f"🔍 Executing Task [{task.id}]: '{task.query}'")
+            
+            # Execute search
+            search_results = search_duckduckgo(task.query, limit=3)
+            if not search_results:
+                log_progress(args.log_file, f"⚠️ No search results for Task [{task.id}]. Rewiring graph...")
+                task.status = "failed"
+                # Dynamic Rewiring: Spin up a broader replacement task
+                new_id = f"t_rewire_{len(tasks) + 1}"
+                broader_query = f"{task.query} alternative terms"
+                tasks[new_id] = TaskNode(new_id, broader_query, [])
+                log_progress(args.log_file, f"  └─ Added broad fallback Task [{new_id}]: '{broader_query}'")
+                continue
+                
+            task_files = []
+            for r in search_results:
+                url = r["url"]
+                if url in scraped_urls:
+                    continue
+                scraped_urls.add(url)
+                
+                log_progress(args.log_file, f"📥 Fetching & Scrapesing: {r['title']} ({url})")
+                text_content = scrape_url(url)
+                
+                # External Knowledge Buffering: stream scraped content to disk
+                url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()[:8]
+                buf_filename = f"src_{task.id}_{url_hash}.txt"
+                buf_filepath = os.path.join(buffer_dir, buf_filename)
+                try:
+                    with open(buf_filepath, "w", encoding="utf-8") as bf:
+                        bf.write(f"TITLE: {r['title']}\nURL: {url}\nDATE: {datetime.date.today()}\n\n{text_content}")
+                    task_files.append(buf_filepath)
+                    scraped_sources.append({"title": r["title"], "url": url, "snippet": r["snippet"], "file": buf_filepath})
+                except Exception as e:
+                    log_progress(args.log_file, f"Error saving external buffer: {e}")
+                    
+            task.status = "completed"
+            task.results = task_files
+            executed_count += 1
+            
+            # Dynamic Graph Mutation Check
+            # Ask LLM if the gathered sources for this task reveal gaps requiring follow-up query
+            if task_files:
+                log_progress(args.log_file, f"🧬 Inspecting Task [{task.id}] knowledge density...")
+                source_excerpts = ""
+                for s in scraped_sources[-3:]:
+                    source_excerpts += f"Title: {s['title']}\nSnippet: {s['snippet']}\n\n"
+                    
+                gap_prompt = (
+                    "You are an Adversarial Audit Planner. Analyze the research query and current search results. "
+                    "Determine if there are crucial gaps, missing details, or conflicting facts that require an "
+                    "additional search task. If yes, output exactly a JSON object in this format:\n"
+                    "{\"gap_detected\": true, \"query\": \"the targeted follow-up query\", \"reason\": \"description of gap\"}\n"
+                    "If no gap exists or the data is sufficient, output: {\"gap_detected\": false}"
+                )
+                gap_user = f"Primary query: {args.query}\nSub-task query: {task.query}\nResults:\n{source_excerpts}"
+                gap_res = call_llm(args.host, args.port, args.model, gap_prompt, gap_user)
+                gap_json = parse_json_safely(gap_res)
+                
+                if gap_json and gap_json.get("gap_detected") and len(tasks) < 6:
+                    new_q = gap_json.get("query")
+                    new_id = f"t_gap_{len(tasks) + 1}"
+                    tasks[new_id] = TaskNode(new_id, new_q, [task.id])
+                    log_progress(args.log_file, f"  └─ Dynamic DAG Mutation: Spawning Task [{new_id}] due to gap: '{new_q}'")
+
+    log_progress(args.log_file, "✅ Task graph execution complete. Buffers filled.")
+
+    # ── 4. Proposer & Adversarial Auditor Loop ─────────────────────────────
+    log_progress(args.log_file, "🛡️ Initializing Proposer & Adversarial Auditor collaboration...")
+    
+    # Compile index and short summaries for context
+    buffer_summaries = ""
+    for idx, s in enumerate(scraped_sources, 1):
+        buffer_summaries += f"[{idx}] Title: {s['title']}\nURL: {s['url']}\nAbstract: {s['snippet']}\nLocal Buffer: {os.path.basename(s['file'])}\n\n"
+
+    # We split synthesis into steps to prevent context overflow and generate grounded drafts
+    log_progress(args.log_file, "✍️ Proposer generating initial draft...")
+    proposer_system = (
+        "You are an Elite Research Proposer. Write a highly detailed, comprehensive visual Markdown report "
+        "covering the research topic. Incorporate a logical section structure, comparison tables, and a Mermaid diagram. "
+        "Use the provided sources index and abstract summaries to ground your statements. Cite them as [idx]. "
+        "Do not invent facts or URLs. Output ONLY the raw Markdown report."
+    )
+    proposer_user = f"Research Query: {args.query}\n\nSource Summaries:\n{buffer_summaries}\n\nDraft report:"
+    draft = call_llm(args.host, args.port, args.model, proposer_system, proposer_user, temperature=0.3)
+    
+    # Audit Loop (Maximum 2 iterations of critique and refinement)
+    for iteration in range(1, 3):
+        log_progress(args.log_file, f"🔍 Adversarial Auditor auditing Draft (Iteration {iteration})...")
+        
+        # Read exact paragraphs from buffer to cross-check if needed, or ask the LLM to inspect grounding
+        auditor_system = (
+            "You are an Adversarial Auditor. Your job is to check the research draft for hallucinations, "
+            "unverified claims, fabricated citations, or weak source references. Compare the assertions in the draft "
+            "with the provided source summaries. Write a highly critical audit report detailing: "
+            "1. Specific claims that are not grounded in the sources. "
+            "2. Fabricated or suspicious citations. "
+            "3. Missing perspectives or weak URLs. "
+            "If the draft is grounded and accurate, write exactly: {\"approved\": true}. "
+            "Otherwise, output a JSON object: {\"approved\": false, \"critique\": \"your detailed critique here\"}"
+        )
+        auditor_user = f"Research Draft:\n{draft}\n\nSource Summaries:\n{buffer_summaries}\n\nAudit Results:"
+        audit_res = call_llm(args.host, args.port, args.model, auditor_system, auditor_user, temperature=0.1)
+        audit_json = parse_json_safely(audit_res)
+        
+        if audit_json and audit_json.get("approved"):
+            log_progress(args.log_file, "🛡️ Auditor status: APPROVED. No grounding errors detected.")
+            break
+        else:
+            critique = audit_json.get("critique") if audit_json else "General grounding check failed."
+            log_progress(args.log_file, f"❌ Auditor critique emitted: {critique}")
+            log_progress(args.log_file, "🔄 Proposer refining draft based on auditor critique...")
+            
+            refiner_system = (
+                "You are an Elite Research Proposer. Revise your research draft based on the Auditor's critique. "
+                "Remove any ungrounded assertions, verify your citations and URLs, and ensure absolute grounding "
+                "against the provided source summaries. Output ONLY the revised visual Markdown report."
+            )
+            refiner_user = f"Original Draft:\n{draft}\n\nAuditor Critique:\n{critique}\n\nSource Summaries:\n{buffer_summaries}\n\nRevised report:"
+            draft = call_llm(args.host, args.port, args.model, refiner_system, refiner_user, temperature=0.2)
+
+    # ── 5. Final Compilation & Synthesis ────────────────────────────────────
+    log_progress(args.log_file, "📝 Synthesizing final visual research report...")
+    
+    # Append sources section
+    if "References" not in draft and "Sources" not in draft:
+        draft += "\n\n## Sources and References\n"
+        for idx, s in enumerate(scraped_sources, 1):
+            draft += f"- [{idx}] [{s['title']}]({s['url']}) - {s['snippet']}\n"
             
     # Write to output file
-    with open(args.output, "w", encoding="utf-8") as f:
-        f.write(report)
-        
-    log_progress(args.log_file, "Deep Research completed successfully. Report saved.")
-    print("FINISHED")
+    try:
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(draft)
+        log_progress(args.log_file, "🎉 Deep Research completed successfully. Report saved.")
+        print("FINISHED")
+    except Exception as e:
+        log_progress(args.log_file, f"Error saving final report: {e}")
+        print("ERROR")
 
 if __name__ == "__main__":
     main()

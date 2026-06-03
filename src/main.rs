@@ -194,6 +194,8 @@ fn config_search_entries() -> Vec<ConfigSearchEntry> {
         ConfigSearchEntry { label: "Optimize Configs".into(), section: "Server".into(), tab: Tab::Server, target_id: "launch-optimizer-1".into() },
         ConfigSearchEntry { label: "Chat".into(), section: "Navigation".into(), tab: Tab::Chat, target_id: "".into() },
         ConfigSearchEntry { label: "Downloader".into(), section: "Navigation".into(), tab: Tab::Download, target_id: "".into() },
+        ConfigSearchEntry { label: "Window Transparency".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-ui-transparency".into() },
+        ConfigSearchEntry { label: "Background Tint".into(), section: "Advanced".into(), tab: Tab::Advanced, target_id: "form-ui-bg-color".into() },
     ]
 }
 
@@ -207,25 +209,25 @@ const CSS: &str = r#"
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-    --color-primary: #0f172a;
-    --color-primary-active: #1e293b;
-    --color-primary-disabled: #f1f5f9;
-    --color-ink: #0f172a;
-    --color-body: #334155;
+    --color-primary: #6366f1;
+    --color-primary-active: #4f46e5;
+    --color-primary-disabled: rgba(255, 255, 255, 0.08);
+    --color-ink: #f8fafc;
+    --color-body: #94a3b8;
     --color-muted: #64748b;
-    --color-muted-soft: #94a3b8;
-    --color-hairline: #e2e8f0;
-    --color-hairline-soft: #f8fafc;
-    --color-canvas: #f8fafc;
-    --color-surface-soft: #f8fafc;
-    --color-surface-card: #ffffff;
-    --color-surface-strong: #e2e8f0;
-    --color-surface-dark: #0f172a;
-    --color-surface-dark-elevated: #1e293b;
+    --color-muted-soft: #475569;
+    --color-hairline: rgba(255, 255, 255, 0.08);
+    --color-hairline-soft: rgba(255, 255, 255, 0.04);
+    --color-canvas: #0f172a;
+    --color-surface-soft: rgba(255, 255, 255, 0.03);
+    --color-surface-card: rgba(255, 255, 255, 0.02);
+    --color-surface-strong: rgba(255, 255, 255, 0.08);
+    --color-surface-dark: #090d16;
+    --color-surface-dark-elevated: #0f172a;
     --color-on-primary: #ffffff;
     --color-on-dark: #ffffff;
     --color-on-dark-soft: #94a3b8;
-    --color-brand-accent: #2563eb;
+    --color-brand-accent: #6366f1;
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
@@ -233,13 +235,17 @@ const CSS: &str = r#"
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: var(--color-canvas);
+    background: color-mix(in srgb, var(--ui-bg-color) calc((1 - var(--ui-transparency)) * 100%), transparent);
+    background-attachment: fixed;
     color: var(--color-body);
     overflow: hidden;
     height: 100vh;
 }
+html {
+    background: transparent;
+}
 
-.app { display: flex; flex-direction: column; height: 100vh; }
+.app { display: flex; flex-direction: column; height: 100vh; background: transparent; }
 
 /* ── Focus States ────────────────────────────────────────────────── */
 .btn:focus-visible,
@@ -248,7 +254,7 @@ body {
 .form-textarea:focus-visible,
 .sidebar-item:focus-visible,
 [role="button"]:focus-visible {
-    outline: 2px solid var(--color-primary);
+    outline: 2px solid var(--color-brand-accent);
     outline-offset: 2px;
 }
 
@@ -257,13 +263,17 @@ body {
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 12px;
     padding: 8px 16px;
-    background: #ffffff;
-    border-bottom: 1px solid var(--color-hairline);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(32px) saturate(190%);
+    -webkit-backdrop-filter: blur(32px) saturate(190%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     min-height: 52px;
+    z-index: 20;
 }
 .top-title {
     display: flex; align-items: center; gap: 8px;
-    font-size: 15px; font-weight: 600; letter-spacing: -0.02em;
+    font-size: 15px; font-weight: 700; letter-spacing: -0.02em;
     color: var(--color-ink);
 }
 .top-title span { font-size: 18px; }
@@ -278,16 +288,17 @@ body {
 .search-input {
     width: 100%; padding: 6px 10px;
     border: 1px solid var(--color-hairline);
-    border-radius: 4px;
-    background: var(--color-canvas);
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.6);
     color: var(--color-ink);
     font-size: 12.5px;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: all 0.2s;
     font-family: 'Inter', sans-serif;
 }
 .search-input:focus {
     border-color: var(--color-brand-accent);
-    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    background: rgba(15, 23, 42, 0.8);
     outline: none;
 }
 .search-results {
@@ -296,10 +307,12 @@ body {
     left: 0;
     width: 100%;
     max-height: 300px;
-    background: #ffffff;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid var(--color-hairline);
-    border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
     overflow: hidden;
     z-index: 50;
 }
@@ -313,16 +326,13 @@ body {
     font-size: 11px; font-weight: 600; color: var(--color-muted);
     text-transform: uppercase; letter-spacing: 0.05em;
 }
-.search-results-list {
-    display: flex; flex-direction: column;
-}
 .search-result-item {
     display: flex; align-items: center; justify-content: space-between;
     gap: 10px;
     padding: 8px 12px;
     text-decoration: none;
     color: inherit;
-    transition: background 0.1s;
+    transition: background 0.15s;
     border-bottom: 1px solid var(--color-hairline-soft);
     background: transparent;
     border-left: none;
@@ -333,7 +343,7 @@ body {
     width: 100%;
 }
 .search-result-item:hover {
-    background: var(--color-surface-soft);
+    background: rgba(255, 255, 255, 0.05);
 }
 .search-result-label {
     display: flex; flex-direction: column;
@@ -349,33 +359,33 @@ body {
 .search-chip {
     display: inline-flex; align-items: center; justify-content: center;
     padding: 2px 8px; border-radius: 4px;
-    background: var(--color-surface-soft); color: var(--color-muted);
+    background: rgba(255, 255, 255, 0.05); color: var(--color-muted);
     font-size: 10px; font-weight: 500; white-space: nowrap;
     border: 1px solid var(--color-hairline);
 }
 
 .status-badge {
     display: flex; align-items: center; gap: 6px;
-    padding: 4px 10px; border-radius: 4px;
-    font-size: 12px; font-weight: 500;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; font-weight: 600;
     border: 1px solid transparent;
 }
 .status-badge.running { 
-    background: rgba(16,185,129,0.08); 
+    background: rgba(16,185,129,0.12); 
     color: var(--color-success); 
-    border-color: rgba(16,185,129,0.15);
+    border-color: rgba(16,185,129,0.25);
 }
 .status-badge.stopped { 
-    background: rgba(100,116,139,0.08); 
+    background: rgba(255,255,255,0.05); 
     color: var(--color-muted); 
-    border-color: rgba(100,116,139,0.15);
+    border-color: rgba(255,255,255,0.08);
 }
 .status-dot {
-    width: 6px; height: 6px; border-radius: 50%;
+    width: 8px; height: 8px; border-radius: 50%;
 }
 .status-dot.running {
     background: var(--color-success);
-    box-shadow: 0 0 8px rgba(16,185,129,0.5);
+    box-shadow: 0 0 10px rgba(16,185,129,0.6);
     animation: pulse 2s infinite;
 }
 .status-dot.stopped { background: var(--color-muted); }
@@ -383,9 +393,9 @@ body {
 
 /* ── Buttons ─────────────────────────────────────────────────────── */
 .btn {
-    padding: 6px 12px; border: none; border-radius: 4px;
-    font-size: 13px; font-weight: 500; cursor: pointer;
-    transition: background-color 0.2s, transform 0.1s;
+    padding: 8px 14px; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     display: inline-flex; align-items: center; gap: 6px;
     outline: none;
     font-family: 'Inter', sans-serif;
@@ -393,106 +403,207 @@ body {
 .btn:active { transform: scale(0.98); }
 
 .btn-start {
-    background: var(--color-primary);
-    color: var(--color-on-primary);
+    background: linear-gradient(135deg, #4f46e5, #6366f1);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 .btn-start:hover {
-    background: var(--color-primary-active);
+    background: linear-gradient(135deg, #4338ca, #4f46e5);
+    box-shadow: 0 6px 16px rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
 }
 .btn-start:disabled {
     background: var(--color-primary-disabled);
     color: var(--color-muted);
     cursor: not-allowed;
+    box-shadow: none;
 }
 
 .btn-stop {
-    background: var(--color-error);
-    color: var(--color-on-primary);
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 .btn-stop:hover {
-    background: #dc2626;
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.5);
+    transform: translateY(-1px);
 }
 
 .btn-ghost {
-    background: var(--color-canvas);
-    color: var(--color-ink);
-    border: 1px solid var(--color-hairline);
+    background: rgba(255, 255, 255, 0.04);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .btn-ghost:hover {
-    background: var(--color-surface-soft);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
-.btn-sm { padding: 4px 8px; font-size: 12px; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
 
 .btn-browse {
-    padding: 6px 10px; background: var(--color-canvas); color: var(--color-body);
-    border: 1px solid var(--color-hairline); border-radius: 4px; cursor: pointer;
+    padding: 6px 10px; background: rgba(255, 255, 255, 0.04); color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; cursor: pointer;
     font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif;
-    white-space: nowrap; transition: background-color 0.2s;
+    white-space: nowrap; transition: all 0.2s;
     outline: none;
 }
-.btn-browse:hover { background: var(--color-surface-soft); }
+.btn-browse:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.15); }
 
 /* ── Main area ───────────────────────────────────────────────────── */
-.main { display: flex; flex: 1; overflow: hidden; }
+.main { display: flex; flex: 1; overflow: hidden; background: transparent; }
 
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar {
     width: 220px; min-width: 220px;
-    background: #ffffff;
-    border-right: 1px solid var(--color-hairline);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(30px) saturate(210%);
+    -webkit-backdrop-filter: blur(30px) saturate(210%);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05), 10px 0 30px rgba(0, 0, 0, 0.15);
     display: flex; flex-direction: column;
-    padding: 8px 6px;
-    gap: 2px;
+    padding: 12px 8px;
+    gap: 4px;
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), 
+                opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                padding 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                border-right-color 0.3s;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 .sidebar-item {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; cursor: pointer;
-    transition: all 0.15s; color: var(--color-muted);
-    border-radius: 4px;
-    font-size: 13px; font-weight: 500;
-    user-select: none;
-    outline: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; cursor: pointer;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.75);
     background: transparent;
     border: none;
-    width: 100%;
+    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
     text-align: left;
-}
-.sidebar-item:hover { background: var(--color-hairline-soft); color: var(--color-ink); }
-.sidebar-item.active {
-    background: var(--color-surface-soft); color: var(--color-ink);
-    font-weight: 600;
-    box-shadow: inset 2px 0 0 var(--color-brand-accent);
-    border-radius: 0 4px 4px 0;
-}
-.sidebar-icon { font-size: 14px; width: 18px; text-align: center; }
-
-.sidebar-section-header {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-muted);
-    padding: 10px 10px 4px 10px;
+    width: 100%;
+    font-weight: 500;
+    font-size: 13px;
+    position: relative;
     user-select: none;
+}
+.sidebar-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #ffffff;
+    transform: translateY(-0.5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.sidebar-item:active {
+    transform: scale(0.97);
+}
+.sidebar-item.active {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.1) 100%);
+    color: #c7d2fe;
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.4), 0 4px 15px rgba(99, 102, 241, 0.2);
+}
+.sidebar-item.active:hover {
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.6), 0 6px 20px rgba(99, 102, 241, 0.3);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(99, 102, 241, 0.15) 100%);
+}
+.sidebar-icon {
+    font-size: 14px;
+    opacity: 0.85;
 }
 .sidebar-sub-item {
     padding-left: 20px;
-    font-size: 12px;
+    font-size: 12.5px;
+}
+.sidebar-section-header {
+    font-size: 11px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 12px 10px 4px 10px;
+}
+.sidebar-section-header.interactive {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+    transition: color 0.2s, background-color 0.2s;
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-top: 8px;
+    margin-bottom: 2px;
+}
+.sidebar-section-header.interactive:hover {
+    color: var(--color-ink);
+    background: rgba(255, 255, 255, 0.04);
+}
+.section-arrow {
+    display: inline-block;
+    width: 12px;
+    font-size: 9px;
+    color: var(--color-muted);
+    transition: transform 0.2s;
+}
+.sidebar-section-header.interactive:hover .section-arrow {
+    color: var(--color-ink);
+}
+.btn-sidebar-toggle {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-body);
+    font-size: 14px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-right: 8px;
+    outline: none;
+}
+.btn-sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--color-ink);
+    transform: scale(1.05);
+}
+.btn-sidebar-toggle:active {
+    transform: scale(0.95);
+}
+
+/* ── Resizer ─────────────────────────────────────────────────────── */
+.resizer-h {
+    width: 4px; cursor: col-resize; background: transparent;
+    transition: background-color 0.2s;
+    border-left: 1px solid var(--color-hairline);
+    z-index: 10;
+}
+.resizer-h:hover, .resizer-h:active {
+    background-color: var(--color-brand-accent);
+}
+
+.resizer-v {
+    height: 4px; cursor: row-resize; background: transparent;
+    transition: background-color 0.2s;
+    border-top: 1px solid var(--color-hairline);
+    z-index: 10;
+}
+.resizer-v:hover, .resizer-v:active {
+    background-color: var(--color-brand-accent);
 }
 
 /* ── Content ─────────────────────────────────────────────────────── */
 .content {
     flex: 1; overflow-y: auto; padding: 20px;
     display: flex; flex-direction: column; gap: 16px;
-    background: var(--color-canvas);
+    background: transparent;
 }
 .content::-webkit-scrollbar { width: 6px; }
 .content::-webkit-scrollbar-track { background: transparent; }
-.content::-webkit-scrollbar-thumb { background: var(--color-hairline); border-radius: 3px; }
+.content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
 
 .section-title {
-    font-size: 18px; font-weight: 600; letter-spacing: -0.02em; color: var(--color-ink); margin-bottom: 2px;
+    font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-ink); margin-bottom: 2px;
     font-family: 'Inter', sans-serif;
 }
 .section-desc {
@@ -501,15 +612,24 @@ body {
 
 /* ── Cards ────────────────────────────────────────────────────────── */
 .card {
-    background: var(--color-surface-card);
-    border: 1px solid var(--color-hairline);
-    border-radius: 4px; padding: 16px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 14px; padding: 18px;
     display: flex; flex-direction: column; gap: 12px;
-    box-shadow: 0 1px 3px rgba(15,23,42,0.03), 0 1px 2px rgba(15,23,42,0.02);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.card:hover {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15);
+    transform: translateY(-2px);
 }
 .card-title {
-    font-size: 11px; font-weight: 600; color: var(--color-muted);
-    text-transform: uppercase; letter-spacing: 0.05em;
+    font-size: 11px; font-weight: 700; color: #64748b;
+    text-transform: uppercase; letter-spacing: 0.08em;
     margin-bottom: 2px;
 }
 
@@ -820,13 +940,116 @@ body {
     font-size: 14px; display: flex; align-items: center; gap: 8px;
     font-weight: 500;
 }
-.lora-row {
-    display: flex; align-items: flex-end; gap: 12px;
-    padding: 12px 0; border-bottom: 1px solid var(--color-hairline);
-    flex-wrap: wrap;
-}
 .lora-row:last-child { border-bottom: none; }
 .table-row-hover:hover { background: var(--color-surface-soft); }
+
+/* ── Title / Top Bar Custom Styling ─────────────────────────────── */
+.top-bar {
+    user-select: none;
+}
+.top-bar.draggable {
+    cursor: move;
+}
+.top-menu-bar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+}
+.menu-item-container {
+    position: relative;
+}
+.top-menu-btn {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--color-body);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    outline: none;
+}
+.top-menu-btn:hover, .top-menu-btn.active {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-ink);
+}
+.menu-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    background: color-mix(in srgb, var(--ui-bg-color) 92%, #ffffff 8%);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    min-width: 180px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.dropdown-item {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: var(--color-body);
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+    outline: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-ink);
+}
+.dropdown-item.item-danger:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #fca5a5;
+}
+.dropdown-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 4px 0;
+}
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 12px;
+}
+.window-control-btn {
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--color-body);
+    font-size: 11px;
+    transition: all 0.15s;
+    outline: none;
+}
+.window-control-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-ink);
+}
+.window-control-btn.control-close:hover {
+    background: #ef4444;
+    color: white;
+}
 "#;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -836,7 +1059,10 @@ body {
 fn main() {
     dioxus::LaunchBuilder::new()
         .with_cfg(dioxus::desktop::Config::new().with_window(
-            dioxus::desktop::WindowBuilder::new().with_title("Llama-Manager")
+            dioxus::desktop::WindowBuilder::new()
+                .with_title("Llama-Manager")
+                .with_transparent(true)
+                .with_decorations(false)
         ))
         .launch(App);
 }
@@ -872,10 +1098,11 @@ enum DragType {
 
 #[component]
 fn App() -> Element {
+    let window = dioxus::desktop::use_window();
     // ── State ───────────────────────────────────────────────────────
     let mut config = use_signal(load_default_config);
     let mut show_config_modal = use_signal(|| false);
-    let immersive_mode = use_signal(|| false);
+    let mut immersive_mode = use_signal(|| false);
 
     // Resizer States
     let mut sidebar_width = use_signal(|| 220.0);
@@ -975,6 +1202,36 @@ fn App() -> Element {
         }
     });
     let mut active_tab = use_signal(|| Tab::Chat);
+    let mut active_menu = use_signal(|| None::<&'static str>);
+    let mut sidebar_collapsed = use_signal(|| false);
+    let mut general_expanded = use_signal(|| true);
+    let mut models_expanded = use_signal(|| true);
+    let mut server_expanded = use_signal(|| true);
+    let mut productivity_expanded = use_signal(|| true);
+
+    // Auto-expand sidebar sections when active_tab changes
+    use_effect(move || {
+        let act = active_tab();
+        let mut general_sig = general_expanded;
+        let mut models_sig = models_expanded;
+        let mut server_sig = server_expanded;
+        let mut productivity_sig = productivity_expanded;
+        match act {
+            Tab::Chat | Tab::Planner | Tab::Monitor | Tab::Mcp | Tab::Agents => {
+                general_sig.set(true);
+            }
+            Tab::Model | Tab::Library | Tab::Download | Tab::Instances => {
+                models_sig.set(true);
+            }
+            Tab::Server | Tab::Context | Tab::Gpu | Tab::Performance | Tab::Sampling | Tab::Advanced | Tab::Api => {
+                server_sig.set(true);
+            }
+            Tab::Calendar | Tab::Todos | Tab::QuickNotes | Tab::Compare | Tab::DeepResearch => {
+                productivity_sig.set(true);
+            }
+        }
+    });
+
     let routed_instance = use_signal(|| None::<(String, u16)>);
     let mut logs = use_signal(Vec::<String>::new);
     let mut error_msg = use_signal(|| None::<String>);
@@ -1338,6 +1595,18 @@ fn App() -> Element {
     // ── Render ──────────────────────────────────────────────────────
     rsx! {
         style { {CSS} }
+        style {
+            {format!(
+                r#"
+                :root {{
+                    --ui-transparency: {};
+                    --ui-bg-color: {};
+                }}
+                "#,
+                config.read().ui_transparency,
+                config.read().ui_background_color
+            )}
+        }
         if show_config_modal() {
             div {
                 style: "position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(5, 5, 8, 0.85); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 1000;",
@@ -1402,13 +1671,198 @@ fn App() -> Element {
 
             // ── Top bar ─────────────────────────────────────────────
             div {
-                class: "top-bar",
+                class: "top-bar draggable",
                 style: if immersive_mode() { "display: none;" } else { "" },
-                div { class: "top-title",
+                onmousedown: {
+                    let w = window.clone();
+                    move |_| {
+                        let _ = w.drag_window();
+                    }
+                },
+                div {
+                    class: "top-title",
+                    onmousedown: move |e| e.stop_propagation(),
+                    button {
+                        class: "btn-sidebar-toggle",
+                        title: if sidebar_collapsed() { "Expand Sidebar" } else { "Collapse Sidebar" },
+                        onclick: move |_| sidebar_collapsed.set(!sidebar_collapsed()),
+                        if sidebar_collapsed() { "☰" } else { "◂" }
+                    }
                     span { aria_hidden: "true", "\u{1F999}" }
                     "Llama-Manager"
                 }
-                div { class: "search-group",
+
+                // Window, Edit, Help menus
+                div {
+                    class: "top-menu-bar",
+                    onmousedown: move |e| e.stop_propagation(),
+                    div { class: "menu-item-container",
+                        button {
+                            class: if active_menu() == Some("window") { "top-menu-btn active" } else { "top-menu-btn" },
+                            onclick: move |_| {
+                                if active_menu() == Some("window") {
+                                    active_menu.set(None);
+                                } else {
+                                    active_menu.set(Some("window"));
+                                }
+                            },
+                            "Window"
+                        }
+                        if active_menu() == Some("window") {
+                            div { class: "menu-dropdown",
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: {
+                                        let w = window.clone();
+                                        move |_| {
+                                            active_menu.set(None);
+                                            w.set_minimized(true);
+                                        }
+                                    },
+                                    "\u{1F5D5}  Minimize"
+                                }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: {
+                                        let w = window.clone();
+                                        move |_| {
+                                            active_menu.set(None);
+                                            let max = w.is_maximized();
+                                            w.set_maximized(!max);
+                                        }
+                                    },
+                                    "\u{1F5D6}  Maximize / Restore"
+                                }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let curr = immersive_mode();
+                                        immersive_mode.set(!curr);
+                                    },
+                                    if immersive_mode() { "\u{26F6}  Exit Immersive Mode" } else { "\u{26F6}  Immersive Mode" }
+                                }
+                                div { class: "dropdown-divider" }
+                                button {
+                                    class: "dropdown-item item-danger",
+                                    onclick: {
+                                        let w = window.clone();
+                                        move |_| {
+                                            active_menu.set(None);
+                                            w.close();
+                                        }
+                                    },
+                                    "\u{2715}  Close Application"
+                                }
+                            }
+                        }
+                    }
+                    div { class: "menu-item-container",
+                        button {
+                            class: if active_menu() == Some("edit") { "top-menu-btn active" } else { "top-menu-btn" },
+                            onclick: move |_| {
+                                if active_menu() == Some("edit") {
+                                    active_menu.set(None);
+                                } else {
+                                    active_menu.set(Some("edit"));
+                                }
+                            },
+                            "Edit"
+                        }
+                        if active_menu() == Some("edit") {
+                            div { class: "menu-dropdown",
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("document.execCommand('undo')");
+                                    },
+                                    "\u{21A9}  Undo"
+                                }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("document.execCommand('redo')");
+                                    },
+                                    "\u{21AA}  Redo"
+                                }
+                                div { class: "dropdown-divider" }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("document.execCommand('cut')");
+                                    },
+                                    "\u{2702}  Cut"
+                                }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("document.execCommand('copy')");
+                                    },
+                                    "\u{1F4CB}  Copy"
+                                }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("document.execCommand('paste')");
+                                    },
+                                    "\u{1F4CB}  Paste"
+                                }
+                            }
+                        }
+                    }
+                    div { class: "menu-item-container",
+                        button {
+                            class: if active_menu() == Some("help") { "top-menu-btn active" } else { "top-menu-btn" },
+                            onclick: move |_| {
+                                if active_menu() == Some("help") {
+                                    active_menu.set(None);
+                                } else {
+                                    active_menu.set(Some("help"));
+                                }
+                            },
+                            "Help"
+                        }
+                        if active_menu() == Some("help") {
+                            div { class: "menu-dropdown",
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("window.open('https://github.com/nkitan/llama-manager', '_blank')");
+                                    },
+                                    "\u{1F5C3}  Documentation"
+                                }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let js_focus = "setTimeout(() => { const el = document.querySelector('.search-input'); if (el) el.focus(); }, 100);";
+                                        let _ = dioxus::document::eval(js_focus);
+                                    },
+                                    "\u{1F50D}  Search Settings"
+                                }
+                                div { class: "dropdown-divider" }
+                                button {
+                                    class: "dropdown-item",
+                                    onclick: move |_| {
+                                        active_menu.set(None);
+                                        let _ = dioxus::document::eval("window.open('https://github.com/nkitan/llama-manager/issues', '_blank')");
+                                    },
+                                    "\u{1F41E}  Report an Issue"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                div {
+                    class: "search-group",
+                    onmousedown: move |e| e.stop_propagation(),
                     input {
                         class: "search-input",
                         placeholder: "Search config entries…",
@@ -1465,7 +1919,9 @@ fn App() -> Element {
                         }
                     }
                 }
-                div { class: "top-right",
+                div {
+                    class: "top-right",
+                    onmousedown: move |e| e.stop_propagation(),
                     // Save / Load
                     button { class: "btn btn-ghost btn-sm", onclick: save_config, "Save Config" }
                     button { class: "btn btn-ghost btn-sm", onclick: load_config, "Load Config" }
@@ -1492,6 +1948,46 @@ fn App() -> Element {
                         if is_running { "\u{23F9}  Stop" } else { "\u{25B6}  Start" }
                     }
                 }
+
+                // Window Control Buttons (Minimize, Maximize, Close)
+                div {
+                    class: "window-controls",
+                    onmousedown: move |e| e.stop_propagation(),
+                    button {
+                        class: "window-control-btn control-minimize",
+                        title: "Minimize",
+                        onclick: {
+                            let w = window.clone();
+                            move |_| {
+                                w.set_minimized(true);
+                            }
+                        },
+                        "\u{2014}"
+                    }
+                    button {
+                        class: "window-control-btn control-maximize",
+                        title: "Maximize / Restore",
+                        onclick: {
+                            let w = window.clone();
+                            move |_| {
+                                let max = w.is_maximized();
+                                w.set_maximized(!max);
+                            }
+                        },
+                        "\u{25A2}"
+                    }
+                    button {
+                        class: "window-control-btn control-close",
+                        title: "Close",
+                        onclick: {
+                            let w = window.clone();
+                            move |_| {
+                                w.close();
+                            }
+                        },
+                        "\u{2715}"
+                    }
+                }
             }
 
             // ── Body (sidebar + content) ────────────────────────────
@@ -1500,49 +1996,101 @@ fn App() -> Element {
                 // ── Sidebar ─────────────────────────────────────────
                 div {
                     class: "sidebar",
-                    style: if immersive_mode() { "display: none;" } else { "width: {sidebar_width}px; min-width: {sidebar_width}px;" },
-                    // General/Top-level entries
-                    for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents, Tab::Model, Tab::Library, Tab::Download, Tab::Instances] {
-                        button {
-                            class: if active_tab() == *tab { "sidebar-item active" } else { "sidebar-item" },
-                            onclick: {
-                                let t = *tab;
-                                move |_| active_tab.set(t)
-                            },
-                            span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                            {tab.label()}
+                    style: if immersive_mode() {
+                        "display: none;"
+                    } else if sidebar_collapsed() {
+                        "width: 0px; min-width: 0px; padding: 0px; margin: 0px; border-right-color: transparent; opacity: 0; pointer-events: none;"
+                    } else {
+                        "width: {sidebar_width}px; min-width: {sidebar_width}px;"
+                    },
+                    
+                    // General/Top-level section
+                    div {
+                        class: "sidebar-section-header interactive",
+                        onclick: move |_| general_expanded.set(!general_expanded()),
+                        span { class: "section-arrow", if general_expanded() { "▼" } else { "▶" } }
+                        span { "General" }
+                    }
+                    if general_expanded() {
+                        for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents] {
+                            button {
+                                class: if active_tab() == *tab { "sidebar-item active" } else { "sidebar-item" },
+                                onclick: {
+                                    let t = *tab;
+                                    move |_| active_tab.set(t)
+                                },
+                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                                {tab.label()}
+                            }
                         }
                     }
+
+                    // Models & Instances section
+                    div {
+                        class: "sidebar-section-header interactive",
+                        onclick: move |_| models_expanded.set(!models_expanded()),
+                        span { class: "section-arrow", if models_expanded() { "▼" } else { "▶" } }
+                        span { "Models & Instances" }
+                    }
+                    if models_expanded() {
+                        for tab in &[Tab::Model, Tab::Library, Tab::Download, Tab::Instances] {
+                            button {
+                                class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
+                                onclick: {
+                                    let t = *tab;
+                                    move |_| active_tab.set(t)
+                                },
+                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                                {tab.label()}
+                            }
+                        }
+                    }
+
                     // Llama-Server sub-section
-                    div { class: "sidebar-section-header", "Llama-Server" }
-                    for tab in &[Tab::Server, Tab::Context, Tab::Gpu, Tab::Performance, Tab::Sampling, Tab::Advanced, Tab::Api] {
-                        button {
-                            class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
-                            onclick: {
-                                let t = *tab;
-                                move |_| active_tab.set(t)
-                            },
-                            span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                            {tab.label()}
+                    div {
+                        class: "sidebar-section-header interactive",
+                        onclick: move |_| server_expanded.set(!server_expanded()),
+                        span { class: "section-arrow", if server_expanded() { "▼" } else { "▶" } }
+                        span { "Llama-Server" }
+                    }
+                    if server_expanded() {
+                        for tab in &[Tab::Server, Tab::Context, Tab::Gpu, Tab::Performance, Tab::Sampling, Tab::Advanced, Tab::Api] {
+                            button {
+                                class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
+                                onclick: {
+                                    let t = *tab;
+                                    move |_| active_tab.set(t)
+                                },
+                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                                {tab.label()}
+                            }
                         }
                     }
+
                     // Productivity & Research sub-section
-                    div { class: "sidebar-section-header", "Productivity & Research" }
-                    for tab in &[Tab::Calendar, Tab::Todos, Tab::QuickNotes, Tab::Compare, Tab::DeepResearch] {
-                        button {
-                            class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
-                            onclick: {
-                                let t = *tab;
-                                move |_| active_tab.set(t)
-                            },
-                            span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                            {tab.label()}
+                    div {
+                        class: "sidebar-section-header interactive",
+                        onclick: move |_| productivity_expanded.set(!productivity_expanded()),
+                        span { class: "section-arrow", if productivity_expanded() { "▼" } else { "▶" } }
+                        span { "Productivity & Research" }
+                    }
+                    if productivity_expanded() {
+                        for tab in &[Tab::Calendar, Tab::Todos, Tab::QuickNotes, Tab::Compare, Tab::DeepResearch] {
+                            button {
+                                class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
+                                onclick: {
+                                    let t = *tab;
+                                    move |_| active_tab.set(t)
+                                },
+                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                                {tab.label()}
+                            }
                         }
                     }
                 }
 
                 // Vertical Resizer Handle
-                if !immersive_mode() {
+                if !immersive_mode() && !sidebar_collapsed() {
                     div {
                         class: if drag_state() == DragType::Sidebar { "resizer-v dragging" } else { "resizer-v" },
                         onmousedown: on_sidebar_resizer_mousedown,
@@ -3212,6 +3760,55 @@ fn TabAdvanced(config: Signal<ServerConfig>, search_target: Signal<String>) -> E
                         option { value: "cls", "CLS" }
                         option { value: "last", "Last" }
                     }
+                }
+            }
+        }
+
+        // UI Settings (Liquid Glass Controls)
+        div { class: "card",
+            div { class: "card-title", "UI Settings & Liquid Glass" }
+            div { class: "form-row",
+                div { class: "form-group",
+                    label { r#for: "form-ui-transparency", class: "form-label", "Window Transparency ({config.read().ui_transparency * 100.0:.0}%)" }
+                    input {
+                        id: "form-ui-transparency",
+                        class: "form-input",
+                        r#type: "range",
+                        min: "0.0",
+                        max: "1.0",
+                        step: "0.05",
+                        value: config.read().ui_transparency.to_string(),
+                        oninput: move |e: Event<FormData>| {
+                            if let Ok(v) = e.value().parse::<f32>() {
+                                config.write().ui_transparency = v;
+                            }
+                        }
+                    }
+                    div { class: "form-hint", "0% = Solid window. Higher values make the window transparent with a glass color tint." }
+                }
+                div { class: "form-group",
+                    label { r#for: "form-ui-bg-color", class: "form-label", "Background Tint / Color" }
+                    div { class: "input-group",
+                        input {
+                            id: "form-ui-bg-color",
+                            class: "form-input",
+                            r#type: "color",
+                            value: config.read().ui_background_color.clone(),
+                            oninput: move |e: Event<FormData>| {
+                                config.write().ui_background_color = e.value();
+                            }
+                        }
+                        input {
+                            class: "form-input",
+                            r#type: "text",
+                            style: "width: 120px;",
+                            value: config.read().ui_background_color.clone(),
+                            oninput: move |e: Event<FormData>| {
+                                config.write().ui_background_color = e.value();
+                            }
+                        }
+                    }
+                    div { class: "form-hint", "Color of the solid window or background color of the glass tint." }
                 }
             }
         }
@@ -5740,9 +6337,37 @@ fn TabAgents(
         }
     }
 
+    let mut show_gam_simulation = use_signal(|| false);
+
     rsx! {
-        div { class: "section-title", "Agents & Self-Learning Memory" }
-        div { class: "section-desc", "Self-learning layers persist project & global memories. Explore lessons via the document editor or Obsidian-type graph." }
+        div {
+            style: "display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-hairline); padding-bottom: 12px; margin-bottom: 20px;",
+            div {
+                div { class: "section-title", "Agents & Self-Learning Memory" }
+                div { class: "section-desc", "Self-learning layers persist project & global memories. Toggle between Obsidian Workspace and GAM memory simulation." }
+            }
+            div {
+                style: "display: flex; border: 1px solid var(--color-hairline); border-radius: 20px; overflow: hidden; background: var(--color-surface-soft); padding: 2px;",
+                button {
+                    class: if !show_gam_simulation() { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                    style: "border-radius: 18px; margin: 0; padding: 4px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;",
+                    onclick: move |_| show_gam_simulation.set(false),
+                    span { "📂" }
+                    "Obsidian Workspace"
+                }
+                button {
+                    class: if show_gam_simulation() { "btn btn-start btn-sm" } else { "btn btn-ghost btn-sm" },
+                    style: "border-radius: 18px; margin: 0; padding: 4px 16px; font-weight: 600; display: flex; align-items: center; gap: 6px;",
+                    onclick: move |_| show_gam_simulation.set(true),
+                    span { "🧠" }
+                    "GAM Memory Simulation"
+                }
+            }
+        }
+
+        if show_gam_simulation() {
+            GamMemorySimulation { config }
+        } else {
 
         // Clear memory button
         div { style: "display: flex; justify-content: flex-end; margin-bottom: 16px;",
@@ -6234,6 +6859,7 @@ fn TabAgents(
                     }
                 }
             }
+        }
         }
     }
 }
@@ -7856,5 +8482,358 @@ fn render_markdown(text: &str) -> Element {
         }
     }
 }
+
+// ── GAM Memory Simulation Structs and Component ─────────────────────────────
+
+#[derive(Clone, PartialEq, Debug)]
+struct EpisodicLog {
+    text: String,
+    timestamp: String,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct SimNode {
+    id: String,
+    label: String,
+    x: f64,
+    y: f64,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+struct SimEdge {
+    source: String,
+    target: String,
+}
+
+#[component]
+fn GamMemorySimulation(config: Signal<ServerConfig>) -> Element {
+    let mut episodic_buffer = use_signal(|| vec![
+        EpisodicLog { text: "Session initiated: connected to model server".to_string(), timestamp: "23:15:00".to_string() },
+        EpisodicLog { text: "Executed search for local memory context".to_string(), timestamp: "23:15:05".to_string() },
+        EpisodicLog { text: "User queried: 'Optimize CUDA configurations'".to_string(), timestamp: "23:15:10".to_string() },
+    ]);
+    let mut sim_divergence_threshold = use_signal(|| 0.40_f64);
+    let mut calculated_divergence_score = use_signal(|| 0.15_f64);
+    let mut new_log_input = use_signal(String::new);
+    let mut anim_consolidating = use_signal(|| false);
+
+    let mut global_semantic_nodes = use_signal(|| vec![
+        SimNode { id: "project".to_string(), label: "Project Core".to_string(), x: 270.0, y: 210.0 },
+        SimNode { id: "user_preferences".to_string(), label: "User Preferences".to_string(), x: 130.0, y: 110.0 },
+        SimNode { id: "tech_stack".to_string(), label: "Tech Stack (Rust/Dioxus)".to_string(), x: 410.0, y: 110.0 },
+    ]);
+
+    let mut global_semantic_edges = use_signal(|| vec![
+        SimEdge { source: "user_preferences".to_string(), target: "project".to_string() },
+        SimEdge { source: "project".to_string(), target: "tech_stack".to_string() },
+    ]);
+
+    let add_log = move |_| {
+        let text = new_log_input.read().trim().to_string();
+        if text.is_empty() { return; }
+        let now = chrono::Local::now().format("%H:%M:%S").to_string();
+        episodic_buffer.write().push(EpisodicLog { text, timestamp: now });
+        let current_score = *calculated_divergence_score.read();
+        calculated_divergence_score.set((current_score + 0.12).min(1.0));
+        new_log_input.set(String::new());
+    };
+
+    let trigger_consolidation = move |_| {
+        if episodic_buffer.read().is_empty() { return; }
+        anim_consolidating.set(true);
+        
+        let node_label = if let Some(last_log) = episodic_buffer.read().last() {
+            let t = last_log.text.trim();
+            let clean = if t.len() > 22 {
+                format!("{}...", &t[..19])
+            } else {
+                t.to_string()
+            };
+            if clean.to_lowercase().contains("cuda") {
+                "CUDA Optimization".to_string()
+            } else if clean.to_lowercase().contains("search") {
+                "Search Context".to_string()
+            } else if clean.to_lowercase().contains("model") {
+                "Model Configuration".to_string()
+            } else {
+                clean
+            }
+        } else {
+            "Consolidated Node".to_string()
+        };
+        
+        let node_id = format!("node_{}", chrono::Local::now().timestamp_millis());
+        
+        let node_count = global_semantic_nodes.read().len() as f64;
+        let angle = node_count * 2.0 * std::f64::consts::PI / 6.0;
+        let radius = 120.0;
+        let x = 270.0 + radius * angle.cos();
+        let y = 210.0 + radius * angle.sin();
+        
+        let new_node = SimNode { id: node_id.clone(), label: node_label, x, y };
+        global_semantic_nodes.write().push(new_node);
+        global_semantic_edges.write().push(SimEdge { source: "project".to_string(), target: node_id });
+        
+        episodic_buffer.write().clear();
+        calculated_divergence_score.set(0.05);
+        
+        spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(800)).await;
+            anim_consolidating.set(false);
+        });
+    };
+
+    rsx! {
+        div {
+            style: "display: flex; gap: 20px; flex-wrap: wrap; width: 100%;",
+            
+            // Left Column: Episodic Buffer
+            div {
+                style: "flex: 1.2; min-width: 320px; display: flex; flex-direction: column; gap: 16px;",
+                div { class: "card", style: "flex: 1; display: flex; flex-direction: column; padding: 18px;",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-hairline); padding-bottom: 8px; margin-bottom: 14px;",
+                        span { style: "font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);", "📋 Episodic Buffer (Event Graph)" }
+                        span { class: "badge", style: "background: #f1f5f9; color: #475569; font-size: 11px;", "{episodic_buffer.read().len()} Transient Events" }
+                    }
+                    
+                    // Log Entries List
+                    div {
+                        style: "flex: 1; overflow-y: auto; max-height: 220px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; padding-right: 4px; min-height: 120px;",
+                        if episodic_buffer.read().is_empty() {
+                            div {
+                                style: "text-align: center; color: var(--color-muted); font-style: italic; padding: 30px 10px; font-size: 12.5px;",
+                                "Episodic buffer is clean. Add some log entries below to simulate agent actions."
+                            }
+                        } else {
+                            for (idx, log) in episodic_buffer.read().iter().enumerate() {
+                                div {
+                                    key: "{idx}",
+                                    style: "display: flex; gap: 10px; padding: 8px; border-left: 2px solid #cbd5e1; background: rgba(248, 250, 252, 0.6); border-radius: 0 4px 4px 0; font-size: 12.5px;",
+                                    span { style: "font-family: monospace; font-size: 11px; color: var(--color-muted); padding-top: 1.5px;", "[{log.timestamp}]" }
+                                    span { style: "color: var(--color-body);", "{log.text}" }
+                                }
+                            }
+                        }
+                    }
+
+                    // Divergence Meter
+                    div {
+                        style: "background: #f8fafc; border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px; margin-bottom: 16px;",
+                        div {
+                            style: "display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--color-ink);",
+                            span { "Semantic Divergence Score" }
+                            span {
+                                color: if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() { "var(--color-error)" } else { "var(--color-brand-accent)" },
+                                "{calculated_divergence_score():.2} / {sim_divergence_threshold():.2}"
+                            }
+                        }
+                        // Progress Bar
+                        div {
+                            style: "width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; position: relative;",
+                            div {
+                                style: format!("height: 100%; width: {}%; background: {}; transition: width 0.4s ease, background 0.3s;", 
+                                    (calculated_divergence_score() * 100.0).min(100.0),
+                                    if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() { "#ef4444" } else if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() * 0.7 { "#f59e0b" } else { "#10b981" }
+                                )
+                            }
+                        }
+                        if *calculated_divergence_score.read() >= *sim_divergence_threshold.read() {
+                            div {
+                                style: "font-size: 11px; color: var(--color-error); font-weight: 600; margin-top: 6px; display: flex; align-items: center; gap: 4px;",
+                                "⚡ Divergence limit crossed! Consolidation phase recommended."
+                            }
+                        } else {
+                            div { style: "font-size: 11px; color: var(--color-muted); margin-top: 4px;", "Score increments as passing interactions accumulate in the buffer." }
+                        }
+                    }
+
+                    // Simulation Controls / Inputs
+                    div {
+                        style: "display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--color-hairline); padding-top: 14px;",
+                        
+                        // Slider Input
+                        div {
+                            style: "display: flex; flex-direction: column; gap: 4px;",
+                            label { style: "font-size: 11.5px; font-weight: 600; color: var(--color-body);", "Consolidation Divergence Threshold" }
+                            div {
+                                style: "display: flex; align-items: center; gap: 10px;",
+                                input {
+                                    type: "range",
+                                    min: "0.1",
+                                    max: "0.9",
+                                    step: "0.05",
+                                    style: "flex: 1; cursor: pointer;",
+                                    value: sim_divergence_threshold().to_string(),
+                                    oninput: move |e| {
+                                        if let Ok(v) = e.value().parse::<f64>() {
+                                            sim_divergence_threshold.set(v);
+                                        }
+                                    }
+                                }
+                                span { style: "font-size: 12px; font-family: monospace; font-weight: bold; width: 30px;", "{sim_divergence_threshold():.2}" }
+                            }
+                        }
+
+                        // Text Entry Input
+                        div {
+                            style: "display: flex; gap: 8px;",
+                            input {
+                                class: "form-input",
+                                style: "flex: 1; font-size: 12.5px; height: 32px;",
+                                placeholder: "Type a sample log entry or action...",
+                                value: new_log_input(),
+                                oninput: move |e| new_log_input.set(e.value()),
+                                onkeydown: move |e: KeyboardEvent| {
+                                    if e.key() == Key::Enter {
+                                        let text = new_log_input.read().trim().to_string();
+                                        if !text.is_empty() {
+                                            let now = chrono::Local::now().format("%H:%M:%S").to_string();
+                                            episodic_buffer.write().push(EpisodicLog { text, timestamp: now });
+                                            let current_score = *calculated_divergence_score.read();
+                                            calculated_divergence_score.set((current_score + 0.12).min(1.0));
+                                            new_log_input.set(String::new());
+                                        }
+                                    }
+                                }
+                            }
+                            button {
+                                class: "btn btn-start btn-sm",
+                                style: "height: 32px; padding: 0 12px;",
+                                onclick: add_log,
+                                "Add Log"
+                            }
+                        }
+
+                        // Trigger Consolidation
+                        button {
+                            class: "btn btn-start",
+                            style: "width: 100%; font-weight: 700; margin-top: 4px; display: flex; justify-content: center; align-items: center; gap: 8px;",
+                            disabled: episodic_buffer.read().is_empty() || anim_consolidating(),
+                            onclick: trigger_consolidation,
+                            if anim_consolidating() { "⚡ Consolidating..." } else { "🧬 Trigger Semantic Consolidation" }
+                        }
+                    }
+                }
+            }
+            
+            // Right Column: Global Semantic Graph Visualizer
+            div {
+                style: "flex: 1.8; min-width: 400px; display: flex; flex-direction: column;",
+                div { class: "card", style: "height: 100%; display: flex; flex-direction: column; padding: 18px; position: relative;",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;",
+                        span { style: "font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);", "🕸️ Global topic associative network" }
+                        div { style: "display: flex; gap: 8px; font-size: 10px;",
+                            span { style: "display: flex; align-items: center; gap: 4px;",
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #0f172a;" }
+                                "Core Node"
+                            }
+                            span { style: "display: flex; align-items: center; gap: 4px;",
+                                span { style: "display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #6366f1;" }
+                                "Consolidated"
+                            }
+                        }
+                    }
+                    
+                    // Interactive SVG view for semantic graph
+                    div {
+                        style: "position: relative; width: 100%; height: 420px; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-hairline); background: var(--color-canvas);",
+                        svg {
+                            width: "100%",
+                            height: "100%",
+                            view_box: "0 0 540 420",
+                            
+                            defs {
+                                pattern {
+                                    id: "sim-grid",
+                                    width: "24",
+                                    height: "24",
+                                    pattern_units: "userSpaceOnUse",
+                                    path {
+                                        d: "M 24 0 L 0 0 0 24",
+                                        fill: "none",
+                                        stroke: "rgba(99, 102, 241, 0.04)",
+                                        stroke_width: "1",
+                                    }
+                                }
+                            }
+                            
+                            rect {
+                                width: "100%",
+                                height: "100%",
+                                fill: "url(#sim-grid)",
+                            }
+                            
+                            // Draw Edges
+                            for edge in global_semantic_edges.read().iter() {
+                                if let (Some(s_node), Some(t_node)) = (
+                                    global_semantic_nodes.read().iter().find(|n| n.id == edge.source),
+                                    global_semantic_nodes.read().iter().find(|n| n.id == edge.target)
+                                ) {
+                                    line {
+                                        x1: "{s_node.x}",
+                                        y1: "{s_node.y}",
+                                        x2: "{t_node.x}",
+                                        y2: "{t_node.y}",
+                                        stroke: "rgba(99, 102, 241, 0.4)",
+                                        stroke_width: "2",
+                                        stroke_dasharray: "4,4",
+                                    }
+                                }
+                            }
+                            
+                            // Draw Nodes
+                            for node in global_semantic_nodes.read().iter() {
+                                {
+                                    let is_core = node.id == "project" || node.id == "user_preferences" || node.id == "tech_stack";
+                                    let node_fill = if is_core { "#1e293b" } else { "#6366f1" };
+                                    let radius = if node.id == "project" { 14.0 } else if is_core { 10.0 } else { 8.5 };
+                                    
+                                    rsx! {
+                                        g {
+                                            key: "{node.id}",
+                                            circle {
+                                                cx: "{node.x}",
+                                                cy: "{node.y}",
+                                                r: "{radius}",
+                                                fill: "{node_fill}",
+                                                stroke: "#ffffff",
+                                                stroke_width: "2",
+                                                style: "transition: r 0.2s;",
+                                            }
+                                            text {
+                                                x: "{node.x}",
+                                                y: "{node.y - radius - 6.0}",
+                                                text_anchor: "middle",
+                                                font_size: "10.5px",
+                                                font_weight: if is_core { "700" } else { "500" },
+                                                fill: if is_core { "#0f172a" } else { "#475569" },
+                                                "{node.label}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Overlay consolidation animation
+                        if anim_consolidating() {
+                            div {
+                                style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100;",
+                                div {
+                                    style: "border: 4px solid #f3f3f3; border-top: 4px solid #6366f1; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 12px;"
+                                }
+                                span { style: "font-size: 13.5px; font-weight: 700; color: #4338ca;", "Consolidating Event Graph..." }
+                                span { style: "font-size: 11.5px; color: var(--color-muted); margin-top: 4px;", "Merging summarized items into Global network" }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 

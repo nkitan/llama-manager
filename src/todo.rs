@@ -77,21 +77,6 @@ impl TodoList {
         Self::load_unlocked(path)
     }
 
-    pub fn save_project(&self, base_dir: PathBuf) -> Result<(), String> {
-        let _guard = get_todo_mutex().lock().map_err(|e| e.to_string())?;
-        let path = base_dir.join(".llama-manager-todos.json");
-        self.save_unlocked(path)
-    }
-
-    pub fn save_global(&self) -> Result<(), String> {
-        let _guard = get_todo_mutex().lock().map_err(|e| e.to_string())?;
-        let path = Self::get_global_path();
-        if let Some(p) = path.parent() {
-            let _ = std::fs::create_dir_all(p);
-        }
-        self.save_unlocked(path)
-    }
-
     pub fn add_todo(entry: TodoEntry, base_dir: PathBuf) -> Result<(), String> {
         let _guard = get_todo_mutex().lock().map_err(|e| e.to_string())?;
         match entry.scope {

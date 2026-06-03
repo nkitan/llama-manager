@@ -77,11 +77,6 @@ impl CalendarState {
         Self::load_unlocked()
     }
 
-    pub fn save(&self) -> Result<(), String> {
-        let _guard = get_calendar_mutex().lock().map_err(|e| e.to_string())?;
-        self.save_unlocked()
-    }
-
     pub fn add_event(ev: CalendarEvent) -> Result<(), String> {
         let _guard = get_calendar_mutex().lock().map_err(|e| e.to_string())?;
         let mut state = Self::load_unlocked();

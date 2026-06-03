@@ -4,6 +4,18 @@ fn default_searxng_url() -> String {
     "http://localhost:8888".to_string()
 }
 
+fn default_ui_transparency() -> f32 {
+    0.4
+}
+
+fn default_ui_background_color() -> String {
+    "#0f172a".to_string()
+}
+
+fn default_ui_blur() -> bool {
+    true
+}
+
 // ── Enums ───────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -235,6 +247,14 @@ pub struct ServerConfig {
     pub model_scan_dirs: Vec<String>,
     #[serde(default = "default_searxng_url")]
     pub searxng_url: String,
+
+    // ─ UI Settings
+    #[serde(default = "default_ui_transparency")]
+    pub ui_transparency: f32,
+    #[serde(default = "default_ui_background_color")]
+    pub ui_background_color: String,
+    #[serde(default = "default_ui_blur")]
+    pub ui_blur: bool,
 }
 
 impl Default for ServerConfig {
@@ -334,6 +354,11 @@ impl Default for ServerConfig {
             // Model Indexing / Scan Settings
             model_scan_dirs: Vec::new(),
             searxng_url: "http://localhost:8888".into(),
+
+            // UI Settings
+            ui_transparency: 0.4,
+            ui_background_color: "#0f172a".into(),
+            ui_blur: true,
         }
     }
 }
