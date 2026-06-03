@@ -3536,13 +3536,13 @@ fn TabLibrary(
                 let pending = scanned_models.read().iter().filter(|m| m.status == "pending_enrichment").count();
                 let failed = scanned_models.read().iter().filter(|m| m.status == "failed").count();
                 let enriching = scanned_models.read().iter().filter(|m| m.status == "enriching").count();
-                let completed = enriched + failed;
+                let completed = enriched + failed + enriching;
                 let percent = if total > 0 { (completed as f32 / total as f32 * 100.0) as u32 } else { 0 };
 
                 rsx! {
                     div { class: "card",
                         div { class: "card-title", "Enrichment Progress & Stats" }
-                        
+
                         // Progress bar
                         div { style: "margin: 16px 0;",
                             div { style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 13px;",
