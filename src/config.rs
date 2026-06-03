@@ -5,7 +5,7 @@ fn default_searxng_url() -> String {
 }
 
 fn default_ui_transparency() -> f32 {
-    0.4
+    0.1
 }
 
 fn default_ui_background_color() -> String {
@@ -14,6 +14,58 @@ fn default_ui_background_color() -> String {
 
 fn default_ui_blur() -> bool {
     true
+}
+
+fn default_ui_blur_intensity() -> u32 {
+    30
+}
+
+fn default_log_level() -> String {
+    "INFO".to_string()
+}
+
+fn default_theme() -> String {
+    "default".to_string()
+}
+
+fn default_ui_text_color() -> String {
+    "#f8fafc".to_string()
+}
+
+fn default_ui_accent_color() -> String {
+    "#6366f1".to_string()
+}
+
+fn default_ui_card_bg() -> String {
+    "rgba(255, 255, 255, 0.02)".to_string()
+}
+
+fn default_ui_sidebar_bg() -> String {
+    "linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)"
+        .to_string()
+}
+
+fn default_ui_border_color() -> String {
+    "rgba(255, 255, 255, 0.08)".to_string()
+}
+
+fn default_ui_font_family() -> String {
+    "Inter".to_string()
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CustomTheme {
+    pub name: String,
+    pub background_color: String,
+    pub text_color: String,
+    pub accent_color: String,
+    pub card_bg: String,
+    pub sidebar_bg: String,
+    pub border_color: String,
+    pub font_family: String,
+    pub transparency: f32,
+    pub blur: bool,
+    pub blur_intensity: u32,
 }
 
 // ── Enums ───────────────────────────────────────────────────────────────────
@@ -255,6 +307,28 @@ pub struct ServerConfig {
     pub ui_background_color: String,
     #[serde(default = "default_ui_blur")]
     pub ui_blur: bool,
+    #[serde(default = "default_ui_blur_intensity")]
+    pub ui_blur_intensity: u32,
+    #[serde(default = "default_log_level")]
+    pub app_log_level: String,
+    #[serde(default = "default_theme")]
+    pub theme_name: String,
+    #[serde(default = "default_ui_text_color")]
+    pub ui_text_color: String,
+    #[serde(default = "default_ui_accent_color")]
+    pub ui_accent_color: String,
+    #[serde(default = "default_ui_card_bg")]
+    pub ui_card_bg: String,
+    #[serde(default = "default_ui_sidebar_bg")]
+    pub ui_sidebar_bg: String,
+    #[serde(default = "default_ui_border_color")]
+    pub ui_border_color: String,
+    #[serde(default = "default_ui_font_family")]
+    pub ui_font_family: String,
+    #[serde(default)]
+    pub sidebar_favorites: Vec<String>,
+    #[serde(default)]
+    pub custom_themes: Vec<CustomTheme>,
 }
 
 impl Default for ServerConfig {
@@ -356,9 +430,20 @@ impl Default for ServerConfig {
             searxng_url: "http://localhost:8888".into(),
 
             // UI Settings
-            ui_transparency: 0.4,
+            ui_transparency: 0.1,
             ui_background_color: "#0f172a".into(),
             ui_blur: true,
+            ui_blur_intensity: 30,
+            app_log_level: "INFO".into(),
+            theme_name: "default".into(),
+            ui_text_color: "#f8fafc".into(),
+            ui_accent_color: "#6366f1".into(),
+            ui_card_bg: "rgba(255, 255, 255, 0.06)".into(),
+            ui_sidebar_bg: "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)".into(),
+            ui_border_color: "rgba(255, 255, 255, 0.12)".into(),
+            ui_font_family: "Inter".into(),
+            sidebar_favorites: Vec::new(),
+            custom_themes: Vec::new(),
         }
     }
 }

@@ -69,6 +69,32 @@
     "/mnt/shared/models"
   ],
   "searxng_url": "http://localhost:8888",
-  "ui_transparency": 0.4,
-  "ui_background_color": "#0f172a"
+  "ui_transparency": 0.0,
+  "ui_background_color": "#000000",
+  "ui_blur": true,
+  "ui_blur_intensity": 64,
+  "app_log_level": "INFO",
+  "theme_name": "BLED",
+  "ui_text_color": "#ffffff",
+  "ui_accent_color": "#c01c28",
+  "ui_card_bg": "rgba(255, 255, 255, 0.02)",
+  "ui_sidebar_bg": "linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)",
+  "ui_border_color": "rgba(255, 255, 255, 0.08)",
+  "ui_font_family": "Inter",
+  "sidebar_favorites": [],
+  "custom_themes": [
+    {
+      "name": "BLED",
+      "background_color": "#000000",
+      "text_color": "#ffffff",
+      "accent_color": "#c01c28",
+      "card_bg": "rgba(255, 255, 255, 0.02)",
+      "sidebar_bg": "linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)",
+      "border_color": "rgba(255, 255, 255, 0.08)",
+      "font_family": "Inter",
+      "transparency": 0.0,
+      "blur": true,
+      "blur_intensity": 64
+    }
+  ]
 }

@@ -4,6 +4,7 @@ mod agent;
 mod calendar;
 mod config;
 mod library;
+mod logger;
 mod notes;
 mod planner;
 mod todo;
@@ -124,6 +125,61 @@ impl Tab {
             Tab::DeepResearch,
             Tab::AppSettings,
         ]
+    }
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::Chat => "chat",
+            Self::Planner => "planner",
+            Self::Monitor => "monitor",
+            Self::Mcp => "mcp",
+            Self::Agents => "agents",
+            Self::Model => "model",
+            Self::Library => "library",
+            Self::Download => "download",
+            Self::Server => "server",
+            Self::Instances => "instances",
+            Self::Context => "context",
+            Self::Gpu => "gpu",
+            Self::Performance => "performance",
+            Self::Sampling => "sampling",
+            Self::Advanced => "advanced",
+            Self::Api => "api",
+            Self::Calendar => "calendar",
+            Self::Todos => "todos",
+            Self::QuickNotes => "quick_notes",
+            Self::Compare => "compare",
+            Self::DeepResearch => "deep_research",
+            Self::AppSettings => "app_settings",
+        }
+    }
+
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "chat" => Some(Self::Chat),
+            "planner" => Some(Self::Planner),
+            "monitor" => Some(Self::Monitor),
+            "mcp" => Some(Self::Mcp),
+            "agents" => Some(Self::Agents),
+            "model" => Some(Self::Model),
+            "library" => Some(Self::Library),
+            "download" => Some(Self::Download),
+            "server" => Some(Self::Server),
+            "instances" => Some(Self::Instances),
+            "context" => Some(Self::Context),
+            "gpu" => Some(Self::Gpu),
+            "performance" => Some(Self::Performance),
+            "sampling" => Some(Self::Sampling),
+            "advanced" => Some(Self::Advanced),
+            "api" => Some(Self::Api),
+            "calendar" => Some(Self::Calendar),
+            "todos" => Some(Self::Todos),
+            "quick_notes" => Some(Self::QuickNotes),
+            "compare" => Some(Self::Compare),
+            "deep_research" => Some(Self::DeepResearch),
+            "app_settings" => Some(Self::AppSettings),
+            _ => None,
+        }
     }
 }
 
@@ -534,32 +590,32 @@ const CSS: &str = r#"
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-    --color-primary: #6366f1;
-    --color-primary-active: #4f46e5;
-    --color-primary-disabled: rgba(255, 255, 255, 0.08);
-    --color-ink: #f8fafc;
-    --color-body: #94a3b8;
-    --color-muted: #64748b;
-    --color-muted-soft: #475569;
-    --color-hairline: rgba(255, 255, 255, 0.08);
-    --color-hairline-soft: rgba(255, 255, 255, 0.04);
-    --color-canvas: #0f172a;
-    --color-surface-soft: rgba(255, 255, 255, 0.03);
-    --color-surface-card: rgba(255, 255, 255, 0.02);
-    --color-surface-strong: rgba(255, 255, 255, 0.08);
-    --color-surface-dark: #090d16;
-    --color-surface-dark-elevated: #0f172a;
+    --color-primary: var(--ui-accent-color);
+    --color-primary-active: color-mix(in srgb, var(--ui-accent-color) 85%, #000000 15%);
+    --color-primary-disabled: color-mix(in srgb, var(--ui-text-color) 10%, transparent);
+    --color-ink: var(--ui-text-color);
+    --color-body: color-mix(in srgb, var(--ui-text-color) 80%, transparent);
+    --color-muted: color-mix(in srgb, var(--ui-text-color) 55%, transparent);
+    --color-muted-soft: color-mix(in srgb, var(--ui-text-color) 40%, transparent);
+    --color-hairline: var(--ui-border-color);
+    --color-hairline-soft: color-mix(in srgb, var(--ui-border-color) 50%, transparent);
+    --color-canvas: var(--ui-bg-color);
+    --color-surface-soft: color-mix(in srgb, var(--ui-text-color) 4%, transparent);
+    --color-surface-card: var(--ui-card-bg);
+    --color-surface-strong: color-mix(in srgb, var(--ui-text-color) 10%, transparent);
+    --color-surface-dark: color-mix(in srgb, var(--ui-bg-color) 92%, var(--ui-text-color) 8%);
+    --color-surface-dark-elevated: color-mix(in srgb, var(--ui-bg-color) 86%, var(--ui-text-color) 14%);
     --color-on-primary: #ffffff;
-    --color-on-dark: #ffffff;
-    --color-on-dark-soft: #94a3b8;
-    --color-brand-accent: #6366f1;
+    --color-on-dark: var(--ui-text-color);
+    --color-on-dark-soft: color-mix(in srgb, var(--ui-text-color) 70%, transparent);
+    --color-brand-accent: var(--ui-accent-color);
     --color-success: #10b981;
     --color-warning: #f59e0b;
     --color-error: #ef4444;
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--ui-font-family), 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: color-mix(in srgb, var(--ui-bg-color) calc((1 - var(--ui-transparency)) * 100%), transparent);
     background-attachment: fixed;
     color: var(--color-body);
@@ -595,10 +651,10 @@ html {
     display: flex; align-items: center; justify-content: space-between;
     flex-wrap: wrap; gap: 12px;
     padding: 8px 16px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    background: var(--ui-sidebar-bg);
     backdrop-filter: var(--ui-blur-topbar);
     -webkit-backdrop-filter: var(--ui-blur-topbar);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--color-hairline);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     min-height: 52px;
     z-index: 20;
@@ -789,10 +845,10 @@ html {
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 .sidebar {
     width: 220px; min-width: 220px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+    background: var(--ui-sidebar-bg);
     backdrop-filter: var(--ui-blur-sidebar);
     -webkit-backdrop-filter: var(--ui-blur-sidebar);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid var(--color-hairline);
     box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.05), 10px 0 30px rgba(0, 0, 0, 0.15);
     display: flex; flex-direction: column;
     padding: 12px 8px;
@@ -841,6 +897,35 @@ html {
 .sidebar-icon {
     font-size: 14px;
     opacity: 0.85;
+}
+.sidebar-fav-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--color-muted);
+    opacity: 0;
+    transition: all 0.2s;
+    padding: 2px 4px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.sidebar-item:hover .sidebar-fav-btn {
+    opacity: 0.7;
+}
+.sidebar-fav-btn:hover {
+    opacity: 1 !important;
+    color: var(--color-warning) !important;
+    transform: scale(1.15);
+}
+.sidebar-item.active .sidebar-fav-btn {
+    color: var(--color-ink);
+}
+.sidebar-fav-btn-active {
+    opacity: 0.95 !important;
+    color: var(--color-warning) !important;
 }
 .sidebar-sub-item {
     padding-left: 20px;
@@ -944,18 +1029,18 @@ html {
 
 /* ── Cards ────────────────────────────────────────────────────────── */
 .card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    background: var(--color-surface-card);
     backdrop-filter: var(--ui-blur-card);
     -webkit-backdrop-filter: var(--ui-blur-card);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--color-hairline);
     border-radius: 14px; padding: 18px;
     display: flex; flex-direction: column; gap: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
     transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 .card:hover {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-    border-color: rgba(99, 102, 241, 0.3);
+    background: color-mix(in srgb, var(--color-surface-card) 94%, var(--color-brand-accent) 6%);
+    border-color: var(--color-brand-accent);
     box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15);
     transform: translateY(-2px);
 }
@@ -1430,6 +1515,75 @@ enum DragType {
     LogPanel,
 }
 
+struct ThemePreset {
+    name: &'static str,
+    label: &'static str,
+    background_color: &'static str,
+    text_color: &'static str,
+    accent_color: &'static str,
+    card_bg: &'static str,
+    sidebar_bg: &'static str,
+    border_color: &'static str,
+    font_family: &'static str,
+    transparency: f32,
+    blur: bool,
+}
+
+const THEME_PRESETS: &[ThemePreset] = &[
+    ThemePreset {
+        name: "glass_light",
+        label: "Glass Light (iOS White)",
+        background_color: "#f8fafc",
+        text_color: "#0f172a",
+        accent_color: "#0284c7",
+        card_bg: "rgba(15, 23, 42, 0.03)",
+        sidebar_bg: "linear-gradient(135deg, rgba(15, 23, 42, 0.04) 0%, rgba(15, 23, 42, 0.01) 100%)",
+        border_color: "rgba(15, 23, 42, 0.08)",
+        font_family: "Inter",
+        transparency: 0.45,
+        blur: true,
+    },
+    ThemePreset {
+        name: "cyberpunk",
+        label: "Cyberpunk Neon (80s)",
+        background_color: "#03001e",
+        text_color: "#39ff14",
+        accent_color: "#ff007f",
+        card_bg: "rgba(255, 0, 127, 0.03)",
+        sidebar_bg: "linear-gradient(180deg, rgba(3, 0, 30, 0.6) 0%, rgba(255, 0, 127, 0.08) 100%)",
+        border_color: "rgba(255, 0, 127, 0.25)",
+        font_family: "JetBrains Mono",
+        transparency: 0.35,
+        blur: true,
+    },
+    ThemePreset {
+        name: "emerald",
+        label: "Emerald Forest",
+        background_color: "#062f21",
+        text_color: "#a7f3d0",
+        accent_color: "#10b981",
+        card_bg: "rgba(16, 185, 129, 0.04)",
+        sidebar_bg: "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 47, 33, 0.5) 100%)",
+        border_color: "rgba(16, 185, 129, 0.15)",
+        font_family: "Inter",
+        transparency: 0.4,
+        blur: true,
+    },
+    ThemePreset {
+        name: "dracula",
+        label: "Dracula Vampire",
+        background_color: "#282a36",
+        text_color: "#f8f8f2",
+        accent_color: "#bd93f9",
+        card_bg: "rgba(255, 255, 255, 0.03)",
+        sidebar_bg: "linear-gradient(135deg, rgba(40, 42, 54, 0.8) 0%, rgba(98, 114, 164, 0.1) 100%)",
+        border_color: "rgba(98, 114, 164, 0.3)",
+        font_family: "JetBrains Mono",
+        transparency: 0.3,
+        blur: true,
+    },
+];
+
 #[component]
 fn App() -> Element {
     let window = dioxus::desktop::use_window();
@@ -1483,9 +1637,10 @@ fn App() -> Element {
                     let ev_id = ev.id.clone();
 
                     tokio::spawn(async move {
-                        println!(
+                        log_info!(
                             "[CALENDAR TRIGGER] Event '{}' hit! Firing prompt: '{}'",
-                            title, prompt
+                            title,
+                            prompt
                         );
 
                         let mut memory_manager =
@@ -1506,14 +1661,14 @@ fn App() -> Element {
                         .await
                         {
                             Ok(resp) => {
-                                println!(
+                                log_info!(
                                     "[CALENDAR TRIGGER] Prompt ran successfully. Output: {}",
                                     resp.text
                                 );
                                 format!("Success:\n{}", resp.text)
                             }
                             Err(e) => {
-                                eprintln!("[CALENDAR TRIGGER] Prompt failed: {}", e);
+                                log_error!("[CALENDAR TRIGGER] Prompt failed: {}", e);
                                 format!("Error: {}", e)
                             }
                         };
@@ -1528,6 +1683,12 @@ fn App() -> Element {
         }
     });
 
+    // Synchronize application log level with config.json
+    use_effect(move || {
+        let level_str = config.read().app_log_level.clone();
+        logger::set_log_level(logger::LogLevel::from_str(&level_str));
+    });
+
     // Auto-save config to ~/.local/share/llama-manager/config.json whenever it changes
     use_effect(move || {
         let current_config = config.read().clone();
@@ -1536,16 +1697,17 @@ fn App() -> Element {
         let path = dir.join("config.json");
         match current_config.save_to_file(&path.to_string_lossy()) {
             Ok(_) => {
-                println!("[MANAGER] Auto-saved config to: {:?}", path);
+                log_debug!("Auto-saved config to: {:?}", path);
             }
             Err(e) => {
-                eprintln!("[MANAGER] Failed to auto-save config: {}", e);
+                log_error!("Failed to auto-save config: {}", e);
             }
         }
     });
     let mut active_tab = use_signal(|| Tab::Chat);
     let mut active_menu = use_signal(|| None::<&'static str>);
     let mut sidebar_collapsed = use_signal(|| false);
+    let mut favorites_expanded = use_signal(|| true);
     let mut general_expanded = use_signal(|| true);
     let mut models_expanded = use_signal(|| true);
     let mut server_expanded = use_signal(|| true);
@@ -1987,6 +2149,124 @@ fn App() -> Element {
 
     let search_matches = search_results.read().clone();
 
+    // Resolve theme-specific variables
+    let (
+        bg_color,
+        text_color,
+        accent_color,
+        card_bg,
+        sidebar_bg,
+        border_color,
+        font_family,
+        transparency,
+        blur,
+    ) = {
+        let cfg = config.read();
+        if cfg.theme_name == "default" || cfg.theme_name == "custom" {
+            (
+                cfg.ui_background_color.clone(),
+                cfg.ui_text_color.clone(),
+                cfg.ui_accent_color.clone(),
+                cfg.ui_card_bg.clone(),
+                cfg.ui_sidebar_bg.clone(),
+                cfg.ui_border_color.clone(),
+                cfg.ui_font_family.clone(),
+                cfg.ui_transparency,
+                cfg.ui_blur,
+            )
+        } else if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == cfg.theme_name) {
+            (
+                preset.background_color.to_string(),
+                preset.text_color.to_string(),
+                preset.accent_color.to_string(),
+                preset.card_bg.to_string(),
+                preset.sidebar_bg.to_string(),
+                preset.border_color.to_string(),
+                preset.font_family.to_string(),
+                preset.transparency,
+                preset.blur,
+            )
+        } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == cfg.theme_name) {
+            (
+                custom.background_color.clone(),
+                custom.text_color.clone(),
+                custom.accent_color.clone(),
+                custom.card_bg.clone(),
+                custom.sidebar_bg.clone(),
+                custom.border_color.clone(),
+                custom.font_family.clone(),
+                custom.transparency,
+                custom.blur,
+            )
+        } else {
+            (
+                cfg.ui_background_color.clone(),
+                cfg.ui_text_color.clone(),
+                cfg.ui_accent_color.clone(),
+                cfg.ui_card_bg.clone(),
+                cfg.ui_sidebar_bg.clone(),
+                cfg.ui_border_color.clone(),
+                cfg.ui_font_family.clone(),
+                cfg.ui_transparency,
+                cfg.ui_blur,
+            )
+        }
+    };
+
+    let render_sidebar_item = move |tab: Tab, is_sub: bool| {
+        let is_fav = config
+            .read()
+            .sidebar_favorites
+            .contains(&tab.as_str().to_string());
+        let active = active_tab() == tab;
+        let class_name = if active {
+            if is_sub {
+                "sidebar-item sidebar-sub-item active"
+            } else {
+                "sidebar-item active"
+            }
+        } else {
+            if is_sub {
+                "sidebar-item sidebar-sub-item"
+            } else {
+                "sidebar-item"
+            }
+        };
+        let fav_class = if is_fav {
+            "sidebar-fav-btn sidebar-fav-btn-active"
+        } else {
+            "sidebar-fav-btn"
+        };
+
+        rsx! {
+            button {
+                key: "{tab.as_str()}",
+                class: "{class_name}",
+                style: "display: flex; justify-content: space-between; align-items: center; width: 100%;",
+                onclick: move |_| active_tab.set(tab),
+                div { style: "display: flex; align-items: center; gap: 10px;",
+                    span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
+                    span { {tab.label()} }
+                }
+                button {
+                    class: "{fav_class}",
+                    onclick: move |e| {
+                        e.stop_propagation();
+                        let mut current = config.read().sidebar_favorites.clone();
+                        let t_str = tab.as_str().to_string();
+                        if let Some(pos) = current.iter().position(|x| x == &t_str) {
+                            current.remove(pos);
+                        } else {
+                            current.push(t_str);
+                        }
+                        config.write().sidebar_favorites = current;
+                    },
+                    if is_fav { "★" } else { "☆" }
+                }
+            }
+        }
+    };
+
     // ── Render ──────────────────────────────────────────────────────
     rsx! {
         style { {CSS} }
@@ -1996,6 +2276,12 @@ fn App() -> Element {
                 :root {{
                     --ui-transparency: {};
                     --ui-bg-color: {};
+                    --ui-text-color: {};
+                    --ui-accent-color: {};
+                    --ui-card-bg: {};
+                    --ui-sidebar-bg: {};
+                    --ui-border-color: {};
+                    --ui-font-family: '{}';
                     --ui-blur-topbar: {};
                     --ui-blur-sidebar: {};
                     --ui-blur-dropdown: {};
@@ -2003,13 +2289,34 @@ fn App() -> Element {
                     --ui-window-blur: {};
                 }}
                 "#,
-                config.read().ui_transparency,
-                config.read().ui_background_color,
-                if config.read().ui_blur { "blur(32px) saturate(190%)" } else { "none" },
-                if config.read().ui_blur { "blur(30px) saturate(210%)" } else { "none" },
-                if config.read().ui_blur { "blur(20px)" } else { "none" },
-                if config.read().ui_blur { "blur(24px) saturate(180%)" } else { "none" },
-                if config.read().ui_blur { "blur(12px)" } else { "none" },
+                transparency,
+                bg_color,
+                text_color,
+                accent_color,
+                card_bg,
+                sidebar_bg,
+                border_color,
+                font_family,
+                {
+                    let intensity = config.read().ui_blur_intensity;
+                    if blur { format!("blur({}px)", intensity) } else { "none".to_string() }
+                },
+                {
+                    let intensity = config.read().ui_blur_intensity;
+                    if blur { format!("blur({}px)", intensity) } else { "none".to_string() }
+                },
+                {
+                    let intensity = config.read().ui_blur_intensity;
+                    if blur { format!("blur({}px)", intensity * 2 / 3) } else { "none".to_string() }
+                },
+                {
+                    let intensity = config.read().ui_blur_intensity;
+                    if blur { format!("blur({}px)", intensity * 4 / 5) } else { "none".to_string() }
+                },
+                {
+                    let intensity = config.read().ui_blur_intensity;
+                    if blur { format!("blur({}px)", intensity * 2 / 5) } else { "none".to_string() }
+                },
             )}
         }
         if show_config_modal() {
@@ -2406,8 +2713,25 @@ fn App() -> Element {
                     } else if sidebar_collapsed() {
                         "width: 0px; min-width: 0px; padding: 0px; margin: 0px; border-right-color: transparent; opacity: 0; pointer-events: none;"
                     } else {
-                        "width: {sidebar_width}px; min-width: {sidebar_width}px;"
+                        "width: {sidebar_width}px; min-width: {sidebar_width}px; padding: 12px 8px; margin: 0px; opacity: 1; pointer-events: auto;"
                     },
+
+                    // Favorites section
+                    if !config.read().sidebar_favorites.is_empty() {
+                        div {
+                            class: "sidebar-section-header interactive",
+                            onclick: move |_| favorites_expanded.set(!favorites_expanded()),
+                            span { class: "section-arrow", if favorites_expanded() { "▼" } else { "▶" } }
+                            span { "★ Favorites" }
+                        }
+                        if favorites_expanded() {
+                            for tab_str in config.read().sidebar_favorites.clone().iter() {
+                                if let Some(tab) = Tab::from_str(tab_str) {
+                                    {render_sidebar_item(tab, false)}
+                                }
+                            }
+                        }
+                    }
 
                     // General/Top-level section
                     div {
@@ -2417,16 +2741,8 @@ fn App() -> Element {
                         span { "General" }
                     }
                     if general_expanded() {
-                        for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents, Tab::AppSettings] {
-                            button {
-                                class: if active_tab() == *tab { "sidebar-item active" } else { "sidebar-item" },
-                                onclick: {
-                                    let t = *tab;
-                                    move |_| active_tab.set(t)
-                                },
-                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                                {tab.label()}
-                            }
+                        for tab in &[Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents] {
+                            {render_sidebar_item(*tab, false)}
                         }
                     }
 
@@ -2439,15 +2755,7 @@ fn App() -> Element {
                     }
                     if models_expanded() {
                         for tab in &[Tab::Model, Tab::Library, Tab::Download, Tab::Instances] {
-                            button {
-                                class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
-                                onclick: {
-                                    let t = *tab;
-                                    move |_| active_tab.set(t)
-                                },
-                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                                {tab.label()}
-                            }
+                            {render_sidebar_item(*tab, true)}
                         }
                     }
 
@@ -2460,15 +2768,7 @@ fn App() -> Element {
                     }
                     if server_expanded() {
                         for tab in &[Tab::Server, Tab::Context, Tab::Gpu, Tab::Performance, Tab::Sampling, Tab::Advanced, Tab::Api] {
-                            button {
-                                class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
-                                onclick: {
-                                    let t = *tab;
-                                    move |_| active_tab.set(t)
-                                },
-                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                                {tab.label()}
-                            }
+                            {render_sidebar_item(*tab, true)}
                         }
                     }
 
@@ -2481,15 +2781,21 @@ fn App() -> Element {
                     }
                     if productivity_expanded() {
                         for tab in &[Tab::Calendar, Tab::Todos, Tab::QuickNotes, Tab::Compare, Tab::DeepResearch] {
-                            button {
-                                class: if active_tab() == *tab { "sidebar-item sidebar-sub-item active" } else { "sidebar-item sidebar-sub-item" },
-                                onclick: {
-                                    let t = *tab;
-                                    move |_| active_tab.set(t)
-                                },
-                                span { class: "sidebar-icon", aria_hidden: "true", {tab.icon()} }
-                                {tab.label()}
-                            }
+                            {render_sidebar_item(*tab, true)}
+                        }
+                    }
+
+                    // Space pusher to push App Settings to the bottom
+                    div { style: "flex: 1;" }
+
+                    // App Settings standalone button at the bottom of the sidebar
+                    button {
+                        class: if active_tab() == Tab::AppSettings { "sidebar-item active" } else { "sidebar-item" },
+                        style: "display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: auto; border-top: 1px solid var(--color-hairline); border-radius: 10px; padding: 10px 14px;",
+                        onclick: move |_| active_tab.set(Tab::AppSettings),
+                        div { style: "display: flex; align-items: center; gap: 10px;",
+                            span { class: "sidebar-icon", aria_hidden: "true", {Tab::AppSettings.icon()} }
+                            span { {Tab::AppSettings.label()} }
                         }
                     }
                 }
@@ -7652,7 +7958,7 @@ fn TabCalendar(config: Signal<ServerConfig>) -> Element {
         let dt_normalized = match calendar::parse_datetime(&dt) {
             Ok(parsed) => parsed.format("%Y-%m-%dT%H:%M:%S").to_string(),
             Err(e) => {
-                eprintln!("[CALENDAR] Datetime validation failed: {}", e);
+                log_error!("[CALENDAR] Datetime validation failed: {}", e);
                 return;
             }
         };
@@ -9287,6 +9593,7 @@ fn TabAppSettings(
     scan_trigger: Signal<u64>,
 ) -> Element {
     let mut input_text = use_signal(String::new);
+    let mut new_theme_name = use_signal(String::new);
 
     let browse_dir = move |_| {
         let mut config = config;
@@ -9306,19 +9613,151 @@ fn TabAppSettings(
         });
     };
 
+    // Helper to get active styling values
+    let get_resolved_values = |cfg: &ServerConfig| {
+        if cfg.theme_name == "default" || cfg.theme_name == "custom" {
+            (
+                cfg.ui_background_color.clone(),
+                cfg.ui_text_color.clone(),
+                cfg.ui_accent_color.clone(),
+                cfg.ui_card_bg.clone(),
+                cfg.ui_sidebar_bg.clone(),
+                cfg.ui_border_color.clone(),
+                cfg.ui_font_family.clone(),
+                cfg.ui_transparency,
+                cfg.ui_blur,
+                cfg.ui_blur_intensity,
+            )
+        } else if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == cfg.theme_name) {
+            (
+                preset.background_color.to_string(),
+                preset.text_color.to_string(),
+                preset.accent_color.to_string(),
+                preset.card_bg.to_string(),
+                preset.sidebar_bg.to_string(),
+                preset.border_color.to_string(),
+                preset.font_family.to_string(),
+                preset.transparency,
+                preset.blur,
+                cfg.ui_blur_intensity,
+            )
+        } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == cfg.theme_name) {
+            (
+                custom.background_color.clone(),
+                custom.text_color.clone(),
+                custom.accent_color.clone(),
+                custom.card_bg.clone(),
+                custom.sidebar_bg.clone(),
+                custom.border_color.clone(),
+                custom.font_family.clone(),
+                custom.transparency,
+                custom.blur,
+                custom.blur_intensity,
+            )
+        } else {
+            (
+                cfg.ui_background_color.clone(),
+                cfg.ui_text_color.clone(),
+                cfg.ui_accent_color.clone(),
+                cfg.ui_card_bg.clone(),
+                cfg.ui_sidebar_bg.clone(),
+                cfg.ui_border_color.clone(),
+                cfg.ui_font_family.clone(),
+                cfg.ui_transparency,
+                cfg.ui_blur,
+                cfg.ui_blur_intensity,
+            )
+        }
+    };
+
+    // Helper to copy selected preset/custom-theme values into custom overrides before making modifications
+    let prepare_custom_overrides = |cfg: &mut ServerConfig| {
+        let theme = cfg.theme_name.clone();
+        if theme != "default" && theme != "custom" {
+            if let Some(preset) = THEME_PRESETS.iter().find(|p| p.name == theme) {
+                cfg.ui_background_color = preset.background_color.to_string();
+                cfg.ui_text_color = preset.text_color.to_string();
+                cfg.ui_accent_color = preset.accent_color.to_string();
+                cfg.ui_card_bg = preset.card_bg.to_string();
+                cfg.ui_sidebar_bg = preset.sidebar_bg.to_string();
+                cfg.ui_border_color = preset.border_color.to_string();
+                cfg.ui_font_family = preset.font_family.to_string();
+                cfg.ui_transparency = preset.transparency;
+                cfg.ui_blur = preset.blur;
+            } else if let Some(custom) = cfg.custom_themes.iter().find(|t| t.name == theme) {
+                cfg.ui_background_color = custom.background_color.clone();
+                cfg.ui_text_color = custom.text_color.clone();
+                cfg.ui_accent_color = custom.accent_color.clone();
+                cfg.ui_card_bg = custom.card_bg.clone();
+                cfg.ui_sidebar_bg = custom.sidebar_bg.clone();
+                cfg.ui_border_color = custom.border_color.clone();
+                cfg.ui_font_family = custom.font_family.clone();
+                cfg.ui_transparency = custom.transparency;
+                cfg.ui_blur = custom.blur;
+                cfg.ui_blur_intensity = custom.blur_intensity;
+            }
+            cfg.theme_name = "custom".to_string();
+        }
+    };
+
     rsx! {
         div { class: "section-title", "App Settings" }
-        div { class: "section-desc", "Configure Llama-Manager client settings, window transparency, backdrop blur, search engine integration, and model scan paths." }
+        div { class: "section-desc", "Configure Llama-Manager client settings, custom theme styling, window transparency, backdrop blur, search engine integration, and model scan paths." }
 
-        // Card 1: UI & Aesthetics
+        // Card 1: UI Theme & Aesthetics
         div { class: "card",
-            div { class: "card-title", "UI Settings & Liquid Glass" }
+            div { class: "card-title", "UI Theme & Aesthetics" }
+
             div { class: "form-row",
+                div { class: "form-group",
+                    label { r#for: "form-theme-preset", class: "form-label", "Theme Preset" }
+                    select {
+                        id: "form-theme-preset",
+                        class: "form-input",
+                        value: config.read().theme_name.clone(),
+                        onchange: move |e: Event<FormData>| {
+                            let theme = e.value();
+                            let mut cfg = config.write();
+                            cfg.theme_name = theme.clone();
+                        },
+                        option { value: "default", "Default Theme" }
+                        for preset in THEME_PRESETS {
+                            option { value: preset.name, "{preset.label}" }
+                        }
+                        for custom in config.read().custom_themes.iter() {
+                            option { value: "{custom.name}", "Custom: {custom.name}" }
+                        }
+                        option { value: "custom", "Custom Theme (Unsaved Changes)" }
+                    }
+                    div { class: "form-hint", "Select a preset visual theme or choose your custom themes." }
+                }
+
+                div { class: "form-group",
+                    label { r#for: "form-ui-font-family", class: "form-label", "Font Family" }
+                    select {
+                        id: "form-ui-font-family",
+                        class: "form-input",
+                        value: config.read().ui_font_family.clone(),
+                        onchange: move |e: Event<FormData>| {
+                            let font = e.value();
+                            let mut cfg = config.write();
+                            prepare_custom_overrides(&mut cfg);
+                            cfg.ui_font_family = font;
+                        },
+                        option { value: "Inter", "Inter" }
+                        option { value: "JetBrains Mono", "JetBrains Mono" }
+                        option { value: "Roboto", "Roboto" }
+                        option { value: "system-ui", "System Default" }
+                    }
+                    div { class: "form-hint", "Primary typography style used across text and headers." }
+                }
+            }
+
+            div { class: "form-row", style: "margin-top: 12px;",
                 div { class: "form-group",
                     label { r#for: "form-ui-transparency", class: "form-label", "Window Transparency ({config.read().ui_transparency * 100.0:.0}%)" }
                     input {
                         id: "form-ui-transparency",
-                        autofocus: search_target.read().as_str() == "form-ui-transparency",
                         class: "form-input",
                         r#type: "range",
                         min: "0.0",
@@ -9327,57 +9766,363 @@ fn TabAppSettings(
                         value: config.read().ui_transparency.to_string(),
                         oninput: move |e: Event<FormData>| {
                             if let Ok(v) = e.value().parse::<f32>() {
-                                config.write().ui_transparency = v;
+                                let mut cfg = config.write();
+                                prepare_custom_overrides(&mut cfg);
+                                cfg.ui_transparency = v;
                             }
                         }
                     }
-                    div { class: "form-hint", "0% = Solid window. Higher values make the window transparent with a glass color tint." }
+                    div { class: "form-hint", "Controls window opacity. Transparency works beautifully with desktop backdrop blur." }
                 }
-                div { class: "form-group",
-                    label { r#for: "form-ui-bg-color", class: "form-label", "Background Tint / Color" }
-                    div { class: "input-group",
-                        input {
-                            id: "form-ui-bg-color",
-                            autofocus: search_target.read().as_str() == "form-ui-bg-color",
-                            class: "form-input",
-                            r#type: "color",
-                            value: config.read().ui_background_color.clone(),
-                            oninput: move |e: Event<FormData>| {
-                                config.write().ui_background_color = e.value();
-                            }
+
+                div { class: "form-group", style: "display: flex; flex-direction: column; justify-content: center;",
+                    div { class: "toggle-row",
+                        div { class: "toggle-info",
+                            div { class: "toggle-name", "Backdrop Glass Blur" }
+                            div { class: "toggle-desc", "Apply smooth depth blur underneath panels and the main window." }
                         }
-                        input {
-                            class: "form-input",
-                            r#type: "text",
-                            style: "width: 120px;",
-                            value: config.read().ui_background_color.clone(),
-                            oninput: move |e: Event<FormData>| {
-                                config.write().ui_background_color = e.value();
-                            }
+                        div {
+                            id: "form-ui-blur",
+                            class: if config.read().ui_blur { "toggle-switch on" } else { "toggle-switch" },
+                            onclick: move |_| {
+                                let mut cfg = config.write();
+                                prepare_custom_overrides(&mut cfg);
+                                let current = cfg.ui_blur;
+                                cfg.ui_blur = !current;
+                            },
+                            div { class: "toggle-thumb" }
                         }
                     }
-                    div { class: "form-hint", "Color of the solid window or background color of the glass tint." }
                 }
             }
-            // Backdrop Blur Toggle
-            div { class: "toggle-row", style: "margin-top: 12px;",
-                div { class: "toggle-info",
-                    div { class: "toggle-name", "Backdrop Glass Blur" }
-                    div { class: "toggle-desc", "Apply smooth depth blur underneath glass panels and the main application window." }
+
+            div { class: "form-row", style: "margin-top: 12px;",
+                div { class: "form-group",
+                    label { r#for: "form-ui-blur-intensity", class: "form-label", "Backdrop Blur Intensity ({config.read().ui_blur_intensity}px)" }
+                    input {
+                        id: "form-ui-blur-intensity",
+                        class: "form-input",
+                        r#type: "range",
+                        min: "0",
+                        max: "64",
+                        step: "1",
+                        value: config.read().ui_blur_intensity.to_string(),
+                        oninput: move |e: Event<FormData>| {
+                            if let Ok(v) = e.value().parse::<u32>() {
+                                let mut cfg = config.write();
+                                prepare_custom_overrides(&mut cfg);
+                                cfg.ui_blur_intensity = v;
+                            }
+                        }
+                    }
+                    div { class: "form-hint", "Adjust the pixel radius of the backdrop depth blur. Only active if Backdrop Glass Blur is enabled." }
                 }
-                div {
-                    id: "form-ui-blur",
-                    class: if config.read().ui_blur { "toggle-switch on" } else { "toggle-switch" },
-                    onclick: move |_| {
-                        let current = config.read().ui_blur;
-                        config.write().ui_blur = !current;
-                    },
-                    div { class: "toggle-thumb" }
+
+                div { class: "form-group",
+                    label { r#for: "form-app-log-level", class: "form-label", "Application Log Level" }
+                    select {
+                        id: "form-app-log-level",
+                        class: "form-input",
+                        value: config.read().app_log_level.clone(),
+                        onchange: move |e: Event<FormData>| {
+                            config.write().app_log_level = e.value();
+                        },
+                        option { value: "DEBUG", "DEBUG (All logs)" }
+                        option { value: "INFO", "INFO (Standard info)" }
+                        option { value: "WARN", "WARN (Warnings only)" }
+                        option { value: "ERROR", "ERROR (Errors only)" }
+                    }
+                    div { class: "form-hint", "Tiered console logs verbosity for debugging and auditing." }
+                }
+            }
+
+            // Custom Theme Color Pickers Row
+            div { style: "margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-hairline);",
+                div { class: "card-title", style: "font-size: 13px; margin-bottom: 12px;", "Theme Colors (Overrides active if Custom/Default theme is chosen)" }
+
+                div { class: "form-row",
+                    div { class: "form-group",
+                        label { r#for: "form-color-tint", class: "form-label", "Background Tint" }
+                        div { class: "input-group",
+                            input {
+                                id: "form-color-tint",
+                                class: "form-input",
+                                r#type: "color",
+                                value: config.read().ui_background_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_background_color = e.value();
+                                }
+                            }
+                            input {
+                                class: "form-input",
+                                r#type: "text",
+                                style: "width: 90px; font-size: 12px;",
+                                value: config.read().ui_background_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_background_color = e.value();
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "form-group",
+                        label { r#for: "form-color-text", class: "form-label", "Text Color" }
+                        div { class: "input-group",
+                            input {
+                                id: "form-color-text",
+                                class: "form-input",
+                                r#type: "color",
+                                value: config.read().ui_text_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_text_color = e.value();
+                                }
+                            }
+                            input {
+                                class: "form-input",
+                                r#type: "text",
+                                style: "width: 90px; font-size: 12px;",
+                                value: config.read().ui_text_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_text_color = e.value();
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "form-group",
+                        label { r#for: "form-color-accent", class: "form-label", "Accent Color" }
+                        div { class: "input-group",
+                            input {
+                                id: "form-color-accent",
+                                class: "form-input",
+                                r#type: "color",
+                                value: config.read().ui_accent_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_accent_color = e.value();
+                                }
+                            }
+                            input {
+                                class: "form-input",
+                                r#type: "text",
+                                style: "width: 90px; font-size: 12px;",
+                                value: config.read().ui_accent_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_accent_color = e.value();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                div { class: "form-row", style: "margin-top: 12px;",
+                    div { class: "form-group",
+                        label { r#for: "form-color-border", class: "form-label", "Border / Hairline Color" }
+                        div { class: "input-group",
+                            input {
+                                id: "form-color-border",
+                                class: "form-input",
+                                r#type: "color",
+                                value: if config.read().ui_border_color.starts_with("rgba") { "#475569".to_string() } else { config.read().ui_border_color.clone() },
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_border_color = e.value();
+                                }
+                            }
+                            input {
+                                class: "form-input",
+                                r#type: "text",
+                                style: "width: 140px; font-size: 12px;",
+                                value: config.read().ui_border_color.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_border_color = e.value();
+                                }
+                            }
+                        }
+                    }
+
+                    div { class: "form-group",
+                        label { r#for: "form-color-card", class: "form-label", "Card Background Color" }
+                        div { class: "input-group",
+                            input {
+                                id: "form-color-card",
+                                class: "form-input",
+                                r#type: "color",
+                                value: if config.read().ui_card_bg.starts_with("rgba") { "#1e293b".to_string() } else { config.read().ui_card_bg.clone() },
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_card_bg = e.value();
+                                }
+                            }
+                            input {
+                                class: "form-input",
+                                r#type: "text",
+                                style: "width: 140px; font-size: 12px;",
+                                value: config.read().ui_card_bg.clone(),
+                                oninput: move |e: Event<FormData>| {
+                                    let mut cfg = config.write();
+                                    prepare_custom_overrides(&mut cfg);
+                                    cfg.ui_card_bg = e.value();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                div { class: "form-group", style: "margin-top: 12px;",
+                    label { r#for: "form-color-sidebar", class: "form-label", "Sidebar Background CSS Color/Gradient" }
+                    input {
+                        id: "form-color-sidebar",
+                        class: "form-input",
+                        r#type: "text",
+                        value: config.read().ui_sidebar_bg.clone(),
+                        oninput: move |e: Event<FormData>| {
+                            let mut cfg = config.write();
+                            prepare_custom_overrides(&mut cfg);
+                            cfg.ui_sidebar_bg = e.value();
+                        }
+                    }
+                    div { class: "form-hint", "Accepts solid color hex or CSS gradient formats (e.g. linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.01) 100%))" }
+                }
+            }
+
+            // Save custom theme sub-card
+            div { style: "margin-top: 18px; padding: 14px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 12px;",
+                div { class: "card-title", style: "font-size: 12px; margin-bottom: 8px; color: var(--color-brand-accent);", "Save Theme Preset" }
+                div { style: "display: flex; gap: 10px; align-items: center;",
+                    input {
+                        class: "form-input",
+                        style: "flex: 1;",
+                        placeholder: "Type a name for your custom theme...",
+                        value: new_theme_name(),
+                        oninput: move |e: Event<FormData>| new_theme_name.set(e.value()),
+                    }
+                    button {
+                        class: "btn btn-start",
+                        style: "padding: 8px 16px; min-height: 38px; margin: 0;",
+                        onclick: move |_| {
+                            let name = new_theme_name.read().trim().to_string();
+                            if !name.is_empty() && name != "default" && name != "custom" {
+                                let mut cfg = config.write();
+                                let (bg, fg, acc, card, sbar, border, font, trans, bl, bl_int) = get_resolved_values(&cfg);
+                                let new_theme = CustomTheme {
+                                    name: name.clone(),
+                                    background_color: bg,
+                                    text_color: fg,
+                                    accent_color: acc,
+                                    card_bg: card,
+                                    sidebar_bg: sbar,
+                                    border_color: border,
+                                    font_family: font,
+                                    transparency: trans,
+                                    blur: bl,
+                                    blur_intensity: bl_int,
+                                };
+                                if let Some(pos) = cfg.custom_themes.iter().position(|t| t.name == name) {
+                                    cfg.custom_themes[pos] = new_theme;
+                                } else {
+                                    cfg.custom_themes.push(new_theme);
+                                }
+                                cfg.theme_name = name;
+                                new_theme_name.set(String::new());
+                            }
+                        },
+                        "Save Theme"
+                    }
+                }
+                
+                // List custom themes if any
+                if !config.read().custom_themes.is_empty() {
+                    div { style: "margin-top: 14px; display: flex; flex-direction: column; gap: 8px;",
+                        div { style: "font-size: 11px; color: var(--color-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;", "My Custom Themes" }
+                        for custom in config.read().custom_themes.clone().iter() {
+                            div {
+                                key: "{custom.name}",
+                                style: "display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.01); border-radius: 8px; border: 1px solid var(--color-hairline);",
+                                span { style: "font-size: 13.5px; font-weight: 600; color: var(--color-ink);", "{custom.name}" }
+                                button {
+                                    style: "background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); cursor: pointer; color: #f87171; font-size: 11.5px; padding: 4px 10px; border-radius: 6px; transition: all 0.2s;",
+                                    onclick: {
+                                        let name = custom.name.clone();
+                                        move |e| {
+                                            e.stop_propagation();
+                                            let mut cfg = config.write();
+                                            if let Some(pos) = cfg.custom_themes.iter().position(|t| t.name == name) {
+                                                cfg.custom_themes.remove(pos);
+                                            }
+                                            if cfg.theme_name == name {
+                                                cfg.theme_name = "default".to_string();
+                                            }
+                                        }
+                                    },
+                                    "Delete"
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Card 2: Model Scan Directories
+        // Card 2: Sidebar Navigation Favorites
+        div { class: "card",
+            div { class: "card-title", "Sidebar Navigation & Favorites" }
+            div { class: "form-hint", style: "margin-bottom: 12px;", "Choose which sections appear in the 'Favorites' group at the top of your sidebar for quick access." }
+
+            div {
+                style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px;",
+                for tab in &[
+                    Tab::Chat, Tab::Planner, Tab::Monitor, Tab::Mcp, Tab::Agents,
+                    Tab::Model, Tab::Library, Tab::Download, Tab::Instances,
+                    Tab::Server, Tab::Context, Tab::Gpu, Tab::Performance, Tab::Sampling, Tab::Advanced, Tab::Api,
+                    Tab::Calendar, Tab::Todos, Tab::QuickNotes, Tab::Compare, Tab::DeepResearch
+                ] {
+                    div {
+                        key: "fav-mgr-{tab.as_str()}",
+                        style: "display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--color-surface-soft); border: 1px solid var(--color-hairline); border-radius: 8px;",
+                        div { style: "display: flex; align-items: center; gap: 8px;",
+                            span { style: "font-size: 14px;", {tab.icon()} }
+                            span { style: "font-size: 12.5px; font-weight: 500; color: var(--color-ink);", {tab.label()} }
+                        }
+                        button {
+                            style: "background: none; border: none; cursor: pointer; font-size: 16px; transition: transform 0.2s;",
+                            class: if config.read().sidebar_favorites.contains(&tab.as_str().to_string()) { "sidebar-fav-btn-active" } else { "" },
+                            onclick: {
+                                let t = *tab;
+                                move |_| {
+                                    let mut current = config.read().sidebar_favorites.clone();
+                                    let t_str = t.as_str().to_string();
+                                    if let Some(pos) = current.iter().position(|x| x == &t_str) {
+                                        current.remove(pos);
+                                    } else {
+                                        current.push(t_str);
+                                    }
+                                    config.write().sidebar_favorites = current;
+                                }
+                            },
+                            if config.read().sidebar_favorites.contains(&tab.as_str().to_string()) { "★" } else { "☆" }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Card 3: Model Scan Directories
         div { class: "card",
             div { class: "card-title", "Scan Directories" }
             div { class: "form-group",
@@ -9484,7 +10229,7 @@ fn TabAppSettings(
             }
         }
 
-        // Card 3: Deep Research Search Engine Integration
+        // Card 4: Deep Research Search Engine Integration
         div { class: "card",
             div { class: "card-title", "Search Engine Integration" }
             div { class: "form-group",
