@@ -15,6 +15,14 @@ import { NotesTab } from "@/tabs/notes";
 import { TodosTab } from "@/tabs/todos";
 import { CalendarTab } from "@/tabs/calendar";
 import { PlannerTab } from "@/tabs/planner";
+import { LibraryTab } from "@/tabs/library";
+import { DownloaderTab } from "@/tabs/downloader";
+import { InstancesTab } from "@/tabs/instances";
+import { MonitorTab } from "@/tabs/monitor";
+import { AgentsTab } from "@/tabs/agents";
+import { McpTab } from "@/tabs/mcp";
+import { CompareTab } from "@/tabs/compare";
+import { DeepResearchTab } from "@/tabs/deep-research";
 
 export default function App() {
   const {
@@ -164,6 +172,14 @@ function TabContent({ tab }: { tab: string }) {
     case "todos": return <TodosTab />;
     case "calendar": return <CalendarTab />;
     case "planner": return <PlannerTab />;
+    case "library": return <LibraryTab />;
+    case "downloader": return <DownloaderTab />;
+    case "instances": return <InstancesTab />;
+    case "monitor": return <MonitorTab />;
+    case "agents": return <AgentsTab />;
+    case "mcp": return <McpTab />;
+    case "compare": return <CompareTab />;
+    case "deep-research": return <DeepResearchTab />;
     default: return <ChatTab />;
   }
 }

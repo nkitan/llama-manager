@@ -9,6 +9,14 @@ import {
   Activity,
   Server,
   ChevronRight,
+  HardDrive,
+  Download,
+  Cpu,
+  Bot,
+  Plug,
+  Gauge,
+  Microscope,
+  GitCompare,
 } from "lucide-react";
 import { useStore } from "@/store/app-store";
 import { cn } from "@/lib/utils";
@@ -43,6 +51,24 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { id: "overview", label: "Overview", icon: LayoutGrid },
       { id: "observability", label: "Observability", icon: Activity },
+      { id: "instances", label: "Instances", icon: Cpu },
+      { id: "monitor", label: "Agent Monitor", icon: Gauge },
+    ],
+  },
+  {
+    label: "Models & Data",
+    items: [
+      { id: "library", label: "Model Library", icon: HardDrive },
+      { id: "downloader", label: "Downloader", icon: Download },
+      { id: "compare", label: "Compare", icon: GitCompare },
+    ],
+  },
+  {
+    label: "Knowledge & Agents",
+    items: [
+      { id: "agents", label: "Memory & Skills", icon: Bot },
+      { id: "mcp", label: "MCP Tools", icon: Plug },
+      { id: "deep-research", label: "Deep Research", icon: Microscope },
     ],
   },
 ];

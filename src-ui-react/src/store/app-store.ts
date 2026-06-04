@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   PlanStep,
   ApprovalRequest,
+  SkillOrAgentFile,
 } from "@/lib/ipc";
 
 export interface ObsEvent {
@@ -14,6 +15,11 @@ export interface ObsEvent {
 }
 
 const OBS_CAP = 4000;
+
+export interface RoutedInstance {
+  host: string;
+  port: number;
+}
 
 interface AppStore {
   // ── Config ────────────────────────────────────────────────────────────────
@@ -39,6 +45,8 @@ interface AppStore {
   setChatDraft: (s: string) => void;
   chatShowContext: boolean;
   toggleChatContext: () => void;
+  chatSkills: SkillOrAgentFile[];
+  setChatSkills: (s: SkillOrAgentFile[]) => void;
 
   // ── Agent ─────────────────────────────────────────────────────────────────
   activeAgentId: string | null;
@@ -53,6 +61,12 @@ interface AppStore {
   addApproval: (agentId: string, req: ApprovalRequest) => void;
   removeApproval: (callId: string) => void;
 
+  // ── Routing (per-tool / global chat override) ────────────────────────────
+  routedInstance: RoutedInstance | null;
+  setRoutedInstance: (r: RoutedInstance | null) => void;
+  routedModel: string | null;
+  setRoutedModel: (m: string | null) => void;
+
   // ── Observability ─────────────────────────────────────────────────────────
   obsEvents: ObsEvent[];
   addObsEvent: (ev: ObsEvent) => void;
@@ -65,6 +79,10 @@ interface AppStore {
   serverLogs: string[];
   addServerLog: (line: string) => void;
   clearServerLogs: () => void;
+
+  // ── UI prefs ──────────────────────────────────────────────────────────────
+  toolsCollapsed: boolean;
+  toggleToolsCollapsed: () => void;
 }
 
 export const useStore = create<AppStore>()((set) => ({
@@ -102,6 +120,8 @@ export const useStore = create<AppStore>()((set) => ({
   setChatDraft: (s) => set({ chatDraft: s }),
   chatShowContext: false,
   toggleChatContext: () => set((s) => ({ chatShowContext: !s.chatShowContext })),
+  chatSkills: [],
+  setChatSkills: (skills) => set({ chatSkills: skills }),
 
   // Agent
   activeAgentId: null,
@@ -126,6 +146,12 @@ export const useStore = create<AppStore>()((set) => ({
       agentApprovals: s.agentApprovals.filter((a) => a.request.call_id !== callId),
     })),
 
+  // Routing
+  routedInstance: null,
+  setRoutedInstance: (r) => set({ routedInstance: r }),
+  routedModel: null,
+  setRoutedModel: (m) => set({ routedModel: m }),
+
   // Obs
   obsEvents: [],
   addObsEvent: (ev) =>
@@ -143,4 +169,8 @@ export const useStore = create<AppStore>()((set) => ({
   addServerLog: (line) =>
     set((s) => ({ serverLogs: [...s.serverLogs.slice(-999), line] })),
   clearServerLogs: () => set({ serverLogs: [] }),
+
+  // UI prefs
+  toolsCollapsed: false,
+  toggleToolsCollapsed: () => set((s) => ({ toolsCollapsed: !s.toolsCollapsed })),
 }));

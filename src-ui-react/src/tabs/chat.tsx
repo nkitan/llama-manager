@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import { Send, Square, ChevronDown, BarChart2, Trash2, AlertCircle, Check, X } from "lucide-react";
 import { useStore } from "@/store/app-store";
 import { ipc } from "@/lib/ipc";
+import { resolveTarget } from "@/lib/target";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,12 +52,13 @@ export function ChatTab() {
       messages.unshift({ role: "system", content: config.system_prompt });
     }
 
+    const target = resolveTarget("planner");
     try {
       await ipc.chatSend({
         stream_id: streamId,
-        host: config.host,
-        port: config.port,
-        model,
+        host: target.host,
+        port: target.port,
+        model: target.model || model,
         messages,
         temperature: config.temperature ?? 0.7,
       });

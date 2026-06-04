@@ -136,6 +136,108 @@ export interface PlannerState {
   tasks: KanbanTask[];
 }
 
+export interface ScannedModel {
+  path: string;
+  filename: string;
+  size_bytes: number;
+  clean_name: string;
+  use_case: string;
+  hf_link: string;
+  github_link: string;
+  size_info: string;
+  status: string;
+  family: string;
+  version: string;
+  tags: string[];
+}
+
+export interface DownloadStatus {
+  is_downloading: boolean;
+  log: string;
+}
+
+export interface LlamaInstance {
+  hostname: string;
+  port: number;
+  status: string;
+  models: string[];
+}
+
+export interface ModelOverride {
+  enabled: boolean;
+  host: string;
+  port: number;
+  model: string;
+}
+
+export interface AgentStatus {
+  name: string;
+  current_action: string;
+  status: string;
+  last_active: string;
+}
+
+export interface AgentActivityEvent {
+  timestamp: string;
+  agent_name: string;
+  message: string;
+}
+
+export interface MonitorState {
+  agents: AgentStatus[];
+  events: AgentActivityEvent[];
+}
+
+export interface Memory {
+  id: string;
+  title: string;
+  created_at: string;
+  tags: string[];
+  links: string[];
+  scope: string;
+  content: string;
+}
+
+export interface SkillOrAgentFile {
+  name: string;
+  path: string;
+  is_skill: boolean;
+  content: string;
+  source: string;
+}
+
+export interface BenchmarkResult {
+  pp: string;
+  tg: string;
+  pp_speed: string;
+  tg_speed: string;
+}
+
+export interface BenchmarkOutput {
+  raw: string;
+  results: BenchmarkResult[];
+}
+
+export interface ResearchStatus {
+  is_running: boolean;
+  log: string;
+  report: string;
+}
+
+export interface ResearchReportInfo {
+  filename: string;
+  path: string;
+}
+
+export interface OptimizationSuggestion {
+  key: string;
+  label: string;
+  current: string;
+  recommended: string;
+  reason: string;
+  selected: boolean;
+}
+
 // ── ServerConfig (partial — all UI-relevant fields) ──────────────────────────
 export interface ServerConfig {
   exe_path: string;
@@ -164,6 +266,12 @@ export interface ServerConfig {
   cont_batching: boolean;
   parallel: number;
   searxng_url: string;
+  model_scan_dirs: string[];
+  override_planner: ModelOverride;
+  override_calendar: ModelOverride;
+  override_memory: ModelOverride;
+  override_research: ModelOverride;
+  override_compare: ModelOverride;
   // UI theme
   dark_mode: boolean;
   theme_name: string;
@@ -209,7 +317,7 @@ export const ipc = {
   agentStart: (req: AgentRequest) => invoke<string>("agent_start", { req }),
   agentApprove: (decision: ApprovalDecision) =>
     invoke<void>("agent_approve", { decision }),
-  agentCancel: (agentId: string) => invoke<void>("agent_cancel", { agentId: agent_id }),
+  agentCancel: (agentId: string) => invoke<void>("agent_cancel", { agent_id: agentId }),
   agentStatus: () => invoke<string[]>("agent_status"),
 
   serverStart: () => invoke<void>("server_start"),
@@ -237,13 +345,73 @@ export const ipc = {
   plannerLoad: () => invoke<PlannerState>("planner_load"),
   plannerSave: (tasks: KanbanTask[]) => invoke<void>("planner_save", { tasks }),
 
+  // Library
+  libraryGetIndex: () => invoke<ScannedModel[]>("library_get_index"),
+  libraryScan: () => invoke<ScannedModel[]>("library_scan"),
+  libraryEnrichSingle: (path: string) =>
+    invoke<ScannedModel[]>("library_enrich_single", { path }),
+  libraryEnrichAll: () => invoke<void>("library_enrich_all"),
+
+  // Downloader
+  downloadGetTargets: () => invoke<string>("download_get_targets"),
+  downloadSaveTargets: (targets: string) =>
+    invoke<void>("download_save_targets", { targets }),
+  downloadStart: (targets: string) => invoke<void>("download_start", { targets }),
+  downloadCancel: () => invoke<void>("download_cancel"),
+  downloadStatus: () => invoke<DownloadStatus>("download_status"),
+
+  // Instances
+  instancesDetect: () => invoke<LlamaInstance[]>("instances_detect"),
+
+  // Memory / Agents
+  obsidianMemoriesGet: () => invoke<Memory[]>("obsidian_memories_get"),
+  obsidianMemorySave: (mem: Memory) =>
+    invoke<void>("obsidian_memory_save", { mem }),
+  obsidianMemoryDelete: (id: string, scope: string) =>
+    invoke<void>("obsidian_memory_delete", { id, scope }),
+
+  // Skills / AGENTS.md
+  listSkillsAndAgents: () => invoke<SkillOrAgentFile[]>("list_skills_and_agents"),
+
+  // MCP
+  mcpGetRegistry: () => invoke<unknown>("mcp_get_registry"),
+  mcpSaveRegistry: (registry: unknown) =>
+    invoke<void>("mcp_save_registry", { registry }),
+
+  // Monitor
+  monitorLoad: () => invoke<MonitorState>("monitor_load"),
+  monitorClearEvents: () => invoke<MonitorState>("monitor_clear_events"),
+
+  // Compare
+  compareRunBench: (
+    url: string,
+    model: string,
+    pp: string,
+    tg: string,
+    runs: string
+  ) =>
+    invoke<BenchmarkOutput>("compare_run_bench", { url, model, pp, tg, runs }),
+  compareRunEval: (url: string, model: string, prompt: string) =>
+    invoke<string>("compare_run_eval", { url, model, prompt }),
+
+  // Deep Research
+  deepResearchStart: (query: string, host: string, port: number, model: string) =>
+    invoke<void>("deep_research_start", { query, host, port, model }),
+  deepResearchStatus: () => invoke<ResearchStatus>("deep_research_status"),
+  deepResearchCancel: () => invoke<void>("deep_research_cancel"),
+  deepResearchListReports: () =>
+    invoke<ResearchReportInfo[]>("deep_research_list_reports"),
+  deepResearchReadReport: (filename: string) =>
+    invoke<string>("deep_research_read_report", { filename }),
+
+  // Optimizer
+  serverSuggestOptimizations: (config: ServerConfig) =>
+    invoke<OptimizationSuggestion[]>("server_suggest_optimizations", { config }),
+
   winMinimize: () => invoke<void>("win_minimize"),
   winToggleMaximize: () => invoke<void>("win_toggle_maximize"),
   winClose: () => invoke<void>("win_close"),
 };
-
-// Fix the agentCancel typo above
-ipc.agentCancel = (agentId: string) => invoke<void>("agent_cancel", { agent_id: agentId });
 
 // ── Typed event listeners ────────────────────────────────────────────────────
 export const onChatEvent = (cb: (ev: ChatEvent) => void): Promise<UnlistenFn> =>
