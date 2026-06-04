@@ -4,10 +4,13 @@
 use gloo_timers::callback::Interval;
 use leptos::prelude::*;
 use shared::ServerConfig;
-use shared::ipc::CONFIG_CHANGED_EVENT;
+use shared::ipc::{
+    AGENT_EVENT, CHAT_EVENT, CONFIG_CHANGED_EVENT,
+    AgentEvent, ChatEvent,
+};
 use wasm_bindgen_futures::spawn_local;
 
-use crate::state::{AppCtx, Tab};
+use crate::state::{AppCtx, ObsEvent, Tab};
 use crate::tabs;
 use crate::{api, ipc, theme};
 
@@ -24,6 +27,18 @@ pub fn App() -> impl IntoView {
         server_running: RwSignal::new(false),
         tools_collapsed: RwSignal::new(false),
         chat_draft: RwSignal::new(String::new()),
+        // Chat persistence
+        chat_messages: RwSignal::new(vec![]),
+        chat_generating: RwSignal::new(false),
+        chat_error: RwSignal::new(None),
+        chat_current_stream: RwSignal::new(String::new()),
+        chat_current_agent: RwSignal::new(None),
+        chat_plan: RwSignal::new(vec![]),
+        chat_trace: RwSignal::new(vec![]),
+        chat_approvals: RwSignal::new(vec![]),
+        chat_show_context: RwSignal::new(false),
+        // Observability
+        obs_events: RwSignal::new(vec![]),
     };
     provide_context(ctx);
 
@@ -36,15 +51,197 @@ pub fn App() -> impl IntoView {
         }
     });
 
-    // Hydrate chat history
+    // Hydrate chat history into both signals
     let chat_hist = ctx.chat_history;
+    let chat_msgs = ctx.chat_messages;
     spawn_local(async move {
         match api::chat_load_history().await {
-            Ok(hist) => chat_hist.set(hist),
+            Ok(hist) => {
+                chat_hist.set(hist.clone());
+                chat_msgs.set(hist);
+            }
             Err(e) => tracing::error!("chat_load_history failed: {e}"),
         }
     });
     ipc::listen::<ServerConfig, _>(CONFIG_CHANGED_EVENT, move |cfg| config.set(cfg));
+
+    // ── Global chat/agent ipc listeners ──────────────────────────────────────
+    // Registered once in App (not inside ChatTab) so streaming survives tab
+    // switches. The forgotten closures keep the signals alive via Rc/Arc.
+    {
+        let chat_msgs  = ctx.chat_messages;
+        let chat_gen   = ctx.chat_generating;
+        let chat_err   = ctx.chat_error;
+        let chat_stream = ctx.chat_current_stream;
+        let chat_hist  = ctx.chat_history;
+        let obs        = ctx.obs_events;
+
+        ipc::listen::<ChatEvent, _>(CHAT_EVENT, move |ev| {
+            let now = js_sys::Date::now();
+            match ev {
+                ChatEvent::Token { stream_id, delta } => {
+                    if stream_id == chat_stream.get_untracked() {
+                        chat_msgs.update(|m| {
+                            if let Some(last) = m.last_mut() {
+                                if last.role == "assistant" {
+                                    last.content.push_str(&delta);
+                                }
+                            }
+                        });
+                        obs.update(|o| {
+                            if o.len() > 4000 { o.drain(0..200); }
+                            o.push(ObsEvent { ts: now, kind: "chat:token".into(), id: stream_id, content: delta });
+                        });
+                    }
+                }
+                ChatEvent::Done { stream_id } => {
+                    if stream_id == chat_stream.get_untracked() {
+                        chat_gen.set(false);
+                        let msgs = chat_msgs.get_untracked();
+                        chat_hist.set(msgs.clone());
+                        spawn_local(async move {
+                            if let Err(e) = api::chat_save_history(msgs).await {
+                                tracing::error!("chat_save_history: {e}");
+                            }
+                        });
+                        obs.update(|o| o.push(ObsEvent { ts: now, kind: "chat:done".into(), id: stream_id, content: String::new() }));
+                    }
+                }
+                ChatEvent::Error { stream_id, message } => {
+                    if stream_id == chat_stream.get_untracked() {
+                        chat_err.set(Some(message.clone()));
+                        chat_gen.set(false);
+                        let msgs = chat_msgs.get_untracked();
+                        chat_hist.set(msgs.clone());
+                        spawn_local(async move {
+                            if let Err(e) = api::chat_save_history(msgs).await {
+                                tracing::error!("chat_save_history: {e}");
+                            }
+                        });
+                        obs.update(|o| o.push(ObsEvent { ts: now, kind: "chat:error".into(), id: stream_id, content: message }));
+                    }
+                }
+            }
+        });
+    }
+
+    {
+        let chat_msgs    = ctx.chat_messages;
+        let chat_gen     = ctx.chat_generating;
+        let chat_err     = ctx.chat_error;
+        let chat_agent   = ctx.chat_current_agent;
+        let chat_plan    = ctx.chat_plan;
+        let chat_trace   = ctx.chat_trace;
+        let chat_approvals = ctx.chat_approvals;
+        let chat_hist    = ctx.chat_history;
+        let obs          = ctx.obs_events;
+
+        ipc::listen::<AgentEvent, _>(AGENT_EVENT, move |ev| {
+            let now = js_sys::Date::now();
+            let is_root = |id: &str| chat_agent.get_untracked().as_deref() == Some(id);
+            match ev {
+                AgentEvent::Started { agent_id, parent, role, task } => {
+                    if parent.is_none() && chat_agent.get_untracked().is_none() {
+                        chat_agent.set(Some(agent_id.clone()));
+                    }
+                    chat_trace.update(|t| t.push(format!("▶ {role} started: {task}")));
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:started".into(), id: agent_id, content: format!("{role}: {task}") }));
+                }
+                AgentEvent::Plan { steps, .. } => {
+                    chat_plan.set(steps);
+                }
+                AgentEvent::PlanUpdate { step_id, status, .. } => {
+                    chat_plan.update(|p| {
+                        for s in p.iter_mut() {
+                            if s.id == step_id { s.status = status; }
+                        }
+                    });
+                }
+                AgentEvent::Step { index, thought, .. } => {
+                    chat_trace.update(|t| t.push(format!("💭 step {}: {}", index + 1, thought)));
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:step".into(), id: String::new(), content: thought }));
+                }
+                AgentEvent::Token { agent_id, delta } => {
+                    if is_root(&agent_id) {
+                        chat_msgs.update(|m| {
+                            if let Some(last) = m.last_mut() {
+                                if last.role == "assistant" {
+                                    last.content.push_str(&delta);
+                                }
+                            }
+                        });
+                    } else {
+                        chat_trace.update(|t| t.push(format!("  ↳ {delta}")));
+                    }
+                    obs.update(|o| {
+                        if o.len() > 4000 { o.drain(0..200); }
+                        o.push(ObsEvent { ts: now, kind: "agent:token".into(), id: agent_id, content: delta });
+                    });
+                }
+                AgentEvent::ToolCall { agent_id: _, call } => {
+                    chat_trace.update(|t| t.push(format!("🔧 {}({})", call.tool, call.args)));
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:tool_call".into(), id: call.tool.clone(), content: call.args.to_string() }));
+                }
+                AgentEvent::ToolResult { result, .. } => {
+                    let mut out = result.output.clone();
+                    if out.len() > 200 { out.truncate(200); out.push('…'); }
+                    chat_trace.update(|t| t.push(format!("{} {}", if result.ok { "✅" } else { "⚠️" }, out)));
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: if result.ok { "agent:tool_ok".into() } else { "agent:tool_err".into() }, id: String::new(), content: out }));
+                }
+                AgentEvent::ApprovalRequest { agent_id, request } => {
+                    chat_approvals.update(|a| a.push((agent_id, request)));
+                }
+                AgentEvent::SubAgentSpawned { role, task, .. } => {
+                    chat_trace.update(|t| t.push(format!("🌱 spawned {role}: {task}")));
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:spawned".into(), id: String::new(), content: format!("{role}: {task}") }));
+                }
+                AgentEvent::Log { agent_id, message } => {
+                    chat_trace.update(|t| t.push(message.clone()));
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:log".into(), id: agent_id, content: message }));
+                }
+                AgentEvent::Done { agent_id, final_text } => {
+                    if is_root(&agent_id) {
+                        if !final_text.is_empty() {
+                            chat_msgs.update(|m| {
+                                if let Some(last) = m.last_mut() {
+                                    if last.role == "assistant" && last.content.is_empty() {
+                                        last.content = final_text.clone();
+                                    }
+                                }
+                            });
+                        }
+                        chat_gen.set(false);
+                        let msgs = chat_msgs.get_untracked();
+                        chat_hist.set(msgs.clone());
+                        spawn_local(async move {
+                            if let Err(e) = api::chat_save_history(msgs).await {
+                                tracing::error!("chat_save_history: {e}");
+                            }
+                        });
+                    } else {
+                        chat_trace.update(|t| t.push("✔ subagent done".to_string()));
+                    }
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:done".into(), id: agent_id, content: String::new() }));
+                }
+                AgentEvent::Error { agent_id, message } => {
+                    if is_root(&agent_id) {
+                        chat_err.set(Some(message.clone()));
+                        chat_gen.set(false);
+                        let msgs = chat_msgs.get_untracked();
+                        chat_hist.set(msgs.clone());
+                        spawn_local(async move {
+                            if let Err(e) = api::chat_save_history(msgs).await {
+                                tracing::error!("chat_save_history: {e}");
+                            }
+                        });
+                    } else {
+                        chat_trace.update(|t| t.push(format!("subagent error: {message}")));
+                    }
+                    obs.update(|o| o.push(ObsEvent { ts: now, kind: "agent:error".into(), id: agent_id, content: message }));
+                }
+            }
+        });
+    }
 
     // Poll server process status for the topbar pill.
     let running = ctx.server_running;
@@ -87,7 +284,7 @@ fn render_tab(tab: Tab) -> AnyView {
         Tab::Settings => view! { <settings::SettingsTab/> }.into_any(),
         Tab::Todos => view! { <productivity::TodosTab/> }.into_any(),
         Tab::QuickNotes => view! { <productivity::NotesTab/> }.into_any(),
-        
+
         // Remaining tabs
         Tab::Agents => view! { <remaining::AgentsTab/> }.into_any(),
         Tab::Mcp => view! { <remaining::McpTab/> }.into_any(),
@@ -100,6 +297,9 @@ fn render_tab(tab: Tab) -> AnyView {
         Tab::DeepResearch => view! { <remaining::DeepResearchTab/> }.into_any(),
         Tab::Instances => view! { <remaining::InstancesTab/> }.into_any(),
 
+        // New tabs
+        Tab::Overview => view! { <overview::OverviewTab/> }.into_any(),
+        Tab::Observability => view! { <observability::ObservabilityTab/> }.into_any(),
     }
 }
 
@@ -295,7 +495,7 @@ fn TopBar() -> impl IntoView {
                                     {filtered.into_iter().map(|entry| {
                                         let entry_c = entry.clone();
                                         view! {
-                                            <button 
+                                            <button
                                                 style="display: flex; flex-direction: column; align-items: flex-start; width: 100%; border: none; background: transparent; padding: 6px 10px; border-radius: var(--r-sm); cursor: pointer; text-align: left; transition: background 0.15s;"
                                                 class="search-result-btn"
                                                 on:click=move |_| {
@@ -546,6 +746,13 @@ fn Sidebar() -> impl IntoView {
                                     }
                                 })
                             }}
+
+                            // ── 6. Diagnostics ─────────────────────────────────────────
+                            <div class="nav-group">
+                                <div class="nav-group-title">"Diagnostics"</div>
+                                {render_sidebar_item(Tab::Overview, false)}
+                                {render_sidebar_item(Tab::Observability, false)}
+                            </div>
                         </div>
                     }
                 }}

@@ -1,3 +1,53 @@
+//! # `call_mcp_tool` — Model Context Protocol (MCP) bridge
+//!
+//! Spawns an MCP server process, performs the JSON-RPC 2.0 handshake
+//! (`initialize` → `notifications/initialized`), calls a single tool, and
+//! returns the text content from the response.  The server process is killed
+//! on completion regardless of outcome.
+//!
+//! ## Server registry
+//!
+//! Server definitions live in `<config_dir>/mcp_registry.json` under the
+//! `"mcpServers"` (or `"mcp_servers"`) key, following the MCP standard format:
+//!
+//! ```json
+//! {
+//!   "mcpServers": {
+//!     "my-server": {
+//!       "command": "npx",
+//!       "args": ["-y", "@my-scope/my-mcp-server"],
+//!       "env": { "API_KEY": "..." }
+//!     }
+//!   }
+//! }
+//! ```
+//!
+//! ## Parameters
+//!
+//! | Name          | Type   | Required | Description                                        |
+//! |---------------|--------|----------|----------------------------------------------------|
+//! | `server_name` | string | yes      | Key in `mcpServers`, e.g. `"my-server"`            |
+//! | `tool_name`   | string | yes      | Tool name advertised by the MCP server             |
+//! | `arguments`   | object | yes      | Arguments forwarded verbatim to the tool           |
+//!
+//! ## Example invocations
+//!
+//! ```json
+//! { "server_name": "actionbook", "tool_name": "search_actions", "arguments": { "q": "deploy" } }
+//! { "server_name": "filesystem", "tool_name": "read_file",      "arguments": { "path": "/etc/hosts" } }
+//! ```
+//!
+//! ## Protocol sequence
+//!
+//! ```
+//! agent  →  initialize (id: 0)
+//! server →  initialize response
+//! agent  →  notifications/initialized
+//! agent  →  tools/call (id: 1)
+//! server →  tool result  ← returned to the agent
+//! agent  →  SIGKILL
+//! ```
+
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -17,8 +67,17 @@ impl Tool for CallMcpTool {
     }
 
     fn description(&self) -> &'static str {
-        "Invoke a tool on one of the configured Model Context Protocol (MCP) servers. \
-         Use this to run specialized operations like searching actions or reading custom source files."
+        "Invoke a named tool on a configured Model Context Protocol (MCP) server. \
+         The server is spawned as a subprocess, the JSON-RPC 2.0 handshake is performed \
+         automatically, and the tool result is returned as text. \
+         Server definitions live in `<config_dir>/mcp_registry.json` under `mcpServers`. \
+         Parameters: \
+         `server_name` (string, required) — key in mcpServers registry; \
+         `tool_name` (string, required) — tool exposed by the server; \
+         `arguments` (object, required) — arguments forwarded to the tool. \
+         Examples: \
+         {\"server_name\":\"filesystem\",\"tool_name\":\"read_file\",\"arguments\":{\"path\":\"/etc/hosts\"}}, \
+         {\"server_name\":\"actionbook\",\"tool_name\":\"search_actions\",\"arguments\":{\"q\":\"deploy\"}}"
     }
 
     fn parameters(&self) -> Value {

@@ -1,10 +1,20 @@
 //! Cross-tab reactive state + the `Tab` enum that drives navigation.
 
 use leptos::prelude::*;
+use shared::ipc::{ApprovalRequest, ChatMessage, PlanStep};
 use shared::ServerConfig;
 use wasm_bindgen_futures::spawn_local;
 
 use crate::api;
+
+/// A single observed I/O event, stored in AppCtx for the Observability tab.
+#[derive(Clone, PartialEq)]
+pub struct ObsEvent {
+    pub ts: f64,
+    pub kind: String,
+    pub id: String,
+    pub content: String,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Tab {
@@ -36,6 +46,9 @@ pub enum Tab {
     Api,
     // App
     Settings,
+    // System overview + observability
+    Overview,
+    Observability,
 }
 
 impl Tab {
@@ -64,6 +77,8 @@ impl Tab {
             Advanced => "Advanced",
             Api => "API & Output",
             Settings => "Settings",
+            Overview => "System Overview",
+            Observability => "Observability",
         }
     }
 
@@ -92,6 +107,8 @@ impl Tab {
             Advanced => "⚙",
             Api => "🔑",
             Settings => "🎨",
+            Overview => "🗺",
+            Observability => "🔭",
         }
     }
 
@@ -120,6 +137,8 @@ impl Tab {
             Advanced => "◎",
             Api => "◑",
             Settings => "◈",
+            Overview => "◉",
+            Observability => "◍",
         }
     }
 
@@ -148,6 +167,8 @@ impl Tab {
             Advanced => "advanced",
             Api => "api",
             Settings => "settings",
+            Overview => "overview",
+            Observability => "observability",
         }
     }
 
@@ -176,6 +197,8 @@ impl Tab {
             "advanced" => Some(Advanced),
             "api" => Some(Api),
             "settings" => Some(Settings),
+            "overview" => Some(Overview),
+            "observability" => Some(Observability),
             _ => None,
         }
     }
@@ -202,13 +225,29 @@ pub struct AppCtx {
     pub tools_collapsed: RwSignal<bool>,
     /// Persists the chat input draft across tab switches.
     pub chat_draft: RwSignal<String>,
+
+    // ── Persistent chat streaming state (survives tab switches) ──────────────
+    /// Live message list — updated by the global ipc::listen handler in App.
+    pub chat_messages: RwSignal<Vec<ChatMessage>>,
+    pub chat_generating: RwSignal<bool>,
+    pub chat_error: RwSignal<Option<String>>,
+    pub chat_current_stream: RwSignal<String>,
+    pub chat_current_agent: RwSignal<Option<String>>,
+    pub chat_plan: RwSignal<Vec<PlanStep>>,
+    pub chat_trace: RwSignal<Vec<String>>,
+    pub chat_approvals: RwSignal<Vec<(String, ApprovalRequest)>>,
+    /// Toggle for the context-overview panel inside ChatTab.
+    pub chat_show_context: RwSignal<bool>,
+
+    // ── Observability event log ──────────────────────────────────────────────
+    pub obs_events: RwSignal<Vec<ObsEvent>>,
 }
 
 impl AppCtx {
     /// Resolve the host, port, and model for a given use case, taking overrides and global routing into account.
     pub fn resolve_target(&self, usecase: &str) -> (String, u16, String) {
         let cfg = self.config.get_untracked();
-        
+
         // 1. Check for overrides
         let ovr = match usecase {
             "planner" => Some(&cfg.override_planner),
@@ -218,7 +257,7 @@ impl AppCtx {
             "compare" => Some(&cfg.override_compare),
             _ => None,
         };
-        
+
         if let Some(o) = ovr {
             if o.enabled {
                 let model = if o.model.is_empty() {
@@ -229,20 +268,20 @@ impl AppCtx {
                 return (o.host.clone(), o.port, model);
             }
         }
-        
+
         // 2. Fall back to global routed target
         let (host, port) = match self.routed_instance.get() {
             Some((h, p)) => (h, p),
             None => (cfg.host.clone(), cfg.port),
         };
-        
+
         let model = match self.routed_model.get() {
             Some(m) => m,
             None => {
                 if cfg.model_alias.is_empty() { cfg.model_path.clone() } else { cfg.model_alias.clone() }
             }
         };
-        
+
         (host, port, model)
     }
 }

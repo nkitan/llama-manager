@@ -1874,3 +1874,40 @@ textarea.notes-area {
   }
 }
 
+/* ── Stop button state ─────────────────────────────────────────────────────── */
+.composer-send-btn.stop {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.composer-send-btn.stop:hover {
+  background: #ef4444;
+  color: #fff;
+  transform: scale(1.05);
+}
+
+/* ── Responsive window layout ─────────────────────────────────────────────── */
+.page {
+  max-width: min(1300px, 100%);
+}
+@media (max-width: 1100px) {
+  .sidebar { width: 200px; }
+}
+@media (max-width: 900px) {
+  .sidebar { width: 180px; }
+  .page { padding: var(--s-md); }
+}
+
+/* ── Overview tab ─────────────────────────────────────────────────────────── */
+.overview-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ── Observability tab ────────────────────────────────────────────────────── */
+.obs-row:hover {
+  background: var(--surface-card);
+}
+

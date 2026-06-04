@@ -1,5 +1,39 @@
-//! Read-only web tools: SearXNG-backed search and HTTP page scraping. Ported from
-//! the legacy `WebBrowserLayer`. Both are non-sensitive (no host side effects).
+//! # Web tools — `web_search` and `web_scrape`
+//!
+//! Two read-only web capabilities. Neither modifies anything on the host, so
+//! both have `is_sensitive() → false` and require no human approval gate.
+//!
+//! ## `web_search`
+//!
+//! Queries a self-hosted **SearXNG** instance and returns the top-5 results as
+//! numbered markdown links. Requires `searxng_url` to be set in application
+//! settings (e.g. `http://localhost:8080`).
+//!
+//! | Parameter | Type   | Required | Description                   |
+//! |-----------|--------|----------|-------------------------------|
+//! | `query`   | string | yes      | Free-text search query        |
+//!
+//! ### Example
+//! ```json
+//! { "query": "Rust async runtime comparison 2025" }
+//! ```
+//!
+//! ## `web_scrape`
+//!
+//! Fetches a URL and returns its visible text (HTML stripped, `<script>`/`<style>`
+//! suppressed). Output is capped at **10 000 characters**.
+//!
+//! Falls back through available headless-browser harnesses in order:
+//! `browser-harness` → `camofox` → `cloakbrowser` → plain `reqwest` HTTP.
+//!
+//! | Parameter | Type   | Required | Description                       |
+//! |-----------|--------|----------|-----------------------------------|
+//! | `url`     | string | yes      | Fully-qualified URL to fetch      |
+//!
+//! ### Example
+//! ```json
+//! { "url": "https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html" }
+//! ```
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -14,7 +48,11 @@ impl Tool for WebSearch {
         "web_search"
     }
     fn description(&self) -> &'static str {
-        "Search the web (via SearXNG) and return the top results as markdown."
+        "Search the web using a self-hosted SearXNG instance and return the top 5 results \
+         as numbered markdown links with snippets. \
+         Requires `searxng_url` to be set in application settings. \
+         Parameter: `query` (string, required) — free-text search query. \
+         Example: {\"query\": \"Rust async runtime 2025 comparison\"}"
     }
     fn parameters(&self) -> Value {
         json!({
@@ -71,7 +109,12 @@ impl Tool for WebScrape {
         "web_scrape"
     }
     fn description(&self) -> &'static str {
-        "Fetch a URL and return its readable text content (HTML stripped, truncated)."
+        "Fetch a URL and return its visible text content. HTML tags are stripped; \
+         <script> and <style> blocks are suppressed entirely. Output is capped at 10 000 characters. \
+         Uses headless-browser harnesses when available (browser-harness, camofox, cloakbrowser), \
+         falling back to a plain HTTP request. \
+         Parameter: `url` (string, required) — fully-qualified URL to fetch. \
+         Example: {\"url\": \"https://doc.rust-lang.org/book/ch04-01-what-is-ownership.html\"}"
     }
     fn parameters(&self) -> Value {
         json!({

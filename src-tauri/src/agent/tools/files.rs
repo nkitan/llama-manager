@@ -1,5 +1,48 @@
-//! File-backed productivity tools for reading and writing Todos and Notes.
-//! These write directly to the same files used by the UI components.
+//! # Productivity data tools — Todos, Notes, Calendar, Task Planner
+//!
+//! Twelve tools that read and write the same JSON files used by the UI panels,
+//! so changes made by the agent are immediately visible in the sidebar.
+//!
+//! All write-path tools have `is_sensitive() → true` and require L4 human
+//! approval before executing.
+//!
+//! ## Tool summary
+//!
+//! | Tool                   | Reads | Writes | Description                             |
+//! |------------------------|-------|--------|-----------------------------------------|
+//! | `get_todos`            | ✓     |        | List all todos with IDs and done status |
+//! | `add_todo`             |       | ✓      | Append a new todo item                  |
+//! | `complete_todo`        |       | ✓      | Mark done / undone / delete by ID       |
+//! | `read_notes`           | ✓     |        | Read notes for project or global scope  |
+//! | `write_note`           |       | ✓      | Create, overwrite, or append a note     |
+//! | `get_calendar_events`  | ✓     |        | List all scheduled automation events    |
+//! | `add_calendar_event`   |       | ✓      | Schedule a new prompt trigger           |
+//! | `delete_calendar_event`|       | ✓      | Remove a scheduled event by ID          |
+//! | `get_planner_tasks`    | ✓     |        | List all Kanban board tasks             |
+//! | `add_planner_task`     |       | ✓      | Create a new task card                  |
+//! | `update_planner_task`  |       | ✓      | Move column or edit task fields by ID   |
+//! | `delete_planner_task`  |       | ✓      | Remove a task card by ID                |
+//!
+//! ## File locations (all under `config_dir`)
+//!
+//! | Data          | File                          |
+//! |---------------|-------------------------------|
+//! | Todos         | `agent_todos_v2.json`         |
+//! | Notes (proj.) | `.llama-manager-notes.json`   |
+//! | Notes (global)| `~/.local/share/llama-manager/global_notes.json` |
+//! | Calendar      | `calendar.json`               |
+//! | Task planner  | `planner_tasks.json`          |
+//!
+//! ## Example invocations
+//!
+//! ```json
+//! { "tool": "add_todo",            "text": "Review PR #42" }
+//! { "tool": "complete_todo",       "id": "t1717000000000", "done": true }
+//! { "tool": "write_note",          "name": "Research", "content": "...", "append": true }
+//! { "tool": "add_calendar_event",  "title": "Daily standup", "time": "2026-06-05T09:00:00", "prompt": "Summarise overnight commits" }
+//! { "tool": "add_planner_task",    "title": "Implement login", "summary": "OAuth2 flow", "priority": "High" }
+//! { "tool": "update_planner_task", "id": "task-1717000000000", "status": "In Progress" }
+//! ```
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
