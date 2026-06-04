@@ -1894,8 +1894,7 @@ fn App() -> Element {
                 let dir = get_default_config_path();
                 let path = dir.join("config.json");
                 if path.exists() {
-                    if let Ok(mut disk_cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
-                        migrate_preset_to_ui_fields(&mut disk_cfg);
+                    if let Ok(disk_cfg) = ServerConfig::load_from_file(&path.to_string_lossy()) {
                         let current_cfg = config.read().clone();
                         let current_str = serde_json::to_string(&current_cfg).unwrap_or_default();
                         let disk_str = serde_json::to_string(&disk_cfg).unwrap_or_default();
