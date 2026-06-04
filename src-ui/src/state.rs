@@ -95,6 +95,34 @@ impl Tab {
         }
     }
 
+    pub fn mono_icon(&self) -> &'static str {
+        use Tab::*;
+        match self {
+            Chat => "◻",
+            Agents => "◈",
+            Mcp => "⊕",
+            Planner => "▤",
+            Todos => "☐",
+            QuickNotes => "≡",
+            Calendar => "▦",
+            Monitor => "▣",
+            Model => "◉",
+            Library => "▥",
+            Download => "↓",
+            Compare => "⇌",
+            DeepResearch => "⊗",
+            Server => "▪",
+            Instances => "◫",
+            Context => "◳",
+            Gpu => "▨",
+            Performance => "▸",
+            Sampling => "◇",
+            Advanced => "◎",
+            Api => "◑",
+            Settings => "◈",
+        }
+    }
+
     pub fn as_str(&self) -> &'static str {
         use Tab::*;
         match self {
@@ -172,6 +200,8 @@ pub struct AppCtx {
     pub server_running: RwSignal<bool>,
     /// Persistent collapse state for Built-in Tools pane.
     pub tools_collapsed: RwSignal<bool>,
+    /// Persists the chat input draft across tab switches.
+    pub chat_draft: RwSignal<String>,
 }
 
 impl AppCtx {

@@ -23,6 +23,7 @@ pub fn App() -> impl IntoView {
         search: RwSignal::new(String::new()),
         server_running: RwSignal::new(false),
         tools_collapsed: RwSignal::new(false),
+        chat_draft: RwSignal::new(String::new()),
     };
     provide_context(ctx);
 
@@ -374,6 +375,8 @@ fn Sidebar() -> impl IntoView {
             current == tab
         };
 
+        let icon_str = tab.icon();
+        let mono_icon = tab.mono_icon();
         view! {
             <button
                 class="nav-item"
@@ -381,7 +384,14 @@ fn Sidebar() -> impl IntoView {
                 class:active=active
                 on:click=move |_| ctx.active_tab.set(tab)
             >
-                <span class="nav-icon">{tab.icon()}</span>
+                {move || {
+                    let pack = ctx.config.get().icon_pack.clone();
+                    match pack.as_str() {
+                        "none" => view! {}.into_any(),
+                        "mono" => view! { <span class="nav-icon">{mono_icon}</span> }.into_any(),
+                        _ => view! { <span class="nav-icon">{icon_str}</span> }.into_any(),
+                    }
+                }}
                 <span>{tab.label()}</span>
                 <span style="flex: 1;"></span>
                 <button
@@ -551,7 +561,14 @@ fn Sidebar() -> impl IntoView {
                             class:active=active
                             on:click=move |_| ctx.active_tab.set(Tab::Settings)
                         >
-                            <span class="nav-icon">{Tab::Settings.icon()}</span>
+                            {move || {
+                                let pack = ctx.config.get().icon_pack.clone();
+                                match pack.as_str() {
+                                    "none" => view! {}.into_any(),
+                                    "mono" => view! { <span class="nav-icon">{Tab::Settings.mono_icon()}</span> }.into_any(),
+                                    _ => view! { <span class="nav-icon">{Tab::Settings.icon()}</span> }.into_any(),
+                                }
+                            }}
                             <span>{Tab::Settings.label()}</span>
                         </button>
                     </div>

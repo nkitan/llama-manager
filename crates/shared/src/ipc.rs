@@ -33,12 +33,22 @@ pub struct TodoItem {
     pub id: String,
     pub text: String,
     pub done: bool,
+    #[serde(default)]
+    pub priority: String,
+    #[serde(default)]
+    pub due_date: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct Note {
     pub name: String,
     pub content: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default, PartialEq)]
@@ -309,6 +319,10 @@ pub struct CalendarEvent {
     pub color: Option<String>,
     pub status: EventStatus,
     pub result: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub recurrence: Option<String>, // "daily", "weekly", "monthly"
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

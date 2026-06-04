@@ -7,8 +7,8 @@
     <!-- Trunk builds this crate to wasm and injects the loader. -->
     
 <script type="module">
-import init, * as bindings from '/ui-4e181cea96975e11.js';
-const wasm = await init({ module_or_path: '/ui-4e181cea96975e11_bg.wasm' });
+import init, * as bindings from '/ui-6770ea501142dd1f.js';
+const wasm = await init({ module_or_path: '/ui-6770ea501142dd1f_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -17,8 +17,8 @@ window.wasmBindings = bindings;
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 </script>
-    <link rel="stylesheet" href="/style-17b06fa2469cf359.css" integrity="sha384-MMobL7QB563C9OX6yh6dpeTuaiDV7hZBTxn5Vamltw1AFkol81b2WVC15hJly91x"/>
-  <link rel="modulepreload" href="/ui-4e181cea96975e11.js" crossorigin="anonymous" integrity="sha384-M7oXz6/uLIUOfLF3sDFn1GzQ2/mblay2zYXwaz0I80CWDbecJtZKnhIYND/h+21K"><link rel="preload" href="/ui-4e181cea96975e11_bg.wasm" crossorigin="anonymous" integrity="sha384-EdzSi+LxfLXRr5x75bhya+YBCzr5q+oXsfeNZ9IYspmYoKq1sVpWT/oGSKRrmAKe" as="fetch" type="application/wasm"></head>
+    <link rel="stylesheet" href="/style-92a198bdc26f4c44.css" integrity="sha384-Cv36W9MTlmzVG3yZIejpD0efOqck66hh+ZYrA7IHdrUC1ZlfjHf27XQ0psIiYFHm"/>
+  <link rel="modulepreload" href="/ui-6770ea501142dd1f.js" crossorigin="anonymous" integrity="sha384-Po3WrP3gB5xT0O/siEvg+EwKg/q4y/JWCntPcbHNlKCmIT3eu/HK5gDvBeNGI5Jo"><link rel="preload" href="/ui-6770ea501142dd1f_bg.wasm" crossorigin="anonymous" integrity="sha384-I2hkk+e62pBL3tz/s266cMTzO0IC0LzJ88I46f2B6u5AJ7FYM+/MD6RbDSVT0aS/" as="fetch" type="application/wasm"></head>
   <body><script>"use strict";
 
 (function () {

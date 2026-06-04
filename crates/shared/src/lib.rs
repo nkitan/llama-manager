@@ -12,3 +12,4 @@ pub mod ipc;
 
 pub use config::ServerConfig;
 pub use config::ModelOverride;
+pub use config::CustomTheme;

@@ -26,6 +26,8 @@ pub fn notes_store_get(scope: String) -> NotesStore {
                 notes: vec![Note {
                     name: "Default".to_string(),
                     content,
+                    tags: vec![],
+                    pinned: false,
                 }],
             };
         }
@@ -34,6 +36,8 @@ pub fn notes_store_get(scope: String) -> NotesStore {
         notes: vec![Note {
             name: "Default".to_string(),
             content: String::new(),
+            tags: vec![],
+            pinned: false,
         }],
     }
 }

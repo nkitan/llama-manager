@@ -31,6 +31,8 @@ fn load_notes_store(scope: &str) -> NotesStore {
                 notes: vec![Note {
                     name: "Default".to_string(),
                     content,
+                    tags: vec![],
+                    pinned: false,
                 }],
             };
         }
@@ -39,6 +41,8 @@ fn load_notes_store(scope: &str) -> NotesStore {
         notes: vec![Note {
             name: "Default".to_string(),
             content: String::new(),
+            tags: vec![],
+            pinned: false,
         }],
     }
 }
@@ -128,7 +132,7 @@ impl Tool for AddTodo {
         }
         let mut items = load_todos();
         let id = format!("t{}", chrono::Utc::now().timestamp_millis());
-        items.push(TodoItem { id: id.clone(), text: text.clone(), done: false });
+        items.push(TodoItem { id: id.clone(), text: text.clone(), done: false, priority: String::new(), due_date: None, tags: vec![] });
         save_todos(&items)?;
         Ok(format!("Added todo: {} (id: {})", text, id))
     }
@@ -301,6 +305,8 @@ impl Tool for WriteNote {
             store.notes.push(Note {
                 name: name.clone(),
                 content: content.clone(),
+                tags: vec![],
+                pinned: false,
             });
         }
 
@@ -439,6 +445,8 @@ impl Tool for AddCalendarEvent {
             color,
             status: EventStatus::Pending,
             result: None,
+            tags: vec![],
+            recurrence: None,
         };
         state.events.push(new_event);
         save_calendar(&state)?;

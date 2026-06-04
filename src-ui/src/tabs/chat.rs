@@ -43,13 +43,145 @@ pub fn ChatTab() -> impl IntoView {
             text: m.content,
         }).collect::<Vec<_>>()
     );
-    let input = RwSignal::new(String::new());
+    let input = ctx.chat_draft;
     let generating = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
     let models = RwSignal::new(Vec::<String>::new());
     let online = RwSignal::new(false);
     let selected_model = RwSignal::new(String::new());
     let use_agent = RwSignal::new(false);
+ 
+    // Autocomplete popup state
+    let popup_open = RwSignal::new(false);
+    let active_index = RwSignal::new(0usize);
+    let skills_list = RwSignal::new(Vec::<shared::ipc::SkillOrAgentFile>::new());
+
+    spawn_local(async move {
+        if let Ok(list) = api::list_skills_and_agents().await {
+            skills_list.set(list);
+        }
+    });
+
+    #[derive(Clone, Debug, PartialEq)]
+    struct CmdOption {
+        cmd: String,
+        desc: String,
+    }
+
+    let built_ins = vec![
+        CmdOption { cmd: "/clear".into(), desc: "Clear chat history".into() },
+        CmdOption { cmd: "/help".into(), desc: "Show this help message".into() },
+        CmdOption { cmd: "/agent".into(), desc: "Start agent mode for the given task".into() },
+        CmdOption { cmd: "/research".into(), desc: "Start Deep Research and switch to the Deep Research tab".into() },
+        CmdOption { cmd: "/skills".into(), desc: "List all loaded skills & agents".into() },
+        CmdOption { cmd: "/mcp".into(), desc: "List connected MCP servers and tools".into() },
+        CmdOption { cmd: "/todo".into(), desc: "Add a new task to your todo list".into() },
+        CmdOption { cmd: "/planner".into(), desc: "Create a new planner task and switch to the Task Planner tab".into() },
+        CmdOption { cmd: "/agents".into(), desc: "List available custom agents".into() },
+    ];
+
+    let skill_slug = move |file: &shared::ipc::SkillOrAgentFile| -> String {
+        let path = std::path::Path::new(&file.path);
+        let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+        if filename == "skill.md" || filename == "agents.md" {
+            if let Some(parent) = path.parent() {
+                if let Some(parent_name) = parent.file_name().and_then(|n| n.to_str()) {
+                    if parent_name.to_lowercase() != "skills" && parent_name.to_lowercase() != "plugins" {
+                        return parent_name.to_lowercase();
+                    }
+                }
+            }
+        }
+        let stem = path.file_stem().and_then(|n| n.to_str()).unwrap_or(&file.name);
+        let stem_clean = if stem.starts_with('.') {
+            stem.trim_start_matches('.')
+        } else {
+            stem
+        };
+        stem_clean.to_lowercase().replace(" ", "-")
+    };
+
+    let get_skill_description = move |content: &str| -> String {
+        let mut desc = String::new();
+        let mut in_frontmatter = false;
+        let mut frontmatter_lines = Vec::new();
+        
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed == "---" {
+                if in_frontmatter {
+                    break;
+                } else {
+                    in_frontmatter = true;
+                    continue;
+                }
+            }
+            if in_frontmatter {
+                frontmatter_lines.push(line);
+            } else if !trimmed.is_empty() {
+                if desc.is_empty() {
+                    desc = trimmed.to_string();
+                }
+            }
+        }
+        
+        for line in frontmatter_lines {
+            let parts: Vec<&str> = line.splitn(2, ':').collect();
+            if parts.len() == 2 && parts[0].trim().to_lowercase() == "description" {
+                return parts[1].trim().trim_matches('"').trim_matches('\'').to_string();
+            }
+        }
+        
+        if desc.starts_with("# ") || desc.starts_with("## ") {
+            for line in content.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with('#') && trimmed != "---" {
+                    desc = trimmed.to_string();
+                    break;
+                }
+            }
+        }
+        
+        if desc.len() > 150 {
+            desc.truncate(147);
+            desc.push_str("...");
+        }
+        desc
+    };
+
+    let all_options = Memo::new(move |_| {
+        let mut opts = built_ins.clone();
+        for f in skills_list.get() {
+            let slug = skill_slug(&f);
+            let desc = get_skill_description(&f.content);
+            opts.push(CmdOption {
+                cmd: format!("/agent-skills:{}", slug),
+                desc,
+            });
+        }
+        opts
+    });
+
+    let filtered_options = Memo::new(move |_| {
+        let val = input.get().to_lowercase();
+        if !val.starts_with('/') {
+            return vec![];
+        }
+        let all = all_options.get();
+        all.into_iter()
+            .filter(|opt| opt.cmd.to_lowercase().starts_with(&val))
+            .collect::<Vec<_>>()
+    });
+
+    Effect::new(move |_| {
+        let len = filtered_options.get().len();
+        let idx = active_index.get_untracked();
+        if len == 0 {
+            active_index.set(0);
+        } else if idx >= len {
+            active_index.set(len - 1);
+        }
+    });
 
     // Helper to persist history
     let save_history = move |current_msgs: Vec<Msg>| {
@@ -444,7 +576,7 @@ pub fn ChatTab() -> impl IntoView {
             let id = format!("t{}", js_sys::Date::now() as u64);
             spawn_local(async move {
                 if let Ok(mut list) = api::todos_get().await {
-                    list.push(shared::ipc::TodoItem { id, text: t.clone(), done: false });
+                    list.push(shared::ipc::TodoItem { id, text: t.clone(), done: false, priority: String::new(), due_date: None, tags: vec![] });
                     if let Ok(_) = api::todos_set(list).await {
                         messages.update(|m| {
                             m.push(Msg {
@@ -605,6 +737,131 @@ pub fn ChatTab() -> impl IntoView {
             return;
         }
 
+        if cmd == "/agents" {
+            messages.update(|m| {
+                m.push(Msg {
+                    role: "user".into(),
+                    text: text.clone(),
+                });
+            });
+            input.set(String::new());
+            generating.set(true);
+
+            spawn_local(async move {
+                match api::list_skills_and_agents().await {
+                    Ok(list) => {
+                        let mut output = String::from("### Available Custom Agents & Instructions\n\n");
+                        let mut found = false;
+                        for f in &list {
+                            if !f.is_skill {
+                                found = true;
+                                output.push_str(&format!("* **{}** - `{}`\n  - Source: {}\n", f.name, f.path, f.source));
+                            }
+                        }
+                        if !found {
+                            output.push_str("No custom agent files loaded. Place an `AGENTS.md` or cursorrules file in your workspace or gemini directory to load it.");
+                        }
+                        messages.update(|m| {
+                            m.push(Msg {
+                                role: "assistant".into(),
+                                text: output,
+                            });
+                        });
+                    }
+                    Err(e) => {
+                        messages.update(|m| {
+                            m.push(Msg {
+                                role: "assistant".into(),
+                                text: format!("Failed to retrieve agents: {}", e),
+                            });
+                        });
+                    }
+                }
+                save_history(messages.get_untracked());
+                generating.set(false);
+            });
+            return;
+        }
+
+        if cmd.starts_with("/agent-skills:") {
+            let target_slug = cmd.strip_prefix("/agent-skills:").unwrap_or("").to_lowercase();
+            messages.update(|m| {
+                m.push(Msg {
+                    role: "user".into(),
+                    text: text.clone(),
+                });
+            });
+            input.set(String::new());
+            generating.set(true);
+
+            spawn_local(async move {
+                match api::list_skills_and_agents().await {
+                    Ok(list) => {
+                        let matching = list.into_iter().find(|f| {
+                            let slug = f.name.to_lowercase().replace(" ", "-");
+                            let path = std::path::Path::new(&f.path);
+                            let filename = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+                            let derived_slug = if filename == "skill.md" || filename == "agents.md" {
+                                if let Some(parent) = path.parent() {
+                                    if let Some(parent_name) = parent.file_name().and_then(|n| n.to_str()) {
+                                        if parent_name.to_lowercase() != "skills" && parent_name.to_lowercase() != "plugins" {
+                                            parent_name.to_lowercase()
+                                        } else {
+                                            slug
+                                        }
+                                    } else {
+                                        slug
+                                    }
+                                } else {
+                                    slug
+                                }
+                            } else {
+                                let stem = path.file_stem().and_then(|n| n.to_str()).unwrap_or(&f.name);
+                                let stem_clean = if stem.starts_with('.') {
+                                    stem.trim_start_matches('.')
+                                } else {
+                                    stem
+                                };
+                                stem_clean.to_lowercase().replace(" ", "-")
+                            };
+                            derived_slug == target_slug
+                        });
+
+                        if let Some(f) = matching {
+                            messages.update(|m| {
+                                m.push(Msg {
+                                    role: "system".into(),
+                                    text: format!("Injected Context from Skill '{}' ({}):\n\n{}", f.name, f.path, f.content),
+                                });
+                                m.push(Msg {
+                                    role: "assistant".into(),
+                                    text: format!("Loaded skill/agent file **{}** (`{}`) into active context. The model can now use its instructions.", f.name, f.path),
+                                });
+                            });
+                        } else {
+                            messages.update(|m| {
+                                m.push(Msg {
+                                    role: "assistant".into(),
+                                    text: format!("Could not find any skill matching \"{}\".", target_slug),
+                                });
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        messages.update(|m| {
+                            m.push(Msg {
+                                role: "assistant".into(),
+                                text: format!("Failed to retrieve skills: {}", e),
+                            });
+                        });
+                    }
+                }
+                save_history(messages.get_untracked());
+                generating.set(false);
+            });
+            return;
+        }
+
         let mut is_agent = use_agent.get_untracked();
         let mut task_text = text.clone();
 
@@ -733,57 +990,102 @@ pub fn ChatTab() -> impl IntoView {
 
     // ── View ──────────────────────────────────────────────────────────────
     view! {
-        <div class="chat">
-            <div class="chat-header glass">
-                <div style="display: flex; align-items: center; gap: var(--s-sm);">
-                    <span class="chat-title" style="font-size: 16px; display: flex; align-items: center; gap: 6px;">
-                        "💬"
+        <div class="chat" style="position: relative;">
+            // Polished chat header: status + server info + model selector | mode toggles + actions
+            <div class="chat-header glass" style="display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-height: 52px;">
+                // Left: status dot + connection label
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <div style=move || format!(
+                        "width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: {}; box-shadow: 0 0 0 2px {};",
+                        if online.get() { "#10b981" } else { "#ef4444" },
+                        if online.get() { "rgba(16,185,129,0.2)" } else { "rgba(239,68,68,0.2)" }
+                    )></div>
+                    <span style="font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;">
                         {move || match ctx.routed_instance.get() {
-                            Some((h, p)) => format!("Connected: http://{}:{}", h, p),
+                            Some((h, p)) => format!("{}:{}", h, p),
                             None => "Local Server".to_string()
                         }}
                     </span>
                 </div>
-                <div class="chat-controls">
-                    <select
-                        class="model-select"
-                        prop:value=move || {
-                            let _ = models.get();
-                            selected_model.get()
-                        }
-                        on:change=move |e| on_model_change(event_target_value(&e))
-                    >
-                        {move || {
-                            models
-                                .get()
-                                .into_iter()
-                                .map(|m| {
-                                    let label = m.clone();
-                                    view! { <option value=m>{label}</option> }
-                                })
-                                .collect_view()
-                        }}
-                    </select>
-                    <label class="agent-toggle">
-                        <input
-                            type="checkbox"
-                            prop:checked=move || use_agent.get()
-                            on:change=move |e| use_agent.set(event_target_checked(&e))
-                        />
-                        "🤖 Agent Mode"
-                    </label>
+
+                // Divider
+                <div style="width: 1px; height: 20px; background: var(--hairline); flex-shrink: 0;"></div>
+
+                // Center: model selector (takes most space)
+                <select
+                    class="model-select"
+                    style="flex: 1; min-width: 0; background-color: var(--canvas); border-color: var(--hairline); color: var(--ink); border-radius: var(--r-sm); height: 30px; font-size: 13px; font-weight: 500;"
+                    prop:value=move || {
+                        let _ = models.get();
+                        selected_model.get()
+                    }
+                    on:change=move |e| on_model_change(event_target_value(&e))
+                >
+                    {move || {
+                        models
+                            .get()
+                            .into_iter()
+                            .map(|m| {
+                                let label = m.clone();
+                                view! { <option value=m>{label}</option> }
+                            })
+                            .collect_view()
+                    }}
+                </select>
+
+                // Right: mode toggles + action buttons
+                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    // Agent Mode toggle pill
                     <button
-                        class="btn ghost"
-                        on:click=move |_| ctx.immersive.set(!ctx.immersive.get_untracked())
+                        style=move || if use_agent.get() {
+                            "height: 28px; padding: 0 10px; border-radius: 14px; border: var(--border-width) solid transparent; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: var(--primary); color: var(--on-primary);"
+                        } else {
+                            "height: 28px; padding: 0 10px; border-radius: 14px; border: var(--border-width) solid var(--hairline); font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--body);"
+                        }
+                        on:click=move |_| use_agent.set(!use_agent.get_untracked())
+                        title="Toggle Agent Mode"
                     >
-                        {move || if ctx.immersive.get() { "✨ Exit" } else { "✨ Immersive" }}
+                        "🤖"
+                        <span style="display: none; @media (min-width: 600px) { display: inline; }">"Agent"</span>
                     </button>
+                    // Immersive toggle pill
+                    <button
+                        style=move || if ctx.immersive.get() {
+                            "height: 28px; padding: 0 10px; border-radius: 14px; border: var(--border-width) solid transparent; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: var(--primary); color: var(--on-primary);"
+                        } else {
+                            "height: 28px; padding: 0 10px; border-radius: 14px; border: var(--border-width) solid var(--hairline); font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--body);"
+                        }
+                        on:click=move |_| ctx.immersive.set(!ctx.immersive.get_untracked())
+                        title="Toggle Immersive Mode"
+                    >
+                        "✨"
+                        <span>"Focus"</span>
+                    </button>
+                    // Divider
+                    <div style="width: 1px; height: 20px; background: var(--hairline);"></div>
+                    // Cancel button (only when generating)
                     {move || {
                         generating
                             .get()
-                            .then(|| view! { <button class="btn ghost" on:click=cancel>"⛔ Cancel"</button> })
+                            .then(|| {
+                                view! {
+                                    <button
+                                        style="height: 28px; padding: 0 10px; border-radius: 14px; border: 1px solid #ef4444; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: rgba(239,68,68,0.1); color: #ef4444;"
+                                        on:click=cancel
+                                    >
+                                        "⛔ Stop"
+                                    </button>
+                                }
+                            })
                     }}
-                    <button class="btn ghost" on:click=clear>"Clear"</button>
+                    // Clear button
+                    <button
+                        style="height: 28px; padding: 0 10px; border-radius: 14px; border: var(--border-width) solid var(--hairline); font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; background: transparent; color: var(--muted);"
+                        on:click=clear
+                        title="Clear chat"
+                    >
+                        "✕ Clear"
+                    </button>
                 </div>
             </div>
 
@@ -981,6 +1283,67 @@ pub fn ChatTab() -> impl IntoView {
                     })
             }}
 
+            {move || {
+                if popup_open.get() && !filtered_options.get().is_empty() {
+                    let opts = filtered_options.get();
+                    let idx = active_index.get();
+                    Some(view! {
+                        <div class="composer-popup" style="position: absolute; bottom: 65px; left: 16px; right: 16px; background: var(--surface-card); border: var(--border-width, 1px) solid var(--hairline); border-radius: var(--r-md); box-shadow: 0 -4px 20px rgba(0,0,0,0.3); z-index: 10; display: flex; flex-direction: column; max-height: 280px; backdrop-filter: blur(10px);">
+                            <div style="overflow-y: auto; flex-grow: 1; padding: 4px 0;">
+                                {opts.into_iter().enumerate().map(|(i, opt)| {
+                                    let active = i == idx;
+                                    let (opt_c, opt_c2) = (opt.cmd.clone(), opt.cmd.clone());
+                                    let on_click = move |_| {
+                                        let suffix = match opt_c.as_str() {
+                                            "/clear" | "/help" | "/mcp" | "/agents" => "",
+                                            _ => " ",
+                                        };
+                                        input.set(format!("{}{}", opt_c, suffix));
+                                        popup_open.set(false);
+                                        if opt_c == "/clear" || opt_c == "/help" || opt_c == "/mcp" || opt_c == "/agents" || opt_c.starts_with("/agent-skills:") {
+                                            send();
+                                        }
+                                    };
+                                    view! {
+                                        <div
+                                            style=move || if active {
+                                                "display: flex; justify-content: space-between; padding: 8px 12px; cursor: pointer; background: var(--primary); color: var(--on-primary); font-size: 13px; align-items: center;"
+                                            } else {
+                                                "display: flex; justify-content: space-between; padding: 8px 12px; cursor: pointer; color: var(--ink); font-size: 13px; align-items: center;"
+                                            }
+                                            on:click=on_click
+                                        >
+                                            <span style="font-family: var(--font-mono); font-weight: 600; flex-shrink: 0; margin-right: 16px;">
+                                                {opt_c2}
+                                            </span>
+                                            <span style=move || if active {
+                                                "font-size: 12px; opacity: 0.9; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%;"
+                                            } else {
+                                                "font-size: 12px; color: var(--muted); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 65%;"
+                                            }>
+                                                {opt.desc.clone()}
+                                            </span>
+                                        </div>
+                                    }
+                                }).collect_view()}
+                            </div>
+                            <div style="padding: 6px 12px; border-top: var(--border-width, 1px) solid var(--hairline); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; background: rgba(0,0,0,0.15); border-bottom-left-radius: var(--r-md); border-bottom-right-radius: var(--r-md);">
+                                <div>
+                                    <span style="font-weight: bold; color: var(--ink);">"↑/↓"</span>" Navigate  •  "
+                                    <span style="font-weight: bold; color: var(--ink);">"enter"</span>" Select  •  "
+                                    <span style="font-weight: bold; color: var(--ink);">"tab"</span>" Complete"
+                                </div>
+                                <div>
+                                    <span style="font-weight: bold; color: var(--ink);">"esc"</span>" to cancel"
+                                </div>
+                            </div>
+                        </div>
+                    }.into_any())
+                } else {
+                    None
+                }
+            }}
+ 
             <div class="modern-composer glass">
                 <input
                     class="composer-input"
@@ -994,10 +1357,70 @@ pub fn ChatTab() -> impl IntoView {
                     }
                     prop:value=move || input.get()
                     prop:disabled=move || !online.get() || generating.get()
-                    on:input=move |e| input.set(event_target_value(&e))
+                    on:input=move |e| {
+                        let val = event_target_value(&e);
+                        input.set(val.clone());
+                        if val.starts_with('/') && !val.contains(' ') {
+                            popup_open.set(true);
+                        } else {
+                            popup_open.set(false);
+                        }
+                    }
                     on:keydown=move |e: KeyboardEvent| {
-                        if e.key() == "Enter" {
-                            send();
+                        if popup_open.get_untracked() && !filtered_options.get_untracked().is_empty() {
+                            let opts = filtered_options.get_untracked();
+                            let idx = active_index.get_untracked();
+                            
+                            match e.key().as_str() {
+                                "ArrowDown" => {
+                                    e.prevent_default();
+                                    if idx + 1 < opts.len() {
+                                        active_index.set(idx + 1);
+                                    } else {
+                                        active_index.set(0);
+                                    }
+                                }
+                                "ArrowUp" => {
+                                    e.prevent_default();
+                                    if idx > 0 {
+                                        active_index.set(idx - 1);
+                                    } else {
+                                        active_index.set(opts.len() - 1);
+                                    }
+                                }
+                                "Tab" => {
+                                    e.prevent_default();
+                                    let completed = &opts[idx].cmd;
+                                    let suffix = match completed.as_str() {
+                                        "/clear" | "/help" | "/mcp" | "/agents" => "",
+                                        _ => " ",
+                                    };
+                                    input.set(format!("{}{}", completed, suffix));
+                                    popup_open.set(false);
+                                }
+                                "Enter" => {
+                                    e.prevent_default();
+                                    let completed = &opts[idx].cmd;
+                                    let suffix = match completed.as_str() {
+                                        "/clear" | "/help" | "/mcp" | "/agents" => "",
+                                        _ => " ",
+                                    };
+                                    input.set(format!("{}{}", completed, suffix));
+                                    popup_open.set(false);
+                                    if completed == "/clear" || completed == "/help" || completed == "/mcp" || completed == "/agents" || completed.starts_with("/agent-skills:") {
+                                        send();
+                                    }
+                                }
+                                "Escape" => {
+                                    e.prevent_default();
+                                    popup_open.set(false);
+                                }
+                                _ => {}
+                            }
+                        } else {
+                            if e.key() == "Enter" {
+                                send();
+                            }
                         }
                     }
                 />

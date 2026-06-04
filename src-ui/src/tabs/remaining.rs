@@ -1049,7 +1049,7 @@ fn compute_node_positions(
     let mut idx = 0;
     for m in global_mems.iter().chain(project_mems.iter()) {
         let angle = idx as f64 * 2.0 * std::f64::consts::PI / total as f64;
-        let r = 120.0;
+        let r = 180.0;
         let x = width / 2.0 + r * angle.cos();
         let y = height / 2.0 + r * angle.sin();
         nodes.push(GraphNode {
@@ -1097,9 +1097,9 @@ fn GamMemorySimulation() -> impl IntoView {
     let anim_consolidating = RwSignal::new(false);
 
     let global_semantic_nodes = RwSignal::new(vec![
-        SimNode { id: "project".into(), label: "Project Core".into(), x: 270.0, y: 210.0 },
-        SimNode { id: "user_prefs".into(), label: "User Preferences".into(), x: 130.0, y: 110.0 },
-        SimNode { id: "tech_stack".into(), label: "Tech Stack (Rust/Tauri)".into(), x: 410.0, y: 110.0 },
+        SimNode { id: "project".into(), label: "Project Core".into(), x: 380.0, y: 280.0 },
+        SimNode { id: "user_prefs".into(), label: "User Preferences".into(), x: 180.0, y: 140.0 },
+        SimNode { id: "tech_stack".into(), label: "Tech Stack (Rust/Tauri)".into(), x: 580.0, y: 140.0 },
     ]);
     let global_semantic_edges = RwSignal::new(vec![
         SimEdge { source: "user_prefs".into(), target: "project".into() },
@@ -1130,9 +1130,9 @@ fn GamMemorySimulation() -> impl IntoView {
         let node_id = format!("node_{}", chrono::Local::now().timestamp_millis());
         let node_count = global_semantic_nodes.get_untracked().len() as f64;
         let angle = node_count * 2.0 * std::f64::consts::PI / 6.0;
-        let radius = 110.0;
-        let x = 270.0 + radius * angle.cos();
-        let y = 210.0 + radius * angle.sin();
+        let radius = 160.0;
+        let x = 380.0 + radius * angle.cos();
+        let y = 280.0 + radius * angle.sin();
 
         global_semantic_nodes.update(|nodes| nodes.push(SimNode { id: node_id.clone(), label: node_label, x, y }));
         global_semantic_edges.update(|edges| edges.push(SimEdge { source: "project".into(), target: node_id }));
@@ -1146,7 +1146,7 @@ fn GamMemorySimulation() -> impl IntoView {
     };
 
     view! {
-        <div style="display: flex; gap: 16px; flex-wrap: wrap; width: 100%;">
+        <div style="display: flex; gap: 16px; flex-wrap: wrap; width: 100%; align-items: stretch;">
             <div style="flex: 1.2; min-width: 320px; display: flex; flex-direction: column; gap: 16px;">
                 <Card title="📋 Episodic Buffer (Event Graph)">
                     <div style="overflow-y: auto; max-height: 200px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; min-height: 120px;">
@@ -1205,8 +1205,8 @@ fn GamMemorySimulation() -> impl IntoView {
             </div>
             <div style="flex: 1.8; min-width: 400px;">
                 <Card title="🕸️ Topic Associative Graph">
-                    <div style="width: 100%; height: 380px; border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--hairline); background: var(--surface-soft);">
-                        <svg width="100%" height="100%" viewBox="0 0 540 420">
+                    <div style="width: 100%; height: clamp(380px, 45vh, 700px); border-radius: var(--r-lg); overflow: hidden; border: 1px solid var(--hairline); background: var(--surface-soft);">
+                        <svg width="100%" height="100%" viewBox="0 0 760 560">
                             {move || {
                                 let nodes = global_semantic_nodes.get();
                                 let edges = global_semantic_edges.get();
@@ -2997,7 +2997,7 @@ pub fn PlannerTab() -> impl IntoView {
 
             // Quick-add form
             <Card title="New Task">
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 120px;gap:var(--s-sm);align-items:end;">
+                <div style="display:grid;grid-template-columns:2fr 2fr 1fr 1fr 1fr;gap:var(--s-sm);align-items:end;flex-wrap:wrap;">
                     <div class="field" style="margin:0;">
                         <label class="field-label">"Title"</label>
                         <input class="input" type="text" placeholder="Task title…"
@@ -3020,23 +3020,21 @@ pub fn PlannerTab() -> impl IntoView {
                             on:input=move |e| add_agent.set(event_target_value(&e))
                         />
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:end;">
-                        <div class="field" style="margin:0;">
-                            <label class="field-label">"Priority"</label>
-                            <select class="input" prop:value=move || add_priority.get() on:change=move |e| add_priority.set(event_target_value(&e))>
-                                <option value="Low">"Low"</option>
-                                <option value="Medium" selected>"Medium"</option>
-                                <option value="High">"High"</option>
-                            </select>
-                        </div>
-                        <div class="field" style="margin:0;">
-                            <label class="field-label">"Column"</label>
-                            <select class="input" prop:value=move || add_status.get() on:change=move |e| add_status.set(event_target_value(&e))>
-                                <option value="backlog">"Backlog"</option>
-                                <option value="todo" selected>"Todo"</option>
-                                <option value="in_progress">"In Progress"</option>
-                            </select>
-                        </div>
+                    <div class="field" style="margin:0;">
+                        <label class="field-label">"Priority"</label>
+                        <select class="input" prop:value=move || add_priority.get() on:change=move |e| add_priority.set(event_target_value(&e))>
+                            <option value="Low">"Low"</option>
+                            <option value="Medium" selected>"Medium"</option>
+                            <option value="High">"High"</option>
+                        </select>
+                    </div>
+                    <div class="field" style="margin:0;">
+                        <label class="field-label">"Column"</label>
+                        <select class="input" prop:value=move || add_status.get() on:change=move |e| add_status.set(event_target_value(&e))>
+                            <option value="backlog">"Backlog"</option>
+                            <option value="todo" selected>"Todo"</option>
+                            <option value="in_progress">"In Progress"</option>
+                        </select>
                     </div>
                 </div>
                 <div class="row-actions" style="margin-top:var(--s-sm);">
@@ -3089,6 +3087,9 @@ pub fn CalendarTab() -> impl IntoView {
     let add_prompt = RwSignal::new(String::new());
     let add_note = RwSignal::new(String::new());
     let add_color = RwSignal::new("#6366f1".to_string());
+    let add_recurrence = RwSignal::new(String::new());
+    let add_tags_input = RwSignal::new(String::new());
+    let add_tags = RwSignal::new(Vec::<String>::new());
     let show_info = RwSignal::new(false);
 
     // Current calendar month/year
@@ -3116,6 +3117,8 @@ pub fn CalendarTab() -> impl IntoView {
         let prompt = add_prompt.get_untracked().trim().to_string();
         let note = add_note.get_untracked().trim().to_string();
         let color = add_color.get_untracked();
+        let recurrence_str = add_recurrence.get_untracked();
+        let tags = add_tags.get_untracked();
 
         if title.is_empty() || time.is_empty() || prompt.is_empty() {
             return;
@@ -3130,6 +3133,8 @@ pub fn CalendarTab() -> impl IntoView {
             color: Some(color),
             status: EventStatus::Pending,
             result: None,
+            tags,
+            recurrence: if recurrence_str.is_empty() { None } else { Some(recurrence_str) },
         };
 
         spawn_local(async move {
@@ -3143,6 +3148,9 @@ pub fn CalendarTab() -> impl IntoView {
         add_time.set(String::new());
         add_prompt.set(String::new());
         add_note.set(String::new());
+        add_recurrence.set(String::new());
+        add_tags.set(Vec::new());
+        add_tags_input.set(String::new());
     };
 
     let delete_event = move |id: String| {
@@ -3281,7 +3289,7 @@ pub fn CalendarTab() -> impl IntoView {
                                             // Empty cell prefixes
                                             {
                                                 (0..first_wd).map(|_| {
-                                                    view! { <div style="min-height: 70px; border-radius: 6px;"></div> }
+                                                    view! { <div style="min-height: 100px; border-radius: 6px;"></div> }
                                                 }).collect_view()
                                             }
 
@@ -3307,7 +3315,7 @@ pub fn CalendarTab() -> impl IntoView {
                                                         <div
                                                             class="calendar-day-cell"
                                                             style=move || format!(
-                                                                "min-height: 75px; border-radius: 6px; padding: 6px; border: 1px solid {}; background: {}; transition: all 0.2s; display: flex; flex-direction: column; cursor: pointer; transform: {};",
+                                                                "min-height: 110px; border-radius: 6px; padding: 6px; border: 1px solid {}; background: {}; transition: all 0.2s; display: flex; flex-direction: column; cursor: pointer; transform: {};",
                                                                 if is_today {
                                                                     "var(--accent)"
                                                                 } else if is_selected() {
@@ -3341,13 +3349,24 @@ pub fn CalendarTab() -> impl IntoView {
                                                                     day_events.iter().take(3).map(|ev| {
                                                                         let id = ev.id.clone();
                                                                         let ev_title = ev.title.clone();
-                                                                        let ev_title_render = ev_title.clone();
+                                                                        let ev_note = ev.note.clone();
+                                                                        let ev_status = ev.status.clone();
+                                                                        let tooltip = format!("{}{}", ev_title,
+                                                                            ev_note.as_deref().map(|n| format!("\n📌 {}", n)).unwrap_or_default()
+                                                                        );
                                                                         let bg = ev.color.clone().unwrap_or_else(|| "#6366f1".to_string());
+                                                                        let status_icon = match ev_status {
+                                                                            EventStatus::Completed => "✅",
+                                                                            EventStatus::Firing => "⏳",
+                                                                            EventStatus::Failed => "❌",
+                                                                            EventStatus::Pending => "",
+                                                                        };
+                                                                        let time_str = ev.time.get(11..16).unwrap_or("").to_string();
                                                                         view! {
                                                                             <div
-                                                                                title=ev_title_render
+                                                                                title=tooltip
                                                                                 style=format!(
-                                                                                    "font-size: 9px; padding: 2px 4px; border-radius: 3px; color: white; background: {}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;",
+                                                                                    "font-size: 9px; padding: 2px 4px; border-radius: 3px; color: white; background: {}; overflow: hidden; cursor: pointer; display: flex; flex-direction: column; gap: 1px;",
                                                                                     bg
                                                                                 )
                                                                                 on:click=move |e| {
@@ -3355,7 +3374,17 @@ pub fn CalendarTab() -> impl IntoView {
                                                                                     expanded_event.set(Some(id.clone()));
                                                                                 }
                                                                             >
-                                                                                {ev_title}
+                                                                                <div style="display: flex; align-items: center; gap: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                                                    {if !status_icon.is_empty() { view! { <span>{status_icon}</span> }.into_any() } else { view! {}.into_any() }}
+                                                                                    <span style="overflow: hidden; text-overflow: ellipsis; font-weight: 600;">{ev_title}</span>
+                                                                                </div>
+                                                                                {if !time_str.is_empty() {
+                                                                                    view! { <div style="opacity: 0.8; font-size: 8px;">{time_str}</div> }.into_any()
+                                                                                } else { view! {}.into_any() }}
+                                                                                {ev_note.as_ref().map(|n| {
+                                                                                    let n_short = if n.len() > 20 { format!("{}…", &n[..17]) } else { n.clone() };
+                                                                                    view! { <div style="opacity: 0.85; font-size: 8px; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{"📌 "}{n_short}</div> }
+                                                                                })}
                                                                             </div>
                                                                         }
                                                                     }).collect_view()
@@ -3399,18 +3428,39 @@ pub fn CalendarTab() -> impl IntoView {
                                                         EventStatus::Completed => "Completed",
                                                         EventStatus::Failed => "Failed",
                                                     };
+                                                    let recurrence_indicator = e.recurrence.as_deref().map(|r| match r {
+                                                        "daily" => " 🔁 Daily",
+                                                        "weekly" => " 📅 Weekly",
+                                                        "monthly" => " 🗓 Monthly",
+                                                        _ => "",
+                                                    }).unwrap_or("").to_string();
+                                                    let tags_display = e.tags.clone();
                                                     view! {
                                                         <div
                                                             style=format!("border-left: 4px solid {}; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px; cursor: pointer; background: rgba(255,255,255,0.01);", bg)
                                                             on:click=move |_| expanded_event.set(Some(id.clone()))
                                                         >
                                                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                                                <span style="font-weight: 600; font-size: 13.5px; color: var(--color-text-header);">{e.title}</span>
+                                                                <span style="font-weight: 600; font-size: 13.5px; color: var(--color-text-header);">{e.title}{recurrence_indicator}</span>
                                                                 <span style="font-size: 10px; opacity: 0.8;">{status_text}</span>
                                                             </div>
                                                             <div style="font-size: 11px; color: var(--color-muted); margin-top: 4px;">
                                                                 {format!("Time: {} · Prompt: \"{}\"", e.time, e.prompt)}
                                                             </div>
+                                                            {if !tags_display.is_empty() {
+                                                                view! {
+                                                                    <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px;">
+                                                                        {tags_display.iter().map(|tag| {
+                                                                            let t = tag.clone();
+                                                                            view! {
+                                                                                <span style="font-size: 9px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); border-radius: 3px; padding: 0 4px;">{t}</span>
+                                                                            }
+                                                                        }).collect_view()}
+                                                                    </div>
+                                                                }.into_any()
+                                                            } else {
+                                                                view! {}.into_any()
+                                                            }}
                                                         </div>
                                                     }
                                                 }).collect_view().into_any()
@@ -3545,6 +3595,52 @@ pub fn CalendarTab() -> impl IntoView {
                                             ></div>
                                         }
                                     }).collect_view()}
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="field-label">"Recurrence"</label>
+                                <select class="input" style="height: 32px; font-size: 13px;"
+                                    prop:value=move || add_recurrence.get()
+                                    on:change=move |e| add_recurrence.set(event_target_value(&e))
+                                >
+                                    <option value="">"— One-time"</option>
+                                    <option value="daily">"🔁 Daily"</option>
+                                    <option value="weekly">"📅 Weekly"</option>
+                                    <option value="monthly">"🗓 Monthly"</option>
+                                </select>
+                            </div>
+
+                            <div class="field">
+                                <label class="field-label">"Tags"</label>
+                                <div style="display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px;">
+                                    {move || add_tags.get().into_iter().enumerate().map(|(i, tag)| {
+                                        let t = tag.clone();
+                                        view! {
+                                            <span style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); border-radius: 4px; padding: 1px 6px;">
+                                                {t}
+                                                <button style="border: none; background: none; cursor: pointer; font-size: 10px; color: var(--accent); padding: 0;" on:click=move |_| {
+                                                    add_tags.update(|v| { if i < v.len() { v.remove(i); } });
+                                                }>"×"</button>
+                                            </span>
+                                        }
+                                    }).collect_view()}
+                                </div>
+                                <div style="display: flex; gap: 6px;">
+                                    <input class="input" style="height: 28px; font-size: 12px; flex: 1;"
+                                        placeholder="Add tag, press Enter..."
+                                        prop:value=move || add_tags_input.get()
+                                        on:input=move |e| add_tags_input.set(event_target_value(&e))
+                                        on:keydown=move |e: leptos::ev::KeyboardEvent| {
+                                            if e.key() == "Enter" {
+                                                let tag = add_tags_input.get_untracked().trim().to_string();
+                                                if !tag.is_empty() {
+                                                    add_tags.update(|v| { if !v.contains(&tag) { v.push(tag); } });
+                                                    add_tags_input.set(String::new());
+                                                }
+                                            }
+                                        }
+                                    />
                                 </div>
                             </div>
 
@@ -4024,7 +4120,7 @@ pub fn DeepResearchTab() -> impl IntoView {
         <div class="page">
             <PageHeader title="Deep Research Labs" desc="Conduct iterative research campaigns wrapped around deep_research.py."/>
 
-            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: start; width: 100%;">
+            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; width: 100%;">
                 // Left Column: Inputs & Status
                 <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 16px; max-width: 100%;">
                     <Card title="Start Research Campaign">

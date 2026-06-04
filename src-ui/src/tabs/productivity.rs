@@ -14,6 +14,10 @@ pub fn TodosTab() -> impl IntoView {
     let items = RwSignal::new(Vec::<TodoItem>::new());
     let new_text = RwSignal::new(String::new());
     let show_info = RwSignal::new(false);
+    let filter_priority = RwSignal::new("all".to_string());
+    let show_done_items = RwSignal::new(true);
+    let new_priority = RwSignal::new(String::new());
+    let new_due_date = RwSignal::new(String::new());
 
     spawn_local(async move {
         if let Ok(v) = api::todos_get().await {
@@ -33,8 +37,17 @@ pub fn TodosTab() -> impl IntoView {
             return;
         }
         let id = format!("t{}", js_sys::Date::now() as u64);
-        items.update(|l| l.push(TodoItem { id, text: t, done: false }));
+        items.update(|l| l.push(TodoItem {
+            id,
+            text: t,
+            done: false,
+            priority: new_priority.get_untracked(),
+            due_date: { let d = new_due_date.get_untracked(); if d.is_empty() { None } else { Some(d) } },
+            tags: vec![],
+        }));
         new_text.set(String::new());
+        new_priority.set(String::new());
+        new_due_date.set(String::new());
         persist();
     };
     let toggle = move |id: String| {
@@ -55,7 +68,7 @@ pub fn TodosTab() -> impl IntoView {
     view! {
         <div class="page">
             <PageHeader title="Todos" desc="A simple checklist — also visible to agents."/>
-            
+
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; margin-top:-8px;">
                 <span style="font-size:12px; color:var(--muted);">"AI Agent checklist integration"</span>
                 <button class="btn-info-toggle" on:click=move |_| show_info.update(|v| *v = !*v)>"i"</button>
@@ -75,23 +88,104 @@ pub fn TodosTab() -> impl IntoView {
             })}
 
             <Card title="">
-                <div class="composer-inline">
+                <div class="composer-inline" style="flex-wrap: wrap; gap: 6px;">
                     <input
                         class="input"
+                        style="flex: 2; min-width: 160px;"
                         placeholder="Add a todo…"
                         prop:value=move || new_text.get()
                         on:input=move |e| new_text.set(event_target_value(&e))
                         on:keydown=move |e: KeyboardEvent| if e.key() == "Enter" { add() }
                     />
+                    <select
+                        class="input"
+                        style="height: 34px; flex: 0 0 110px; font-size: 12px;"
+                        prop:value=move || new_priority.get()
+                        on:change=move |e| new_priority.set(event_target_value(&e))
+                    >
+                        <option value="">"— Priority"</option>
+                        <option value="High">"🔴 High"</option>
+                        <option value="Medium">"🟡 Medium"</option>
+                        <option value="Low">"🔵 Low"</option>
+                    </select>
+                    <input
+                        class="input"
+                        type="date"
+                        style="flex: 0 0 140px; height: 34px;"
+                        prop:value=move || new_due_date.get()
+                        on:input=move |e| new_due_date.set(event_target_value(&e))
+                    />
                     <button class="btn primary" on:click=move |_| add()>"Add"</button>
                 </div>
+
+                <div style="display: flex; gap: 6px; align-items: center; margin-top: 10px; margin-bottom: 8px; flex-wrap: wrap;">
+                    <span style="font-size: 11px; color: var(--muted);">"Filter:"</span>
+                    {["all", "High", "Medium", "Low"].into_iter().map(|p| {
+                        let p_str = p.to_string();
+                        let p_str2 = p_str.clone();
+                        let p_str3 = p_str.clone();
+                        let label = match p { "all" => "All", other => other };
+                        view! {
+                            <button
+                                class=move || if filter_priority.get() == p_str2 { "btn primary sm" } else { "btn secondary sm" }
+                                style="font-size: 11px; padding: 2px 8px; height: 24px;"
+                                on:click=move |_| filter_priority.set(p_str3.clone())
+                            >{label}</button>
+                        }
+                    }).collect_view()}
+                    <button
+                        class=move || if show_done_items.get() { "btn primary sm" } else { "btn secondary sm" }
+                        style="font-size: 11px; padding: 2px 8px; height: 24px; margin-left: 8px;"
+                        on:click=move |_| show_done_items.update(|v| *v = !*v)
+                    >
+                        {move || if show_done_items.get() { "Hide Done" } else { "Show Done" }}
+                    </button>
+                </div>
+
                 <ul class="todo-list">
                     {move || {
+                        let fp = filter_priority.get();
+                        let show_done = show_done_items.get();
                         items
                             .get()
                             .into_iter()
+                            .filter(|it| {
+                                let priority_ok = fp == "all" || it.priority == fp;
+                                let done_ok = show_done || !it.done;
+                                priority_ok && done_ok
+                            })
                             .map(|it| {
                                 let (id1, id2) = (it.id.clone(), it.id.clone());
+                                let priority_badge = if !it.priority.is_empty() {
+                                    let color = match it.priority.as_str() {
+                                        "High" => "#ef4444",
+                                        "Medium" => "#f59e0b",
+                                        "Low" => "#3b82f6",
+                                        _ => "var(--muted)",
+                                    };
+                                    let icon = match it.priority.as_str() {
+                                        "High" => "🔴",
+                                        "Medium" => "🟡",
+                                        "Low" => "🔵",
+                                        _ => "",
+                                    };
+                                    let p = it.priority.clone();
+                                    Some(view! {
+                                        <span style=format!("font-size: 10px; font-weight: 600; color: {}; background: color-mix(in srgb, {} 15%, transparent); border-radius: 3px; padding: 1px 5px;", color, color)>
+                                            {format!("{} {}", icon, p)}
+                                        </span>
+                                    })
+                                } else {
+                                    None
+                                };
+                                let due_badge = it.due_date.as_ref().map(|d| {
+                                    let d = d.clone();
+                                    view! {
+                                        <span style="font-size: 10px; color: var(--muted); font-family: var(--font-mono);">
+                                            {format!("📅 {}", d)}
+                                        </span>
+                                    }
+                                });
                                 view! {
                                     <li class="todo-item" class:done=it.done>
                                         <label class="todo-label">
@@ -100,7 +194,13 @@ pub fn TodosTab() -> impl IntoView {
                                                 prop:checked=it.done
                                                 on:change=move |_| toggle(id1.clone())
                                             />
-                                            <span>{it.text.clone()}</span>
+                                            <div style="display: flex; flex-direction: column; gap: 2px;">
+                                                <span>{it.text.clone()}</span>
+                                                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                                                    {priority_badge}
+                                                    {due_badge}
+                                                </div>
+                                            </div>
                                         </label>
                                         <button
                                             class="btn ghost sm"
@@ -129,6 +229,8 @@ pub fn NotesTab() -> impl IntoView {
     let rename_value = RwSignal::new(String::new());
     let save_status = RwSignal::new("Saved".to_string());
     let show_info = RwSignal::new(false);
+    let note_search = RwSignal::new(String::new());
+    let new_tag_input = RwSignal::new(String::new());
 
     // Effect to reload when scope changes
     Effect::new(move || {
@@ -190,6 +292,8 @@ pub fn NotesTab() -> impl IntoView {
             st.notes.push(Note {
                 name,
                 content: String::new(),
+                tags: vec![],
+                pinned: false,
             });
         });
         let new_idx = store.get_untracked().notes.len() - 1;
@@ -264,12 +368,12 @@ pub fn NotesTab() -> impl IntoView {
                 </button>
             </div>
 
-            <div style="display: flex; gap: var(--s-lg); align-items: flex-start; width: 100%;">
-                
+            <div style="display: flex; gap: var(--s-lg); align-items: stretch; width: 100%; min-height: 500px;">
+
                 // Notes Sidebar
-                <div style="width: 240px; flex-shrink: 0;">
-                    <Card title="">
-                        <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px;">
+                <div style="width: 240px; flex-shrink: 0; display: flex; flex-direction: column;">
+                    <section class="card" style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+                        <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px; flex: 1; overflow: hidden;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <span style="font-weight: 600; font-size: 14px; color: var(--color-text-header);">"Notes"</span>
                                 <button
@@ -295,15 +399,30 @@ pub fn NotesTab() -> impl IntoView {
                                 }
                             />
 
-                            <div style="display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 400px; min-height: 100px;">
+                            <input
+                                class="input"
+                                style="font-size: 12px; padding: var(--s-xs) var(--s-sm); height: 28px; width: 100%; box-sizing: border-box;"
+                                placeholder="Search notes..."
+                                prop:value=move || note_search.get()
+                                on:input=move |e| note_search.set(event_target_value(&e))
+                            />
+
+                            <div style="display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex: 1; min-height: 100px;">
                                 {move || {
                                     let current_idx = active_note_idx.get();
+                                    let search_q = note_search.get().to_lowercase();
                                     let notes_list = store.get().notes;
-                                    
-                                    notes_list.into_iter().enumerate().map(|(idx, note)| {
+
+                                    notes_list.into_iter().enumerate().filter(|(_, note)| {
+                                        search_q.is_empty()
+                                            || note.name.to_lowercase().contains(&search_q)
+                                            || note.content.to_lowercase().contains(&search_q)
+                                            || note.tags.iter().any(|t| t.to_lowercase().contains(&search_q))
+                                    }).map(|(idx, note)| {
                                         let is_active = idx == current_idx;
                                         let show_ren = show_rename.get() == Some(idx);
                                         let n_name = note.name.clone();
+                                        let note_tags = note.tags.clone();
                                         view! {
                                             <div
                                                 style=format!(
@@ -331,9 +450,25 @@ pub fn NotesTab() -> impl IntoView {
                                                     }.into_any()
                                                 } else {
                                                     view! {
-                                                        <span style="font-size: 13px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px;">
-                                                            {note.name.clone()}
-                                                        </span>
+                                                        <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                                            <span style="font-size: 13px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 140px;">
+                                                                {note.name.clone()}
+                                                            </span>
+                                                            {if !note_tags.is_empty() {
+                                                                view! {
+                                                                    <div style="display: flex; gap: 3px; flex-wrap: wrap;">
+                                                                        {note_tags.iter().map(|tag| {
+                                                                            let t = tag.clone();
+                                                                            view! {
+                                                                                <span style="font-size: 9px; background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); border-radius: 3px; padding: 0 4px; line-height: 1.6;">{t}</span>
+                                                                            }
+                                                                        }).collect_view()}
+                                                                    </div>
+                                                                }.into_any()
+                                                            } else {
+                                                                view! {}.into_any()
+                                                            }}
+                                                        </div>
                                                     }.into_any()
                                                 }}
 
@@ -373,26 +508,93 @@ pub fn NotesTab() -> impl IntoView {
                                 }}
                             </div>
                         </div>
-                    </Card>
+                    </section>
                 </div>
 
                 // Editor Pane
-                <div style="flex: 1; min-height: 480px;">
-                    <Card title="">
-                        <div style="padding: 16px; display: flex; flex-direction: column; gap: var(--s-md); min-height: 450px;">
+                <div style="flex: 1; display: flex; flex-direction: column;">
+                    <section class="card" style="flex: 1; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+                        <div style="padding: 16px; display: flex; flex-direction: column; gap: var(--s-md); flex: 1; min-height: 0;">
                             {move || {
                                 let st = store.get();
                                 let idx = active_note_idx.get();
                                 if let Some(note) = st.notes.get(idx) {
                                     let note_content = note.content.clone();
+                                    let note_name = note.name.clone();
+                                    let note_tags_editor = note.tags.clone();
                                     view! {
-                                        <div style="display: flex; flex-direction: column; gap: var(--s-md); height: 100%; flex: 1;">
-                                            <div style="font-size: 15px; font-weight: 600; color: var(--color-text-header);">
-                                                {format!("Editing: {}", note.name)}
+                                        <div style="display: flex; flex-direction: column; gap: var(--s-sm); flex: 1; height: 100%;">
+                                            <div style="font-size: 13.5px; font-weight: 600; color: var(--color-text-header);">
+                                                {format!("✏ {}", note_name)}
+                                            </div>
+                                            // Tags editor
+                                            <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 4px 0;">
+                                                <span style="font-size: 11px; color: var(--muted);">"Tags:"</span>
+                                                {note_tags_editor.iter().enumerate().map(|(ti, tag)| {
+                                                    let t = tag.clone();
+                                                    view! {
+                                                        <span style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); border-radius: 4px; padding: 1px 6px;">
+                                                            {t.clone()}
+                                                            <button
+                                                                style="border: none; background: none; cursor: pointer; font-size: 10px; color: var(--accent); padding: 0; line-height: 1;"
+                                                                on:click=move |_| {
+                                                                    store.update(|st| {
+                                                                        if idx < st.notes.len() && ti < st.notes[idx].tags.len() {
+                                                                            st.notes[idx].tags.remove(ti);
+                                                                        }
+                                                                    });
+                                                                    save_status.set("Unsaved changes".to_string());
+                                                                }
+                                                            >"×"</button>
+                                                        </span>
+                                                    }
+                                                }).collect_view()}
+                                                <input
+                                                    style="font-size: 11px; height: 22px; padding: 0 6px; border: var(--border-width) solid var(--hairline); border-radius: 4px; background: var(--canvas); color: var(--ink); min-width: 80px; max-width: 120px;"
+                                                    placeholder="Add tag..."
+                                                    prop:value=move || new_tag_input.get()
+                                                    on:input=move |e| new_tag_input.set(event_target_value(&e))
+                                                    on:keydown=move |e: KeyboardEvent| {
+                                                        if e.key() == "Enter" {
+                                                            let tag = new_tag_input.get_untracked().trim().to_string();
+                                                            if !tag.is_empty() {
+                                                                store.update(|st| {
+                                                                    if idx < st.notes.len() && !st.notes[idx].tags.contains(&tag) {
+                                                                        st.notes[idx].tags.push(tag.clone());
+                                                                    }
+                                                                });
+                                                                new_tag_input.set(String::new());
+                                                                save_status.set("Unsaved changes".to_string());
+                                                            }
+                                                        }
+                                                    }
+                                                />
+                                            </div>
+                                            // Markdown toolbar
+                                            <div style="display: flex; gap: 4px; flex-wrap: wrap; padding: 6px 8px; background: var(--surface-soft); border: var(--border-width) solid var(--hairline); border-radius: var(--r-sm); border-bottom: none; border-bottom-left-radius: 0; border-bottom-right-radius: 0;">
+                                                {[("B", "**bold**"), ("I", "_italic_"), ("~~", "~~strike~~"), ("H1", "# "), ("H2", "## "), ("H3", "### "), ("`", "`code`"), ("```", "```\n\n```"), ("—", "---\n"), ("• ", "- item"), ("1.", "1. item"), ("[ ]", "- [ ] task"), ("🔗", "[text](url)"), ("\"", "> quote")].into_iter().map(|(label, snippet)| {
+                                                    let sn = snippet.to_string();
+                                                    view! {
+                                                        <button
+                                                            style="padding: 2px 7px; font-size: 11.5px; font-weight: 600; font-family: var(--font-mono); border: var(--border-width) solid var(--hairline); border-radius: var(--r-sm); background: var(--canvas); color: var(--body); cursor: pointer; line-height: 1.6;"
+                                                            title=snippet
+                                                            on:click=move |_| {
+                                                                store.update(|st| {
+                                                                    if idx < st.notes.len() {
+                                                                        st.notes[idx].content.push_str(&sn);
+                                                                    }
+                                                                });
+                                                                save_status.set("Unsaved changes".to_string());
+                                                            }
+                                                        >
+                                                            {label}
+                                                        </button>
+                                                    }
+                                                }).collect_view()}
                                             </div>
                                             <textarea
                                                 class="notes-area"
-                                                style="flex: 1; min-height: 350px; font-family: monospace; font-size: 13.5px; line-height: 1.5; resize: vertical; width: 100%; box-sizing: border-box;"
+                                                style="flex: 1; min-height: 300px; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.6; resize: vertical; width: 100%; box-sizing: border-box; border-top-left-radius: 0; border-top-right-radius: 0;"
                                                 prop:value=note_content
                                                 on:input=move |e| {
                                                     let val = event_target_value(&e);
@@ -415,14 +617,14 @@ pub fn NotesTab() -> impl IntoView {
                                 }
                             }}
 
-                            <div class="row-actions" style="margin-top: 12px; display: flex; align-items: center;">
+                            <div class="row-actions" style="margin-top: 8px; display: flex; align-items: center;">
                                 <button class="btn primary" on:click=move |_| save_current()>"Save"</button>
-                                <span class="field-hint" style="margin-left: 12px; font-size: 12px; color: var(--color-text-body); opacity: 0.8;">
+                                <span class="field-hint" style="margin-left: 12px; font-size: 12px; opacity: 0.8;">
                                     {move || save_status.get()}
                                 </span>
                             </div>
                         </div>
-                    </Card>
+                    </section>
                 </div>
 
             </div>

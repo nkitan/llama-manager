@@ -83,7 +83,7 @@ button {
   justify-content: space-between;
   padding: 0 8px 0 14px;
   background: var(--canvas);
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   -webkit-backdrop-filter: blur(var(--blur, 0px));
   backdrop-filter: blur(var(--blur, 0px));
   user-select: none;
@@ -156,7 +156,7 @@ button {
   gap: var(--s-md);
   padding: 0 var(--s-lg);
   background: var(--canvas);
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   -webkit-backdrop-filter: blur(var(--blur, 0px));
   backdrop-filter: blur(var(--blur, 0px));
 }
@@ -183,7 +183,7 @@ button {
   gap: 8px;
   padding: 7px 14px;
   border-radius: var(--r-pill);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   background: var(--surface-card);
   color: var(--body);
   font-size: 13px;
@@ -210,7 +210,7 @@ button {
   display: flex;
   flex-direction: column;
   background: var(--sidebar-bg);
-  border-right: 1px solid var(--hairline);
+  border-right: var(--border-width, 1px) solid var(--hairline);
   -webkit-backdrop-filter: blur(var(--blur, 0px));
   backdrop-filter: blur(var(--blur, 0px));
 }
@@ -262,7 +262,7 @@ button {
   padding: var(--s-sm) var(--s-lg);
   font-size: 11px;
   color: var(--muted);
-  border-top: 1px solid var(--hairline);
+  border-top: var(--border-width, 1px) solid var(--hairline);
 }
 
 /* ── Pages, headers, cards ────────────────────────────────────────────────── */
@@ -292,16 +292,17 @@ button {
 }
 .card {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
   padding: var(--s-md); /* Reduced padding from var(--s-xl) */
   -webkit-backdrop-filter: blur(var(--blur, 0px));
   backdrop-filter: blur(var(--blur, 0px));
+  color: var(--card-text, var(--ink));
 }
 .card-title {
   font-size: 15px;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--card-text, var(--ink));
   margin-bottom: var(--s-sm); /* Reduced margin */
 }
 
@@ -325,7 +326,7 @@ button {
   width: 100%;
   height: 34px; /* Reduced from 40px */
   padding: 0 10px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   background: var(--canvas);
   color: var(--ink);
@@ -368,7 +369,7 @@ textarea.notes-area {
   width: 100%;
   min-height: 320px;
   padding: 14px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   background: var(--canvas);
   color: var(--ink);
@@ -402,7 +403,7 @@ textarea.notes-area {
   height: 40px;
   padding: 0 20px;
   border-radius: var(--r-md);
-  border: 1px solid transparent;
+  border: var(--border-width, 1px) solid transparent;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -481,7 +482,7 @@ textarea.notes-area {
 .preset-swatch {
   height: 44px;
   border-radius: var(--r-md);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
 }
 .sw-cal-light {
   background: linear-gradient(135deg, #ffffff 50%, #111111 50%);
@@ -492,6 +493,11 @@ textarea.notes-area {
 .sw-slate-dark {
   background: linear-gradient(135deg, #0b1220 50%, #818cf8 50%);
 }
+.sw-dracula { background: linear-gradient(135deg, #282a36 50%, #bd93f9 50%); }
+.sw-ocean-blue { background: linear-gradient(135deg, #0d1b2a 50%, #38bdf8 50%); }
+.sw-forest-green { background: linear-gradient(135deg, #0f1a14 50%, #10b981 50%); }
+.sw-rose-gold { background: linear-gradient(135deg, #fff5f7 50%, #e11d48 50%); }
+.sw-amber { background: linear-gradient(135deg, #fffbeb 50%, #d97706 50%); }
 .color-row {
   display: flex;
   gap: var(--s-lg);
@@ -506,7 +512,7 @@ textarea.notes-area {
 .color-input input[type="color"] {
   width: 56px;
   height: 40px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   background: var(--canvas);
   cursor: pointer;
@@ -517,7 +523,7 @@ textarea.notes-area {
   margin-top: var(--s-md);
   padding: 12px 14px;
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   overflow-x: auto;
 }
@@ -533,7 +539,7 @@ textarea.notes-area {
   overflow-y: auto;
   padding: 12px 14px;
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -568,7 +574,7 @@ textarea.notes-area {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   background: var(--canvas);
 }
@@ -626,7 +632,7 @@ textarea.notes-area {
   justify-content: space-between;
   padding: 12px 16px;
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
 }
 .chat-title {
@@ -649,7 +655,7 @@ textarea.notes-area {
 .model-select {
   height: 32px;
   padding: 0 10px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-sm);
   background: var(--canvas);
   color: var(--ink);
@@ -710,7 +716,7 @@ textarea.notes-area {
 }
 .msg.assistant .bubble {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   color: var(--ink);
   border-bottom-left-radius: 3px;
 }
@@ -734,7 +740,7 @@ textarea.notes-area {
 }
 .panel {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
   padding: 14px 16px;
 }
@@ -814,14 +820,14 @@ textarea.notes-area {
   gap: 10px;
   padding: 12px;
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
 }
 .composer-input {
   flex: 1;
   height: 40px;
   padding: 0 14px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   background: var(--canvas);
   color: var(--ink);
@@ -838,12 +844,12 @@ textarea.notes-area {
 }
 .banner.warn {
   background: color-mix(in srgb, #f59e0b 18%, var(--canvas));
-  border: 1px solid #f59e0b;
+  border: var(--border-width, 1px) solid #f59e0b;
   color: var(--ink);
 }
 .banner.info {
   background: color-mix(in srgb, var(--primary) 18%, var(--canvas));
-  border: 1px solid var(--primary);
+  border: var(--border-width, 1px) solid var(--primary);
   color: var(--ink);
 }
 .toast {
@@ -853,12 +859,12 @@ textarea.notes-area {
 }
 .toast.error {
   background: color-mix(in srgb, #ef4444 16%, var(--canvas));
-  border: 1px solid #ef4444;
+  border: var(--border-width, 1px) solid #ef4444;
   color: var(--ink);
 }
 .toast.success {
   background: color-mix(in srgb, #10b981 16%, var(--canvas));
-  border: 1px solid #10b981;
+  border: var(--border-width, 1px) solid #10b981;
   color: var(--ink);
 }
 .spinner {
@@ -981,7 +987,7 @@ textarea.notes-area {
 .family-header {
   padding: 10px 14px;
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   cursor: pointer;
   display: flex;
@@ -1001,7 +1007,7 @@ textarea.notes-area {
 .version-header {
   padding: 8px 12px;
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   cursor: pointer;
   display: flex;
@@ -1023,7 +1029,7 @@ textarea.notes-area {
   background: var(--canvas);
   padding: 4px 8px;
   border-radius: var(--r-md);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
 }
 
 /* ── model-table ── */
@@ -1034,7 +1040,7 @@ textarea.notes-area {
   font-size: 13px;
 }
 .model-table thead tr {
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   color: var(--muted);
   font-weight: 600;
   font-size: 11px;
@@ -1049,7 +1055,7 @@ textarea.notes-area {
   vertical-align: middle;
 }
 .model-table tbody tr {
-  border-bottom: 1px solid var(--hairline-soft);
+  border-bottom: var(--border-width, 1px) solid var(--hairline-soft);
 }
 .model-table tbody tr:last-child {
   border-bottom: none;
@@ -1064,7 +1070,7 @@ textarea.notes-area {
   display: flex;
   gap: 6px;
   margin-bottom: 20px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   padding-bottom: 8px;
   overflow-x: auto;
   white-space: nowrap;
@@ -1074,7 +1080,7 @@ textarea.notes-area {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border: 1px solid transparent;
+  border: var(--border-width, 1px) solid transparent;
   background: transparent;
   border-radius: var(--r-md);
   cursor: pointer;
@@ -1104,7 +1110,7 @@ textarea.notes-area {
 }
 .kanban-col {
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: 4px;
   display: flex;
   flex-direction: column;
@@ -1116,7 +1122,7 @@ textarea.notes-area {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   background: var(--canvas);
   font-size: 12px;
   font-weight: 700;
@@ -1134,7 +1140,7 @@ textarea.notes-area {
 .kanban-col-count {
   font-size: 11px;
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-pill);
   padding: 1px 7px;
   color: var(--muted);
@@ -1151,7 +1157,7 @@ textarea.notes-area {
 }
 .kanban-card {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: 3px;
   padding: 10px 12px;
   cursor: pointer;
@@ -1198,7 +1204,7 @@ textarea.notes-area {
   align-items: center;
   gap: 4px;
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-sm);
   padding: 1px 6px;
   font-size: 10px;
@@ -1209,7 +1215,7 @@ textarea.notes-area {
   font-weight: 700;
   padding: 1px 5px;
   border-radius: 3px;
-  border: 1px solid currentColor;
+  border: var(--border-width, 1px) solid currentColor;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -1218,7 +1224,7 @@ textarea.notes-area {
   gap: 4px;
   margin-top: 8px;
   padding-top: 6px;
-  border-top: 1px solid var(--hairline);
+  border-top: var(--border-width, 1px) solid var(--hairline);
 }
 .kanban-empty {
   padding: 24px 12px;
@@ -1237,7 +1243,7 @@ textarea.notes-area {
   height: calc(100vh - 180px);
   min-height: 500px;
   gap: 0;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
   overflow: hidden;
   background: var(--canvas);
@@ -1245,7 +1251,7 @@ textarea.notes-area {
 .memory-sidebar {
   width: 220px;
   flex-shrink: 0;
-  border-right: 1px solid var(--hairline);
+  border-right: var(--border-width, 1px) solid var(--hairline);
   display: flex;
   flex-direction: column;
   background: var(--surface-soft);
@@ -1253,7 +1259,7 @@ textarea.notes-area {
 }
 .memory-sidebar-header {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1325,7 +1331,7 @@ textarea.notes-area {
 }
 .memory-sidebar-footer {
   padding: 8px;
-  border-top: 1px solid var(--hairline);
+  border-top: var(--border-width, 1px) solid var(--hairline);
 }
 .memory-editor {
   flex: 1;
@@ -1336,7 +1342,7 @@ textarea.notes-area {
 }
 .memory-editor-toolbar {
   padding: 8px 16px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1348,7 +1354,7 @@ textarea.notes-area {
   align-items: center;
   gap: 16px;
   padding: 8px 16px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   background: var(--canvas);
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -1397,7 +1403,7 @@ textarea.notes-area {
 .memory-graph-panel {
   width: 300px;
   flex-shrink: 0;
-  border-left: 1px solid var(--hairline);
+  border-left: var(--border-width, 1px) solid var(--hairline);
   background: var(--surface-soft);
   display: flex;
   flex-direction: column;
@@ -1405,7 +1411,7 @@ textarea.notes-area {
 }
 .memory-graph-header {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -1418,7 +1424,7 @@ textarea.notes-area {
   align-items: center;
   gap: 3px;
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-sm);
   padding: 2px 7px;
   font-size: 11px;
@@ -1436,7 +1442,7 @@ textarea.notes-area {
 /* ── Agent Monitor Enhancements ────────────────────────────────────────────── */
 .monitor-agent-card {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   padding: 12px 14px;
   display: flex;
@@ -1502,7 +1508,7 @@ textarea.notes-area {
 }
 .monitor-stat-card {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   padding: 12px;
   text-align: center;
@@ -1525,7 +1531,7 @@ textarea.notes-area {
 /* ── MCP Tools Page ──────────────────────────────────────────────────────── */
 .mcp-card {
   background: var(--surface-card);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
   padding: 14px;
   display: flex;
@@ -1551,7 +1557,7 @@ textarea.notes-area {
   background: var(--surface-soft);
   padding: 4px 8px;
   border-radius: var(--r-sm);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   color: var(--body);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1561,7 +1567,7 @@ textarea.notes-area {
   display: inline-flex;
   align-items: center;
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-sm);
   padding: 2px 6px;
   font-size: 10.5px;
@@ -1573,7 +1579,7 @@ textarea.notes-area {
   font-weight: 700;
   padding: 2px 6px;
   border-radius: var(--r-sm);
-  border: 1px solid currentColor;
+  border: var(--border-width, 1px) solid currentColor;
 }
 .mcp-status-badge.running {
   color: #10b981;
@@ -1587,14 +1593,14 @@ textarea.notes-area {
 
 /* ── Agent Assist Panel ────────────────────────────────────────────────────── */
 .agent-assist-panel {
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-lg);
   background: var(--surface-card);
   overflow: hidden;
 }
 .agent-assist-header {
   padding: 10px 14px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: var(--border-width, 1px) solid var(--hairline);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1616,7 +1622,7 @@ textarea.notes-area {
   max-height: 200px;
   overflow-y: auto;
   background: var(--surface-soft);
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   border-radius: var(--r-md);
   padding: 10px 12px;
   font-size: 12.5px;
@@ -1644,7 +1650,7 @@ textarea.notes-area {
 /* ── Multi-agent parallelism warning ─────────────────────────────────────── */
 .parallelism-warn {
   background: rgba(251,146,60,0.08);
-  border: 1px solid rgba(251,146,60,0.35);
+  border: var(--border-width, 1px) solid rgba(251,146,60,0.35);
   border-radius: var(--r-md);
   padding: 10px 14px;
   font-size: 12.5px;
@@ -1658,7 +1664,7 @@ textarea.notes-area {
 /* ── Reference Info Box ── */
 .reference-info-box {
   background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  border: var(--border-width, 1px) solid rgba(99, 102, 241, 0.25);
   border-radius: var(--r-md);
   padding: var(--s-md);
   margin-bottom: var(--s-md);
@@ -1689,7 +1695,7 @@ textarea.notes-area {
   border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 12px;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   color: var(--accent);
 }
 @keyframes slideDown {
@@ -1699,7 +1705,7 @@ textarea.notes-area {
 
 .btn-info-toggle {
   background: transparent;
-  border: 1px solid var(--hairline);
+  border: var(--border-width, 1px) solid var(--hairline);
   color: var(--muted);
   width: 22px;
   height: 22px;
@@ -1755,7 +1761,7 @@ textarea.notes-area {
   gap: 12px;
   padding: 16px;
   background: var(--ui-card-bg, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--ui-border-color, rgba(255, 255, 255, 0.08));
+  border: var(--border-width, 1px) solid var(--ui-border-color, rgba(255, 255, 255, 0.08));
   border-radius: var(--r-lg, 12px);
   cursor: pointer;
   text-align: left;
@@ -1798,7 +1804,7 @@ textarea.notes-area {
   gap: 12px;
   padding: 10px 16px;
   background: var(--ui-card-bg, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--ui-border-color, rgba(255, 255, 255, 0.1));
+  border: var(--border-width, 1px) solid var(--ui-border-color, rgba(255, 255, 255, 0.1));
   border-radius: 28px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(16px);
@@ -1852,7 +1858,7 @@ textarea.notes-area {
 
 .msg.assistant .bubble {
   background: var(--ui-card-bg, rgba(255, 255, 255, 0.02));
-  border: 1px solid var(--ui-border-color, rgba(255, 255, 255, 0.08));
+  border: var(--border-width, 1px) solid var(--ui-border-color, rgba(255, 255, 255, 0.08));
   color: var(--ink);
   border-radius: 18px 18px 18px 4px;
 }

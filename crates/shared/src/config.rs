@@ -45,12 +45,63 @@ fn default_ui_sidebar_bg() -> String {
 fn default_ui_border_color() -> String {
     "rgba(255, 255, 255, 0.08)".to_string()
 }
+fn default_ui_button_bg() -> String {
+    "#6366f1".to_string()
+}
+fn default_ui_button_text() -> String {
+    "#ffffff".to_string()
+}
+fn default_ui_card_text() -> String {
+    "#cbd5e1".to_string()
+}
 fn default_ui_font_family() -> String {
     "Inter".to_string()
+}
+fn default_ui_radius_sm() -> String {
+    "2px".to_string()
+}
+fn default_ui_radius_md() -> String {
+    "4px".to_string()
+}
+fn default_ui_radius_lg() -> String {
+    "6px".to_string()
+}
+fn default_ui_radius_xl() -> String {
+    "8px".to_string()
+}
+fn default_ui_border_width() -> String {
+    "1px".to_string()
+}
+fn default_ui_size_xs() -> String {
+    "8px".to_string()
+}
+fn default_ui_size_sm() -> String {
+    "12px".to_string()
+}
+fn default_ui_size_md() -> String {
+    "16px".to_string()
+}
+fn default_ui_size_lg() -> String {
+    "24px".to_string()
+}
+fn default_ui_size_xl() -> String {
+    "32px".to_string()
 }
 fn default_dark_mode() -> bool {
     true
 }
+fn default_icon_pack() -> String {
+    "colored".to_string()
+}
+fn default_ui_light_bg() -> String { "#ffffff".to_string() }
+fn default_ui_light_text() -> String { "#111111".to_string() }
+fn default_ui_light_accent() -> String { "#3b82f6".to_string() }
+fn default_ui_light_card_bg() -> String { "#f5f5f5".to_string() }
+fn default_ui_light_sidebar_bg() -> String { "#ffffff".to_string() }
+fn default_ui_light_border() -> String { "#e5e7eb".to_string() }
+fn default_ui_light_button_bg() -> String { "#111111".to_string() }
+fn default_ui_light_button_text() -> String { "#ffffff".to_string() }
+fn default_ui_light_card_text() -> String { "#111111".to_string() }
 
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -66,6 +117,32 @@ pub struct CustomTheme {
     pub transparency: f32,
     pub blur: bool,
     pub blur_intensity: u32,
+    #[serde(default = "default_ui_radius_sm")]
+    pub radius_sm: String,
+    #[serde(default = "default_ui_radius_md")]
+    pub radius_md: String,
+    #[serde(default = "default_ui_radius_lg")]
+    pub radius_lg: String,
+    #[serde(default = "default_ui_radius_xl")]
+    pub radius_xl: String,
+    #[serde(default = "default_ui_border_width")]
+    pub border_width: String,
+    #[serde(default = "default_ui_size_xs")]
+    pub size_xs: String,
+    #[serde(default = "default_ui_size_sm")]
+    pub size_sm: String,
+    #[serde(default = "default_ui_size_md")]
+    pub size_md: String,
+    #[serde(default = "default_ui_size_lg")]
+    pub size_lg: String,
+    #[serde(default = "default_ui_size_xl")]
+    pub size_xl: String,
+    #[serde(default = "default_ui_button_bg")]
+    pub button_bg: String,
+    #[serde(default = "default_ui_button_text")]
+    pub button_text: String,
+    #[serde(default = "default_ui_card_text")]
+    pub card_text: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -340,6 +417,32 @@ pub struct ServerConfig {
     pub ui_border_color: String,
     #[serde(default = "default_ui_font_family")]
     pub ui_font_family: String,
+    #[serde(default = "default_ui_radius_sm")]
+    pub ui_radius_sm: String,
+    #[serde(default = "default_ui_radius_md")]
+    pub ui_radius_md: String,
+    #[serde(default = "default_ui_radius_lg")]
+    pub ui_radius_lg: String,
+    #[serde(default = "default_ui_radius_xl")]
+    pub ui_radius_xl: String,
+    #[serde(default = "default_ui_border_width")]
+    pub ui_border_width: String,
+    #[serde(default = "default_ui_size_xs")]
+    pub ui_size_xs: String,
+    #[serde(default = "default_ui_size_sm")]
+    pub ui_size_sm: String,
+    #[serde(default = "default_ui_size_md")]
+    pub ui_size_md: String,
+    #[serde(default = "default_ui_size_lg")]
+    pub ui_size_lg: String,
+    #[serde(default = "default_ui_size_xl")]
+    pub ui_size_xl: String,
+    #[serde(default = "default_ui_button_bg")]
+    pub ui_button_bg: String,
+    #[serde(default = "default_ui_button_text")]
+    pub ui_button_text: String,
+    #[serde(default = "default_ui_card_text")]
+    pub ui_card_text: String,
     #[serde(default)]
     pub sidebar_favorites: Vec<String>,
     #[serde(default)]
@@ -356,6 +459,26 @@ pub struct ServerConfig {
     pub override_compare: ModelOverride,
     #[serde(default = "default_dark_mode")]
     pub dark_mode: bool,
+    #[serde(default = "default_icon_pack")]
+    pub icon_pack: String,
+    #[serde(default = "default_ui_light_bg")]
+    pub ui_light_background_color: String,
+    #[serde(default = "default_ui_light_text")]
+    pub ui_light_text_color: String,
+    #[serde(default = "default_ui_light_accent")]
+    pub ui_light_accent_color: String,
+    #[serde(default = "default_ui_light_card_bg")]
+    pub ui_light_card_bg: String,
+    #[serde(default = "default_ui_light_sidebar_bg")]
+    pub ui_light_sidebar_bg: String,
+    #[serde(default = "default_ui_light_border")]
+    pub ui_light_border_color: String,
+    #[serde(default = "default_ui_light_button_bg")]
+    pub ui_light_button_bg: String,
+    #[serde(default = "default_ui_light_button_text")]
+    pub ui_light_button_text: String,
+    #[serde(default = "default_ui_light_card_text")]
+    pub ui_light_card_text: String,
 }
 
 impl Default for ServerConfig {
@@ -469,6 +592,19 @@ impl Default for ServerConfig {
             ui_sidebar_bg: "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)".into(),
             ui_border_color: "rgba(255, 255, 255, 0.12)".into(),
             ui_font_family: "Inter".into(),
+            ui_radius_sm: default_ui_radius_sm(),
+            ui_radius_md: default_ui_radius_md(),
+            ui_radius_lg: default_ui_radius_lg(),
+            ui_radius_xl: default_ui_radius_xl(),
+            ui_border_width: default_ui_border_width(),
+            ui_size_xs: default_ui_size_xs(),
+            ui_size_sm: default_ui_size_sm(),
+            ui_size_md: default_ui_size_md(),
+            ui_size_lg: default_ui_size_lg(),
+            ui_size_xl: default_ui_size_xl(),
+            ui_button_bg: default_ui_button_bg(),
+            ui_button_text: default_ui_button_text(),
+            ui_card_text: default_ui_card_text(),
             sidebar_favorites: Vec::new(),
             custom_themes: Vec::new(),
             override_planner: ModelOverride::default(),
@@ -477,6 +613,16 @@ impl Default for ServerConfig {
             override_research: ModelOverride::default(),
             override_compare: ModelOverride::default(),
             dark_mode: true,
+            icon_pack: "colored".into(),
+            ui_light_background_color: "#ffffff".into(),
+            ui_light_text_color: "#111111".into(),
+            ui_light_accent_color: "#3b82f6".into(),
+            ui_light_card_bg: "#f5f5f5".into(),
+            ui_light_sidebar_bg: "#ffffff".into(),
+            ui_light_border_color: "#e5e7eb".into(),
+            ui_light_button_bg: "#111111".into(),
+            ui_light_button_text: "#ffffff".into(),
+            ui_light_card_text: "#111111".into(),
         }
     }
 }
