@@ -1,0 +1,9 @@
+# Trunk serves the Leptos WASM bundle to the Tauri WebView. Port matches
+# `devUrl` in src-tauri/tauri.conf.json.
+[build]
+target = "index.html"
+
+[serve]
+port = 1420
+# Tauri connects to this address in dev.
+addresses = ["127.0.0.1"]

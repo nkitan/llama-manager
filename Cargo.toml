@@ -1,15 +1,42 @@
-[package]
-name = "llama-manager"
-version = "0.1.0"
-edition = "2024"
+# ── Workspace root ────────────────────────────────────────────────────────────
+# Cargo workspace for the Tauri v2 + Leptos rewrite of llama-manager.
+#
+# Members:
+#   crates/shared  — wasm-safe types shared by the backend and the frontend
+#   src-tauri      — native Tauri backend (owns all OS access + canonical state)
+#   src-ui         — Leptos CSR frontend, compiled to wasm32 and bundled by Trunk
+#   legacy         — the original Dioxus app, preserved for reference (built on demand)
+#
+# `default-members` deliberately excludes `src-ui` (built for wasm via Trunk, not
+# native) and `legacy` (heavyweight Dioxus deps), so a bare `cargo build`/`cargo
+# check` stays fast and native-clean. Build those explicitly when needed:
+#   trunk build                              # frontend (wasm)
+#   cargo build -p llama-manager-legacy      # old app
+[workspace]
+resolver = "2"
+members = ["crates/shared", "src-tauri", "src-ui"]
+default-members = ["crates/shared", "src-tauri"]
+# `legacy` is intentionally NOT a member: its Dioxus deps force `wry ^0.53.5`,
+# which collides with the Tauri stack across a shared lockfile. It lives in the
+# repo with its own lockfile and builds standalone (`cd legacy && cargo build`).
+exclude = ["legacy"]
 
-[dependencies]
-dioxus = { version = "0.7.3", features = ["desktop"] }
-dioxus-desktop = "0.7.3"
+# Shared dependency versions, referenced via `<dep>.workspace = true` in members,
+# so the whole workspace stays on one consistent set of versions.
+[workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-rfd = "0.17"
-tokio = { version = "1", features = ["time", "process"] }
-reqwest = { version = "0.12", features = ["json"] }
-chrono = "0.4"
-urlencoding = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# Lean, fast-starting release WASM (perf standard: small bundle, quick cold start).
+# Applied workspace-wide; Trunk picks this up for the wasm build.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

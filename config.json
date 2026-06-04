@@ -1,6 +1,6 @@
 {
   "exe_path": "llama-server",
-  "model_path": "/mnt/shared/models/text/bonsai-8b.gguf",
+  "model_path": "/mnt/shared/models/multimodal/gemma-4-e4b-it-ud-Q8_K_XL.gguf",
   "model_dir": "/mnt/shared/models",
   "model_alias": "",
   "model_url": "",
@@ -69,17 +69,17 @@
     "/mnt/shared/models"
   ],
   "searxng_url": "http://localhost:8888",
-  "ui_transparency": 0.1,
-  "ui_background_color": "#0f172a",
-  "ui_blur": true,
+  "ui_transparency": 1.0,
+  "ui_background_color": "#0b1220",
+  "ui_blur": false,
   "ui_blur_intensity": 30,
   "app_log_level": "INFO",
-  "theme_name": "default",
-  "ui_text_color": "#f8fafc",
-  "ui_accent_color": "#6366f1",
-  "ui_card_bg": "rgba(255, 255, 255, 0.06)",
-  "ui_sidebar_bg": "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)",
-  "ui_border_color": "rgba(255, 255, 255, 0.12)",
+  "theme_name": "Cal Light",
+  "ui_text_color": "#f1f5f9",
+  "ui_accent_color": "#818cf8",
+  "ui_card_bg": "#1e293b",
+  "ui_sidebar_bg": "#0b1220",
+  "ui_border_color": "#334155",
   "ui_font_family": "Inter",
   "sidebar_favorites": [],
   "custom_themes": [
@@ -96,5 +96,36 @@
       "blur": true,
       "blur_intensity": 64
     }
-  ]
+  ],
+  "override_planner": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_calendar": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_memory": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_research": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_compare": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "dark_mode": true
 }
