@@ -24,6 +24,15 @@ use crate::commands::remaining::log_monitor_event_internal;
 const TOOL_TIMEOUT: Duration = Duration::from_secs(30);
 const TOOL_RETRIES: u32 = 2;
 
+/// Circuit breaker: if we see this many consecutive non-retryable LLM errors
+/// (or unhandled transport failures), abort the agent. Without this a model
+/// returning a schema mismatch every step would burn the full step budget.
+const CIRCUIT_BREAKER_THRESHOLD: u32 = 3;
+
+/// Bounded time on the post-task reflection call so a stuck model can't hang
+/// the Done event.
+const REFLECTION_TIMEOUT: Duration = Duration::from_secs(30);
+
 fn load_all_agent_rules(config_dir: &std::path::Path) -> String {
     let mut rules = String::new();
     
@@ -160,7 +169,7 @@ pub async fn run(
     let memory = MemoryManager::new(&ctx.config_dir);
 
     // ── L2: plan ──────────────────────────────────────────────────────────
-    let plan = planner::make_plan(&ctx, &task).await;
+    let plan = planner::make_plan(&ctx, &task, &handle.cancel).await;
     emit(
         &app,
         AgentEvent::Plan {
@@ -231,6 +240,8 @@ pub async fn run(
     let specs = registry.specs();
     let mut final_text = String::from("No answer produced.");
 
+    let mut consecutive_llm_failures: u32 = 0;
+
     for step in 0..MAX_STEPS {
         if handle.cancel.is_cancelled() {
             emit(&app, err(&handle.id, "cancelled by user"));
@@ -249,11 +260,32 @@ pub async fn run(
             );
         }
 
-        let reply = match llm::call(&ctx, &messages, Some(&specs), 0.2).await {
-            Ok(r) => r,
+        let reply = match llm::call(&ctx, &messages, Some(&specs), 0.2, &handle.cancel).await {
+            Ok(r) => {
+                consecutive_llm_failures = 0;
+                r
+            }
+            Err(llm::LlmError::Cancelled) => {
+                emit(&app, err(&handle.id, "cancelled by user"));
+                return "Cancelled.".to_string();
+            }
             Err(e) => {
-                emit(&app, err(&handle.id, &e));
-                return format!("Error: {e}");
+                consecutive_llm_failures += 1;
+                let msg = e.to_string();
+                tracing::warn!(agent = %handle.id, attempt = consecutive_llm_failures, error = %msg, "llm call failed");
+                if !e.is_retryable() || consecutive_llm_failures >= CIRCUIT_BREAKER_THRESHOLD {
+                    let why = if e.is_retryable() {
+                        format!("circuit breaker tripped after {} consecutive LLM failures: {}", consecutive_llm_failures, msg)
+                    } else {
+                        msg
+                    };
+                    emit(&app, err(&handle.id, &why));
+                    return format!("Error: {}", why);
+                }
+                // Retryable, under threshold: tell the model about it and let the
+                // next iteration try again. No re-prompt needed because the
+                // tool_result for the last call already carries the failure.
+                continue;
             }
         };
 
@@ -314,6 +346,10 @@ pub async fn run(
 
         // Execute each call, appending a tool response message for each.
         for call in &calls {
+            if handle.cancel.is_cancelled() {
+                emit(&app, err(&handle.id, "cancelled by user"));
+                return "Cancelled.".to_string();
+            }
             emit(
                 &app,
                 AgentEvent::ToolCall {
@@ -361,13 +397,23 @@ pub async fn run(
             json!({ "role": "system", "content": reflect_system }),
             json!({ "role": "user", "content": reflect_user }),
         ];
-        
+
         let mut lesson_added = false;
-        if let Ok(reply) = llm::call(&ctx, &reflect_messages, None, 0.1).await {
-            let lesson = reply.content.trim().trim_matches('"').trim().to_string();
-            if !lesson.is_empty() {
-                memory.add_lesson(&lesson);
-                lesson_added = true;
+        // Bounded so a wedged model server doesn't hang the Done event.
+        let reflect_fut = llm::call(&ctx, &reflect_messages, None, 0.1, &handle.cancel);
+        match tokio::time::timeout(REFLECTION_TIMEOUT, reflect_fut).await {
+            Ok(Ok(reply)) => {
+                let lesson = reply.content.trim().trim_matches('"').trim().to_string();
+                if !lesson.is_empty() {
+                    memory.add_lesson(&lesson);
+                    lesson_added = true;
+                }
+            }
+            Ok(Err(e)) => {
+                tracing::debug!(error = %e, "reflection call failed; using fallback");
+            }
+            Err(_) => {
+                tracing::debug!("reflection timed out; using fallback");
             }
         }
         if !lesson_added {

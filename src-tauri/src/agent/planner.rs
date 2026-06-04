@@ -5,6 +5,7 @@
 
 use serde_json::json;
 use shared::ipc::{PlanStatus, PlanStep};
+use tokio_util::sync::CancellationToken;
 
 use super::{AgentContext, llm};
 use crate::util::new_id;
@@ -13,13 +14,17 @@ const PLANNER_SYSTEM: &str = "You are a planning module. Break the user's task i
 a short ordered list of concrete steps (1-5). Respond with ONLY a JSON array of \
 strings, e.g. [\"step one\", \"step two\"]. No prose.";
 
-pub async fn make_plan(ctx: &AgentContext, task: &str) -> Vec<PlanStep> {
+pub async fn make_plan(
+    ctx: &AgentContext,
+    task: &str,
+    cancel: &CancellationToken,
+) -> Vec<PlanStep> {
     let messages = vec![
         json!({ "role": "system", "content": PLANNER_SYSTEM }),
         json!({ "role": "user", "content": task }),
     ];
 
-    let descriptions = match llm::call(ctx, &messages, None, 0.2).await {
+    let descriptions = match llm::call(ctx, &messages, None, 0.2, cancel).await {
         Ok(reply) => parse_steps(&reply.content).unwrap_or_else(|| vec![task.to_string()]),
         Err(e) => {
             tracing::warn!(%e, "planner call failed; using single-step plan");

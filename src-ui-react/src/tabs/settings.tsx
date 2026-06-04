@@ -213,13 +213,25 @@ function AppearanceSection({ local, set }: { local: ServerConfig; set: <K extend
         <ColorField label="Accent" value={local.ui_accent_color} onChange={(v) => set("ui_accent_color", v)} />
         <ColorField label="Border" value={local.ui_border_color} onChange={(v) => set("ui_border_color", v)} />
       </div>
+      <div className="grid grid-cols-2 gap-3 mt-2">
+        <ColorField label="Card" value={local.ui_card_bg} onChange={(v) => set("ui_card_bg", v)} />
+        <ColorField label="Card text" value={local.ui_card_text} onChange={(v) => set("ui_card_text", v)} />
+        <ColorField label="Button" value={local.ui_button_bg} onChange={(v) => set("ui_button_bg", v)} />
+        <ColorField label="Button text" value={local.ui_button_text} onChange={(v) => set("ui_button_text", v)} />
+      </div>
       <div className="mt-2">
         <p className="text-xs font-medium mb-2 text-muted-foreground">Light mode colors</p>
         <div className="grid grid-cols-2 gap-3">
-          <ColorField label="Background" value={local.ui_light_bg} onChange={(v) => set("ui_light_bg", v)} />
-          <ColorField label="Text" value={local.ui_light_text} onChange={(v) => set("ui_light_text", v)} />
-          <ColorField label="Accent" value={local.ui_light_accent} onChange={(v) => set("ui_light_accent", v)} />
-          <ColorField label="Border" value={local.ui_light_border} onChange={(v) => set("ui_light_border", v)} />
+          <ColorField label="Background" value={local.ui_light_background_color} onChange={(v) => set("ui_light_background_color", v)} />
+          <ColorField label="Text" value={local.ui_light_text_color} onChange={(v) => set("ui_light_text_color", v)} />
+          <ColorField label="Accent" value={local.ui_light_accent_color} onChange={(v) => set("ui_light_accent_color", v)} />
+          <ColorField label="Border" value={local.ui_light_border_color} onChange={(v) => set("ui_light_border_color", v)} />
+        </div>
+        <div className="grid grid-cols-2 gap-3 mt-2">
+          <ColorField label="Card" value={local.ui_light_card_bg} onChange={(v) => set("ui_light_card_bg", v)} />
+          <ColorField label="Card text" value={local.ui_light_card_text} onChange={(v) => set("ui_light_card_text", v)} />
+          <ColorField label="Button" value={local.ui_light_button_bg} onChange={(v) => set("ui_light_button_bg", v)} />
+          <ColorField label="Button text" value={local.ui_light_button_text} onChange={(v) => set("ui_light_button_text", v)} />
         </div>
       </div>
       <FieldRow label="Font family">

@@ -292,12 +292,15 @@ export interface ServerConfig {
   ui_radius_md: string;
   ui_radius_lg: string;
   ui_radius_xl: string;
-  ui_light_bg: string;
-  ui_light_text: string;
-  ui_light_accent: string;
+  ui_light_background_color: string;
+  ui_light_text_color: string;
+  ui_light_accent_color: string;
   ui_light_card_bg: string;
   ui_light_sidebar_bg: string;
-  ui_light_border: string;
+  ui_light_border_color: string;
+  ui_light_button_bg: string;
+  ui_light_button_text: string;
+  ui_light_card_text: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { useStore } from "@/store/app-store";
 
 interface NodeDef {
@@ -90,6 +91,28 @@ export function OverviewTab() {
     return [...obsEvents].reverse().filter((e) => now - e.ts < 30000).slice(0, 14);
   }, [obsEvents]);
 
+  // Activity timeline: 30 one-second buckets, event counts by category
+  const activity = useMemo(() => {
+    const now = Math.floor(Date.now() / 1000);
+    const buckets = Array.from({ length: 30 }, (_, i) => ({
+      t: now - 29 + i,
+      label: `-${29 - i}s`,
+      chat: 0,
+      agent: 0,
+      tools: 0,
+    }));
+    const idx = new Map(buckets.map((b) => [b.t, b]));
+    for (const e of obsEvents) {
+      const sec = Math.floor(e.ts / 1000);
+      const b = idx.get(sec);
+      if (!b) continue;
+      if (e.kind.startsWith("chat:")) b.chat += 1;
+      else if (e.kind.includes("tool")) b.tools += 1;
+      else if (e.kind.startsWith("agent:")) b.agent += 1;
+    }
+    return buckets;
+  }, [obsEvents]);
+
   return (
     <div className="flex flex-col h-full overflow-hidden p-3 gap-3">
       {/* Header */}
@@ -177,34 +200,86 @@ export function OverviewTab() {
           </svg>
         </div>
 
-        {/* Recent events feed */}
-        <div className="glass-card w-56 flex-shrink-0 flex flex-col overflow-hidden">
-          <div className="px-3 py-2 border-b border-border/40 text-[11px] font-semibold">Recent Activity</div>
-          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
-            {recentEvents.length === 0 ? (
-              <p className="text-center text-xs text-muted-foreground mt-4">No recent events</p>
-            ) : (
-              recentEvents.map((ev, i) => {
-                const [bg, color] = ev.kind.startsWith("chat:")
-                  ? ["rgba(59,130,246,0.12)", "#3b82f6"]
-                  : ev.kind.includes("tool")
-                  ? ["rgba(245,158,11,0.12)", "#f59e0b"]
-                  : ev.kind.startsWith("agent:")
-                  ? ["rgba(139,92,246,0.12)", "#8b5cf6"]
-                  : ["rgba(255,255,255,0.05)", "hsl(var(--muted-foreground))"];
-                return (
-                  <div key={i} className="glass-card p-1.5 space-y-0.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: bg, color }}>{ev.kind}</span>
-                      {ev.id && <span className="text-[9px] text-muted-foreground truncate max-w-[80px]">{ev.id}</span>}
+        {/* Recent events feed + activity chart */}
+        <div className="w-72 flex-shrink-0 flex flex-col gap-3 min-h-0">
+          <div className="glass-card flex-1 flex flex-col overflow-hidden min-h-0">
+            <div className="px-3 py-2 border-b border-border/40 text-[11px] font-semibold">Activity (30s)</div>
+            <div className="flex-1 p-1 min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={activity} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="grad-chat" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="grad-agent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="grad-tools" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.6} />
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(100,116,139,0.1)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    interval={Math.floor(30 / 6)}
+                    tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={18}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "hsl(var(--popover) / 0.95)",
+                      border: "1px solid hsl(var(--border))",
+                      borderRadius: 6,
+                      fontSize: 11,
+                    }}
+                    labelStyle={{ color: "hsl(var(--foreground))" }}
+                  />
+                  <Area type="monotone" dataKey="chat" stackId="1" stroke="#3b82f6" fill="url(#grad-chat)" strokeWidth={1.5} />
+                  <Area type="monotone" dataKey="agent" stackId="1" stroke="#8b5cf6" fill="url(#grad-agent)" strokeWidth={1.5} />
+                  <Area type="monotone" dataKey="tools" stackId="1" stroke="#f59e0b" fill="url(#grad-tools)" strokeWidth={1.5} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="glass-card flex-1 flex flex-col overflow-hidden min-h-0">
+            <div className="px-3 py-2 border-b border-border/40 text-[11px] font-semibold">Recent Activity</div>
+            <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+              {recentEvents.length === 0 ? (
+                <p className="text-center text-xs text-muted-foreground mt-4">No recent events</p>
+              ) : (
+                recentEvents.map((ev, i) => {
+                  const [bg, color] = ev.kind.startsWith("chat:")
+                    ? ["rgba(59,130,246,0.12)", "#3b82f6"]
+                    : ev.kind.includes("tool")
+                    ? ["rgba(245,158,11,0.12)", "#f59e0b"]
+                    : ev.kind.startsWith("agent:")
+                    ? ["rgba(139,92,246,0.12)", "#8b5cf6"]
+                    : ["rgba(255,255,255,0.05)", "hsl(var(--muted-foreground))"];
+                  return (
+                    <div key={i} className="glass-card p-1.5 space-y-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-semibold" style={{ background: bg, color }}>{ev.kind}</span>
+                        {ev.id && <span className="text-[9px] text-muted-foreground truncate max-w-[80px]">{ev.id}</span>}
+                      </div>
+                      {ev.content && (
+                        <p className="text-[9px] text-muted-foreground truncate">{ev.content.slice(0, 40)}</p>
+                      )}
                     </div>
-                    {ev.content && (
-                      <p className="text-[9px] text-muted-foreground truncate">{ev.content.slice(0, 40)}</p>
-                    )}
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
       </div>

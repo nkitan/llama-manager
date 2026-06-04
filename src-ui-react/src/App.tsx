@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Toaster, toast } from "sonner";
 import { Titlebar } from "@/components/titlebar";
 import { Sidebar } from "@/components/sidebar";
+import { CommandPalette } from "@/components/command-palette";
 import { useStore } from "@/store/app-store";
 import { ipc, onChatEvent, onAgentEvent, onConfigChanged, onServerLog } from "@/lib/ipc";
 import { applyTheme } from "@/lib/theme";
@@ -53,11 +56,11 @@ export default function App() {
       setConfig(cfg);
       configRef.current = cfg;
       applyTheme(cfg);
-    });
+    }).catch((e) => toast.error("Failed to load config", { description: String(e) }));
 
     ipc.chatLoadHistory().then((history) => {
       if (history.length > 0) useStore.getState().setChatMessages(history);
-    });
+    }).catch(() => {});
   }, []);
 
   // ── Server status poll (every 3s) ──────────────────────────────────────────
@@ -98,6 +101,7 @@ export default function App() {
         setChatGenerating(false);
         setChatStreamId(null);
         setChatError(ev.message);
+        toast.error("Chat error", { description: ev.message });
         addObsEvent({ ts: Date.now(), kind: "chat:error", id: ev.stream_id, content: ev.message });
       }
     }).then((fn) => unlisteners.push(fn));
@@ -118,6 +122,12 @@ export default function App() {
       } else if (ev.kind === "tool_call") {
         addAgentTrace(`🔧 ${ev.call.tool}(${JSON.stringify(ev.call.args).slice(0, 80)})`);
         addObsEvent({ ts: Date.now(), kind: "agent:tool_call", id: ev.call.tool, content: JSON.stringify(ev.call.args) });
+        if (ev.call.sensitive) {
+          toast("Sensitive tool call awaiting approval", {
+            description: `${ev.call.tool} (${ev.agent_id})`,
+            duration: 6000,
+          });
+        }
       } else if (ev.kind === "tool_result") {
         addAgentTrace(`✓ ${ev.result.ok ? "ok" : "err"}: ${ev.result.output.slice(0, 100)}`);
         addObsEvent({ ts: Date.now(), kind: "agent:tool_ok", id: ev.result.call_id, content: ev.result.output });
@@ -128,10 +138,12 @@ export default function App() {
         setActiveAgentId(null);
         if (ev.final_text) addChatMessage({ role: "assistant", content: ev.final_text });
         ipc.chatSaveHistory(useStore.getState().chatMessages).catch(() => {});
+        toast.success("Agent finished", { description: ev.agent_id });
       } else if (ev.kind === "error") {
         setChatGenerating(false);
         setActiveAgentId(null);
         setChatError(ev.message);
+        toast.error("Agent error", { description: ev.message });
       }
     }).then((fn) => unlisteners.push(fn));
 
@@ -154,9 +166,22 @@ export default function App() {
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
           <main className="flex flex-1 flex-col overflow-hidden">
-            <TabContent tab={activeTab} />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="flex flex-1 flex-col overflow-hidden"
+              >
+                <TabContent tab={activeTab} />
+              </motion.div>
+            </AnimatePresence>
           </main>
         </div>
+        <Toaster position="bottom-right" theme="dark" closeButton richColors />
+        <CommandPalette />
       </div>
     </TooltipProvider>
   );

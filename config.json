@@ -69,10 +69,10 @@
     "/mnt/shared/models"
   ],
   "searxng_url": "http://localhost:8888",
-  "ui_transparency": 1.0,
+  "ui_transparency": 0.0,
   "ui_background_color": "#111827",
-  "ui_blur": false,
-  "ui_blur_intensity": 30,
+  "ui_blur": true,
+  "ui_blur_intensity": 60,
   "app_log_level": "INFO",
   "theme_name": "Midnight Glass",
   "ui_text_color": "#f8fafc",

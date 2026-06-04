@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Square, Download, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { Play, Square, Terminal, AlertCircle } from "lucide-react";
 import { ipc, type DownloadStatus } from "@/lib/ipc";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 interface TargetItem {
@@ -143,7 +151,6 @@ export function DownloaderTab() {
   const [targetsText, setTargetsText] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   const [logData, setLogData] = useState("");
-  const [showRawLogs, setShowRawLogs] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -355,22 +362,45 @@ export function DownloaderTab() {
 
             {(isDownloading || logData) && (
               <div className="mt-3 flex-shrink-0">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setShowRawLogs((s) => !s)}
-                  className="w-full h-7 text-[10px]"
-                >
-                  {showRawLogs ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                  {showRawLogs ? "Hide Raw Terminal Output" : "Show Raw Terminal Output"}
-                </Button>
-                {showRawLogs && (
-                  <ScrollArea className="mt-2 h-[180px] glass-card rounded-md p-2">
-                    <pre className="text-[10px] font-mono text-muted-foreground whitespace-pre-wrap break-all">
-                      {logData || "(no output)"}
-                    </pre>
-                  </ScrollArea>
-                )}
+                <Drawer>
+                  <DrawerTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full h-7 text-[10px]"
+                    >
+                      <Terminal className="h-3 w-3" />
+                      Open Raw Terminal Output
+                    </Button>
+                  </DrawerTrigger>
+                  <DrawerContent>
+                    <DrawerHeader>
+                      <DrawerTitle>hf_downloads — raw log</DrawerTitle>
+                      <DrawerDescription>
+                        Live tmux capture from <code className="bg-muted/40 px-1 rounded">hf_downloads</code>
+                      </DrawerDescription>
+                    </DrawerHeader>
+                    <div className="flex-1 min-h-0 px-3 pb-4">
+                      <div className="h-[60vh] rounded-md border border-border/40 bg-black/40 p-2 overflow-auto">
+                        <pre className="text-[10px] font-mono text-emerald-300/90 whitespace-pre-wrap break-all">
+                          {logData || "(no output yet)"}
+                        </pre>
+                      </div>
+                    </div>
+                    <div className="px-3 pb-4 flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(logData).catch(() => {});
+                        }}
+                        className="flex-1 h-7 text-[10px]"
+                      >
+                        Copy to clipboard
+                      </Button>
+                    </div>
+                  </DrawerContent>
+                </Drawer>
               </div>
             )}
           </div>

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Bot, Send, Trash2, AlertTriangle, Activity } from "lucide-react";
 import { ipc, type MonitorState } from "@/lib/ipc";
 import { useStore } from "@/store/app-store";
 import { resolveTarget } from "@/lib/target";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 export function MonitorTab() {
@@ -14,6 +14,9 @@ export function MonitorTab() {
   const [dispatching, setDispatching] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const config = useStore((s) => s.config);
+
+  // Reverse the events array so newest is first; memoize it
+  const reversedEvents = [...state.events].reverse();
 
   const load = async () => {
     try {
@@ -121,50 +124,7 @@ export function MonitorTab() {
 
       <div className="glass-card p-3 flex flex-col flex-1 min-h-0">
         <p className="text-[11px] font-semibold mb-2 flex-shrink-0">Active Agent Processes</p>
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="space-y-1.5 pr-1">
-            {state.agents.length === 0 ? (
-              <p className="text-center text-[11px] text-muted-foreground italic py-4">
-                No registered agents. Dispatch a task above to start one.
-              </p>
-            ) : (
-              state.agents.map((a) => {
-                const dotClass =
-                  a.status === "Active"
-                    ? "bg-amber-400 shadow-[0_0_4px_rgba(251,146,60,0.6)]"
-                    : a.status === "Offline"
-                    ? "bg-muted-foreground"
-                    : "bg-emerald-400";
-                return (
-                  <div
-                    key={a.name}
-                    className="flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 p-2"
-                  >
-                    <Bot className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                    <div
-                      className={cn(
-                        "h-2 w-2 rounded-full flex-shrink-0",
-                        dotClass
-                      )}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-[11px]">{a.name}</span>
-                        <BadgeDot status={a.status} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {a.current_action}
-                      </p>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground flex-shrink-0">
-                      {a.last_active}
-                    </span>
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </ScrollArea>
+        <AgentsList agents={state.agents} />
       </div>
 
       <div className="glass-card p-3 flex flex-col flex-1 min-h-0">
@@ -174,36 +134,7 @@ export function MonitorTab() {
             <Trash2 className="h-3 w-3" /> Clear Log
           </Button>
         </div>
-        <ScrollArea className="flex-1 min-h-0">
-          <div className="grid grid-cols-[60px_100px_1fr] gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-1 mb-1">
-            <span>Time</span>
-            <span>Agent</span>
-            <span>Message</span>
-          </div>
-          {state.events.length === 0 ? (
-            <p className="text-center text-[11px] text-muted-foreground italic py-4">
-              Timeline is empty.
-            </p>
-          ) : (
-            <div className="space-y-0.5">
-              {[...state.events].reverse().map((e, i) => {
-                const ts = e.timestamp.length >= 19 ? e.timestamp.slice(11, 19) : e.timestamp;
-                return (
-                  <div
-                    key={i}
-                    className="grid grid-cols-[60px_100px_1fr] gap-1 text-[10.5px] hover:bg-muted/20 px-1 py-0.5 rounded"
-                  >
-                    <span className="font-mono text-muted-foreground">{ts}</span>
-                    <span className="text-primary font-medium truncate">
-                      {e.agent_name}
-                    </span>
-                    <span className="break-words">{e.message}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </ScrollArea>
+        <EventsTimeline events={reversedEvents} />
       </div>
     </div>
   );
@@ -225,5 +156,132 @@ function BadgeDot({ status }: { status: string }) {
     >
       {status}
     </span>
+  );
+}
+
+function AgentsList({ agents }: { agents: MonitorState["agents"] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: agents.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 52,
+    overscan: 6,
+  });
+
+  if (agents.length === 0) {
+    return (
+      <div className="flex-1 min-h-0 flex items-center justify-center">
+        <p className="text-center text-[11px] text-muted-foreground italic">
+          No registered agents. Dispatch a task above to start one.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={parentRef}
+      className="flex-1 min-h-0 overflow-auto pr-1"
+    >
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const a = agents[virtualRow.index];
+          const dotClass =
+            a.status === "Active"
+              ? "bg-amber-400 shadow-[0_0_4px_rgba(251,146,60,0.6)]"
+              : a.status === "Offline"
+              ? "bg-muted-foreground"
+              : "bg-emerald-400";
+          return (
+            <div
+              key={a.name}
+              className="absolute inset-x-0 top-0 flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 p-2"
+              style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+            >
+              <Bot className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+              <div className={cn("h-2 w-2 rounded-full flex-shrink-0", dotClass)} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-semibold text-[11px]">{a.name}</span>
+                  <BadgeDot status={a.status} />
+                </div>
+                <p className="text-[10px] text-muted-foreground truncate">
+                  {a.current_action}
+                </p>
+              </div>
+              <span className="text-[10px] text-muted-foreground flex-shrink-0">
+                {a.last_active}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function EventsTimeline({ events }: { events: MonitorState["events"] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: events.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 22,
+    overscan: 30,
+  });
+
+  // Auto-scroll to top when new events arrive
+  useEffect(() => {
+    if (parentRef.current) {
+      parentRef.current.scrollTop = 0;
+    }
+  }, [events.length]);
+
+  return (
+    <div className="flex-1 min-h-0 flex flex-col">
+      <div className="grid grid-cols-[60px_100px_1fr] gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/40 pb-1 mb-1 flex-shrink-0">
+        <span>Time</span>
+        <span>Agent</span>
+        <span>Message</span>
+      </div>
+      {events.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-center text-[11px] text-muted-foreground italic">
+            Timeline is empty.
+          </p>
+        </div>
+      ) : (
+        <div ref={parentRef} className="flex-1 min-h-0 overflow-auto pr-1">
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const e = events[virtualRow.index];
+              const ts = e.timestamp.length >= 19 ? e.timestamp.slice(11, 19) : e.timestamp;
+              return (
+                <div
+                  key={virtualRow.key}
+                  className="absolute inset-x-0 top-0 grid grid-cols-[60px_100px_1fr] gap-1 text-[10.5px] hover:bg-muted/20 px-1 py-0.5 rounded"
+                  style={{ height: `${virtualRow.size}px`, transform: `translateY(${virtualRow.start}px)` }}
+                >
+                  <span className="font-mono text-muted-foreground">{ts}</span>
+                  <span className="text-primary font-medium truncate">{e.agent_name}</span>
+                  <span className="break-words">{e.message}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

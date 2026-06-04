@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Plus, Trash2, Save, X, RefreshCw, Bot, Network, FileCode2,
-  Sparkles, LinkIcon, Tag, Globe, FolderOpen, Search,
+  Sparkles, Tag, Globe, FolderOpen, Search, Folder, FileText,
+  ChevronRight, ChevronDown, Activity, Brain, Maximize2, Minimize2,
+  PanelRightOpen, Copy,
 } from "lucide-react";
+import {
+  ReactFlow, ReactFlowProvider, Background, Controls, MiniMap,
+  Handle, Position, type Node, type Edge, type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
 import { ipc, type Memory, type SkillOrAgentFile } from "@/lib/ipc";
 import { useStore } from "@/store/app-store";
 import { resolveTarget } from "@/lib/target";
@@ -12,6 +19,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "memory" | "skills";
@@ -62,6 +76,7 @@ function MemoryWorkspace() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
   const config = useStore((s) => s.config);
 
   const reload = async () => {
@@ -150,6 +165,14 @@ function MemoryWorkspace() {
             <Plus className="h-3 w-3" /> New Node
           </Button>
           <Button
+            size="sm" variant={showGraph ? "secondary" : "outline"}
+            onClick={() => setShowGraph((v) => !v)}
+            className="h-7 text-[11px] w-full"
+          >
+            {showGraph ? <FolderOpen className="h-3 w-3" /> : <Brain className="h-3 w-3" />}
+            {showGraph ? "Workspace" : "Graph View"}
+          </Button>
+          <Button
             size="sm" variant="destructive"
             disabled={memories.length === 0}
             onClick={handleClearAll}
@@ -161,7 +184,7 @@ function MemoryWorkspace() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 gap-2">
-        {showParallelWarn && (
+        {showParallelWarn && !showGraph && (
           <div className="glass-card border-amber-500/40 text-amber-400 p-2 text-[11px] flex items-start gap-2">
             <Sparkles className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
             <div>
@@ -173,18 +196,24 @@ function MemoryWorkspace() {
           </div>
         )}
 
-        {(selected || isEditing) ? (
-          <MemoryEditor
-            memory={selected}
-            onSaved={async () => { await reload(); setIsEditing(false); }}
-            onClose={close}
-            onDelete={selected ? () => handleDelete(selected) : undefined}
-          />
+        {showGraph ? (
+          <GamMemorySimulation />
         ) : (
-          <EmptyState onCreate={startNew} />
-        )}
+          <>
+            {(selected || isEditing) ? (
+              <MemoryEditor
+                memory={selected}
+                onSaved={async () => { await reload(); setIsEditing(false); }}
+                onClose={close}
+                onDelete={selected ? () => handleDelete(selected) : undefined}
+              />
+            ) : (
+              <EmptyState onCreate={startNew} />
+            )}
 
-        {selected && <MemoryGraph memories={memories} selectedId={selected.id} onSelect={setSelectedId} />}
+            {selected && <MemoryGraph memories={memories} selectedId={selected.id} onSelect={setSelectedId} />}
+          </>
+        )}
       </div>
     </div>
   );
@@ -241,6 +270,7 @@ function MemoryEditor({
   const [agentPrompt, setAgentPrompt] = useState("");
   const [agentOutput, setAgentOutput] = useState("");
   const [agentRunning, setAgentRunning] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const tagList = useMemo(
     () => tagsInput.split(",").map((s) => s.trim()).filter(Boolean),
@@ -366,6 +396,9 @@ function MemoryEditor({
                 <Button size="sm" variant="outline" onClick={appendOutput} className="h-6 text-[10px]">
                   <Plus className="h-2.5 w-2.5" /> Append to Note
                 </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDrawerOpen(true)} className="h-6 text-[10px]">
+                  <PanelRightOpen className="h-2.5 w-2.5" /> Pop Out
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => setAgentOutput("")} className="h-6 text-[10px]">
                   <X className="h-2.5 w-2.5" /> Dismiss
                 </Button>
@@ -409,6 +442,44 @@ function MemoryEditor({
           </div>
         )}
       </div>
+
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Agent Copilot — full output</DrawerTitle>
+            <DrawerDescription>
+              Live response from the agent. Append to the note, copy, or close.
+            </DrawerDescription>
+          </DrawerHeader>
+          <div className="flex-1 min-h-0 px-3 pb-2">
+            <div className="h-[60vh] rounded-md border border-border/40 bg-black/40 p-3 overflow-auto">
+              <pre className="text-[11px] font-mono text-emerald-200/90 whitespace-pre-wrap break-words leading-relaxed">
+                {agentOutput}
+              </pre>
+            </div>
+          </div>
+          <div className="px-3 pb-4 flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={appendOutput}
+              className="flex-1 h-8 text-xs"
+            >
+              <Plus className="h-3 w-3" /> Append to Note
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                navigator.clipboard.writeText(agentOutput).catch(() => {});
+              }}
+              className="h-8 text-xs"
+            >
+              <Copy className="h-3 w-3" /> Copy
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
@@ -429,97 +500,420 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 function MemoryGraph({
   memories, selectedId, onSelect,
 }: { memories: Memory[]; selectedId: string; onSelect: (id: string) => void }) {
-  const W = 540, H = 320;
-  const nodes = useMemo(() => {
+  const [expanded, setExpanded] = useState(false);
+
+  const flowNodes: Node[] = useMemo(() => {
     if (memories.length === 0) return [];
     const total = memories.length;
+    const r = 200;
     return memories.map((m, i) => {
       const angle = (i / total) * 2 * Math.PI;
-      const r = Math.min(W, H) * 0.32;
+      const isSel = m.id === selectedId;
+      const base = m.scope === "global" ? "rgb(99,102,241)" : "rgb(167,139,250)";
       return {
         id: m.id,
-        title: m.title || "Untitled",
-        scope: m.scope,
-        x: W / 2 + r * Math.cos(angle),
-        y: H / 2 + r * Math.sin(angle),
+        position: { x: 320 + r * Math.cos(angle), y: 200 + r * Math.sin(angle) },
+        data: {
+          label: m.title || "Untitled",
+          scope: m.scope,
+          selected: isSel,
+          color: isSel ? "rgb(245,158,11)" : base,
+        },
+        type: "memory",
       };
     });
-  }, [memories]);
+  }, [memories, selectedId]);
 
-  const edges = useMemo(() => {
+  const flowEdges: Edge[] = useMemo(() => {
     const ids = new Set(memories.map((m) => m.id));
-    const out: { source: string; target: string }[] = [];
+    const out: Edge[] = [];
     for (const m of memories) {
       for (const l of m.links) {
-        if (ids.has(l) && ids.has(m.id)) out.push({ source: m.id, target: l });
+        if (ids.has(l) && ids.has(m.id)) {
+          const isHi = m.id === selectedId || l === selectedId;
+          out.push({
+            id: `${m.id}-${l}`,
+            source: m.id,
+            target: l,
+            animated: isHi,
+            style: {
+              stroke: isHi ? "rgb(99,102,241)" : "rgba(148,163,184,0.4)",
+              strokeWidth: isHi ? 2 : 1.2,
+              strokeDasharray: isHi ? "0" : "4,3",
+            },
+          });
+        }
       }
     }
     return out;
-  }, [memories]);
+  }, [memories, selectedId]);
 
   if (memories.length === 0) return null;
 
   return (
-    <div className="glass-card p-2 h-[280px] flex-shrink-0">
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1 px-1">
-        <Network className="inline h-3 w-3 mr-1" /> Knowledge Graph
+    <div
+      className={cn(
+        "glass-card flex flex-col flex-shrink-0 transition-all",
+        expanded ? "fixed inset-3 z-40" : "h-[300px]"
+      )}
+    >
+      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground p-2 border-b border-border/40 flex-shrink-0">
+        <Network className="h-3 w-3" />
+        <span className="flex-1">Knowledge Graph</span>
+        <span className="text-muted-foreground/70 normal-case font-normal">
+          {memories.length} nodes · {flowEdges.length} links
+        </span>
+        <Button
+          size="sm" variant="ghost"
+          onClick={() => setExpanded((v) => !v)}
+          className="h-5 w-5 p-0"
+        >
+          {expanded ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+        </Button>
       </div>
-      <svg width="100%" height="240" viewBox={`0 0 ${W} ${H}`} className="block">
-        <defs>
-          <pattern id="agents-graph-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(100,116,139,0.07)" strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#agents-graph-grid)" />
-        {edges.map((e, i) => {
-          const s = nodes.find((n) => n.id === e.source);
-          const t = nodes.find((n) => n.id === e.target);
-          if (!s || !t) return null;
-          const isHi = e.source === selectedId || e.target === selectedId;
-          return (
-            <line
-              key={i}
-              x1={s.x} y1={s.y} x2={t.x} y2={t.y}
-              stroke={isHi ? "rgb(99,102,241)" : "rgba(148,163,184,0.35)"}
-              strokeWidth={isHi ? 2 : 1.2}
-              strokeDasharray={isHi ? "0" : "4,3"}
+      <div className="flex-1 min-h-0">
+        <ReactFlowProvider>
+          <ReactFlow
+            nodes={flowNodes}
+            edges={flowEdges}
+            nodeTypes={MEMORY_NODE_TYPES}
+            onNodeClick={(_e, n) => onSelect(n.id)}
+            fitView
+            fitViewOptions={{ padding: 0.2 }}
+            minZoom={0.2}
+            maxZoom={2}
+            proOptions={{ hideAttribution: true }}
+            defaultEdgeOptions={{ type: "default" }}
+            style={{ background: "transparent" }}
+          >
+            <Background gap={20} color="rgba(100,116,139,0.15)" />
+            <Controls
+              position="bottom-right"
+              showInteractive={false}
+              className="!bg-card/80 !border !border-border/40 !rounded-md"
             />
-          );
-        })}
-        {nodes.map((n) => {
-          const isSel = n.id === selectedId;
-          const fill = n.scope === "global"
-            ? isSel ? "rgb(245,158,11)" : "rgb(99,102,241)"
-            : isSel ? "rgb(245,158,11)" : "rgb(167,139,250)";
-          return (
-            <g key={n.id} style={{ cursor: "pointer" }} onClick={() => onSelect(n.id)}>
-              <circle
-                cx={n.x} cy={n.y} r={isSel ? 9 : 6}
-                fill={fill}
-                stroke={isSel ? "#fff" : "transparent"} strokeWidth={1.5}
-              />
-              <text
-                x={n.x} y={n.y - 12} textAnchor="middle"
-                fontSize={10} fontWeight={isSel ? 700 : 400}
-                fill="currentColor"
-              >
-                {n.title.length > 14 ? n.title.slice(0, 13) + "…" : n.title}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+            <MiniMap
+              position="bottom-left"
+              pannable
+              zoomable
+              maskColor="rgba(0,0,0,0.5)"
+              nodeColor={(n) => (n.data as { color?: string })?.color ?? "rgb(99,102,241)"}
+              style={{
+                background: "hsl(var(--card) / 0.6)",
+                border: "1px solid hsl(var(--border) / 0.4)",
+                borderRadius: "6px",
+              }}
+            />
+          </ReactFlow>
+        </ReactFlowProvider>
+      </div>
     </div>
   );
 }
 
+type MemoryNodeData = { label: string; scope: string; selected: boolean; color: string };
+
+const MemoryNode = ({ data, selected }: NodeProps<Node<MemoryNodeData>>) => {
+  return (
+    <div
+      className="px-2 py-1 rounded-md text-[10.5px] font-semibold border-2 transition-shadow"
+      style={{
+        background: "hsl(var(--card) / 0.95)",
+        color: data.color,
+        borderColor: data.color,
+        boxShadow: selected
+          ? `0 0 0 2px hsl(var(--background)), 0 0 12px ${data.color}`
+          : "none",
+        minWidth: 60,
+        textAlign: "center",
+        maxWidth: 140,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+      }}
+      title={data.label}
+    >
+      <Handle type="target" position={Position.Top} style={{ opacity: 0, pointerEvents: "none" }} />
+      {data.label}
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: "none" }} />
+    </div>
+  );
+};
+
+const MEMORY_NODE_TYPES = { memory: MemoryNode };
+
+// ── GAM episodic memory simulation ──────────────────────────────────────────
+interface EpisodicLog { text: string; timestamp: string }
+interface SimNode { id: string; label: string; x: number; y: number }
+interface SimEdge { source: string; target: string }
+
+function GamMemorySimulation() {
+  const [episodicBuffer, setEpisodicBuffer] = useState<EpisodicLog[]>([
+    { text: "Session initiated: connected to model server", timestamp: "23:15:00" },
+    { text: "Executed search for local memory context", timestamp: "23:15:05" },
+    { text: "User queried: 'Optimize CUDA configurations'", timestamp: "23:15:10" },
+  ]);
+  const [divergenceThreshold] = useState(0.4);
+  const [divergenceScore, setDivergenceScore] = useState(0.15);
+  const [newLogInput, setNewLogInput] = useState("");
+  const [animConsolidating, setAnimConsolidating] = useState(false);
+  const [semanticNodes, setSemanticNodes] = useState<SimNode[]>([
+    { id: "project", label: "Project Core", x: 380, y: 280 },
+    { id: "user_prefs", label: "User Preferences", x: 180, y: 140 },
+    { id: "tech_stack", label: "Tech Stack (Rust/Tauri)", x: 580, y: 140 },
+  ]);
+  const [semanticEdges, setSemanticEdges] = useState<SimEdge[]>([
+    { source: "user_prefs", target: "project" },
+    { source: "project", target: "tech_stack" },
+  ]);
+
+  const addLog = () => {
+    const text = newLogInput.trim();
+    if (!text) return;
+    const now = new Date();
+    const ts = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    setEpisodicBuffer((buf) => [...buf, { text, timestamp: ts }]);
+    setDivergenceScore((s) => Math.min(1, s + 0.12));
+    setNewLogInput("");
+  };
+
+  const triggerConsolidation = () => {
+    if (episodicBuffer.length === 0) return;
+    setAnimConsolidating(true);
+    const last = episodicBuffer[episodicBuffer.length - 1];
+    const t = last.text.trim();
+    const clean = t.length > 22 ? `${t.slice(0, 19)}…` : t;
+    let nodeLabel: string;
+    if (clean.toLowerCase().includes("cuda")) nodeLabel = "CUDA Optimization";
+    else if (clean.toLowerCase().includes("search")) nodeLabel = "Search Context";
+    else nodeLabel = clean;
+
+    const nodeId = `node_${Date.now()}`;
+    const nodeCount = semanticNodes.length;
+    const angle = (nodeCount * 2 * Math.PI) / 6;
+    const radius = 160;
+    const x = 380 + radius * Math.cos(angle);
+    const y = 280 + radius * Math.sin(angle);
+
+    setSemanticNodes((nodes) => [...nodes, { id: nodeId, label: nodeLabel, x, y }]);
+    setSemanticEdges((edges) => [...edges, { source: "project", target: nodeId }]);
+    setEpisodicBuffer([]);
+    setDivergenceScore(0.05);
+
+    window.setTimeout(() => setAnimConsolidating(false), 800);
+  };
+
+  const scoreColor =
+    divergenceScore >= divergenceThreshold
+      ? "#ef4444"
+      : divergenceScore >= divergenceThreshold * 0.7
+        ? "#f59e0b"
+        : "#10b981";
+
+  return (
+    <div className="flex gap-3 flex-wrap w-full items-stretch flex-1 min-h-0">
+      <div className="flex-[1.2] min-w-[320px] flex flex-col gap-3 min-h-0">
+        <div className="glass-card p-3 flex flex-col gap-2 flex-1 min-h-0">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+            <Activity className="h-3 w-3" />
+            📋 Episodic Buffer (Event Graph)
+          </div>
+          <ScrollArea className="flex-1 min-h-[120px] max-h-[200px]">
+            {episodicBuffer.length === 0 ? (
+              <p className="text-center text-[11px] text-muted-foreground italic py-6">
+                Episodic buffer is clean.
+              </p>
+            ) : (
+              <div className="space-y-1.5 pr-1">
+                {episodicBuffer.map((log, i) => (
+                  <div
+                    key={i}
+                    className="flex gap-2 px-2.5 py-1.5 border-l-2 border-accent bg-muted/30 rounded-r text-[11.5px]"
+                  >
+                    <span className="font-mono opacity-60 text-[10.5px]">[{log.timestamp}]</span>
+                    <span>{log.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          <div className="bg-muted/30 border border-border/40 rounded-md p-2.5">
+            <div className="flex items-center justify-between text-[11px] font-semibold mb-1.5">
+              <span>Semantic Divergence Score</span>
+              <span
+                className="font-bold"
+                style={{ color: divergenceScore >= divergenceThreshold ? "#ef4444" : "hsl(var(--accent))" }}
+              >
+                {divergenceScore.toFixed(2)} / {divergenceThreshold.toFixed(2)}
+              </span>
+            </div>
+            <div className="w-full h-2 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full transition-all duration-300 ease-out"
+                style={{
+                  width: `${Math.min(100, divergenceScore * 100)}%`,
+                  background: scoreColor,
+                }}
+              />
+            </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Input
+                value={newLogInput}
+                onChange={(e) => setNewLogInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addLog()}
+                placeholder="Add simulated agent event…"
+                className="flex-1 h-7 text-[12px]"
+              />
+              <Button size="sm" onClick={addLog} className="h-7 text-[11px]">Add</Button>
+            </div>
+            <Button
+              onClick={triggerConsolidation}
+              disabled={episodicBuffer.length === 0 || animConsolidating}
+              className="h-8 font-bold"
+            >
+              {animConsolidating ? "Consolidating…" : "🧬 Trigger Consolidation"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-[1.8] min-w-[400px] glass-card p-3 flex flex-col min-h-0">
+        <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+          <Network className="h-3 w-3" />
+          🕸️ Topic Associative Graph
+        </div>
+        <div className="flex-1 min-h-[380px] rounded-lg overflow-hidden border border-border/40 bg-muted/20">
+          <ReactFlowProvider>
+            <ReactFlow
+              nodes={semanticNodes.map((n) => ({
+                id: n.id,
+                position: { x: n.x, y: n.y },
+                data: {
+                  label: n.label,
+                  isCore: n.id === "project",
+                  pulse: animConsolidating,
+                },
+                type: "topic",
+              }))}
+              edges={semanticEdges.map((e) => ({
+                id: `${e.source}-${e.target}`,
+                source: e.source,
+                target: e.target,
+                style: { stroke: "rgba(99,102,241,0.4)", strokeWidth: 2, strokeDasharray: "4,4" },
+              }))}
+              nodeTypes={TOPIC_NODE_TYPES}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+              minZoom={0.5}
+              maxZoom={1.5}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              proOptions={{ hideAttribution: true }}
+              style={{ background: "transparent" }}
+            >
+              <Background gap={20} color="rgba(100,116,139,0.1)" />
+            </ReactFlow>
+          </ReactFlowProvider>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type TopicNodeData = { label: string; isCore: boolean; pulse: boolean };
+const TopicNode = ({ data }: NodeProps<Node<TopicNodeData>>) => {
+  return (
+    <div
+      className={cn(
+        "px-2 py-1 rounded-full text-[10.5px] font-semibold border-2",
+        data.pulse && "animate-pulse"
+      )}
+      style={{
+        background: data.isCore ? "hsl(var(--primary))" : "rgb(16,185,241)",
+        color: data.isCore ? "hsl(var(--primary-foreground))" : "#0c0a09",
+        borderColor: "#fff",
+        boxShadow: "0 0 8px rgba(0,0,0,0.4)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <Handle type="target" position={Position.Top} style={{ opacity: 0, pointerEvents: "none" }} />
+      {data.label}
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0, pointerEvents: "none" }} />
+    </div>
+  );
+};
+const TOPIC_NODE_TYPES = { topic: TopicNode };
+
 // ── Skills / AGENTS.md viewer ───────────────────────────────────────────────
+interface TreeItem {
+  name: string;
+  full_path: string | null;
+  is_skill: boolean;
+  content: string;
+  children: TreeItem[];
+}
+
+function getRelativePath(path: string, source: string): string {
+  const prefix =
+    source === "Workspace" ? "/home/notroot/Work/llama-manager"
+    : source === "Gemini Skills" ? "/home/notroot/.gemini/skills"
+    : source === "Gemini Plugins" ? "/home/notroot/.gemini/config/plugins"
+    : "";
+  if (prefix && path.startsWith(prefix)) {
+    return path.slice(prefix.length).replace(/^\/+/, "");
+  }
+  return path;
+}
+
+function insertIntoTree(
+  tree: TreeItem[],
+  segments: string[],
+  fullPath: string,
+  isSkill: boolean,
+  content: string
+): void {
+  if (segments.length === 0) return;
+  const [head, ...rest] = segments;
+  if (rest.length === 0) {
+    if (!tree.some((it) => it.name === head && it.full_path !== null)) {
+      tree.push({
+        name: head,
+        full_path: fullPath,
+        is_skill: isSkill,
+        content,
+        children: [],
+      });
+    }
+    return;
+  }
+  let dirIdx = tree.findIndex((it) => it.name === head && it.full_path === null);
+  if (dirIdx === -1) {
+    tree.push({ name: head, full_path: null, is_skill: false, content: "", children: [] });
+    dirIdx = tree.length - 1;
+  }
+  insertIntoTree(tree[dirIdx].children, rest, fullPath, isSkill, content);
+}
+
+function sortTree(tree: TreeItem[]): void {
+  tree.sort((a, b) => {
+    const aIsDir = a.full_path === null;
+    const bIsDir = b.full_path === null;
+    if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+  for (const item of tree) sortTree(item.children);
+}
+
 function SkillsViewer() {
   const [files, setFiles] = useState<SkillOrAgentFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
@@ -554,17 +948,33 @@ function SkillsViewer() {
     );
   }, [files, search]);
 
-  const bySource = useMemo(() => {
-    const m = new Map<string, SkillOrAgentFile[]>();
-    for (const f of filtered) {
-      const arr = m.get(f.source) ?? [];
-      arr.push(f);
-      m.set(f.source, arr);
+  const treesBySource = useMemo(() => {
+    const m = new Map<string, TreeItem[]>();
+    for (const src of sources) {
+      const items = filtered.filter((f) => f.source === src);
+      if (items.length === 0) continue;
+      const tree: TreeItem[] = [];
+      for (const f of items) {
+        const rel = getRelativePath(f.path, f.source);
+        const segments = rel.split("/").filter(Boolean);
+        insertIntoTree(tree, segments, f.path, f.is_skill, f.content);
+      }
+      sortTree(tree);
+      m.set(src, tree);
     }
     return m;
-  }, [filtered]);
+  }, [filtered, sources]);
 
   const selected = selectedPath ? files.find((f) => f.path === selectedPath) ?? null : null;
+
+  const toggleExpanded = (key: string) => {
+    setExpanded((s) => {
+      const next = new Set(s);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <div className="flex gap-3 h-full min-h-0">
@@ -599,34 +1009,31 @@ function SkillsViewer() {
               </div>
             </div>
           ) : (
-            sources.map((src) => {
-              const items = bySource.get(src) ?? [];
-              if (items.length === 0) return null;
-              return (
-                <div key={src} className="mb-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1 py-1">
-                    <span>{src.includes("Gemini") ? "⚡" : src.includes("Plugin") ? "🔌" : "📁"}</span>
-                    {src}
-                    <span className="ml-auto text-muted-foreground/70 normal-case font-normal">
-                      {items.length} file{items.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  {items.map((f) => (
-                    <button
-                      key={f.path}
-                      onClick={() => setSelectedPath(f.path)}
-                      className={cn(
-                        "w-full text-left flex items-center gap-1.5 px-2 py-1 rounded text-[11px] hover:bg-muted/40",
-                        selectedPath === f.path && "bg-muted/60"
-                      )}
-                    >
-                      <span>{f.is_skill ? "🛠" : "🤖"}</span>
-                      <span className="truncate flex-1">{f.name}</span>
-                    </button>
+            Array.from(treesBySource.entries()).map(([src, tree]) => (
+              <div key={src} className="mb-2 rounded-md border border-border/40 bg-card/40 overflow-hidden">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-2 py-1.5 bg-muted/40 border-b border-border/40">
+                  <span>{src.includes("Gemini") ? "⚡" : src.includes("Plugin") ? "🔌" : "📁"}</span>
+                  <span className="flex-1">{src}</span>
+                  <span className="text-muted-foreground/70 normal-case font-normal">
+                    {tree.length} item{tree.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="py-1">
+                  {tree.map((item) => (
+                    <TreeNode
+                      key={item.name}
+                      item={item}
+                      depth={0}
+                      sourceKey={src}
+                      expanded={expanded}
+                      onToggle={toggleExpanded}
+                      selectedPath={selectedPath}
+                      onSelect={setSelectedPath}
+                    />
                   ))}
                 </div>
-              );
-            })
+              </div>
+            ))
           )}
         </ScrollArea>
       </div>
@@ -634,10 +1041,13 @@ function SkillsViewer() {
       <div className="flex-1 min-h-0 glass-card p-3 overflow-y-auto">
         {selected ? (
           <div className="space-y-2">
-            <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">
+                {selected.is_skill ? "SKILL" : "AGENTS"}
+              </span>
               <h3 className="text-sm font-semibold">Preview: {selected.name}</h3>
-              <p className="text-[10px] text-muted-foreground break-all mt-0.5">{selected.path}</p>
             </div>
+            <p className="text-[10px] text-muted-foreground break-all">{selected.path}</p>
             <Separator />
             <pre className="text-[11.5px] font-mono leading-relaxed whitespace-pre-wrap break-words bg-muted/30 rounded p-3 max-h-[600px] overflow-y-auto">
               {selected.content}
@@ -653,5 +1063,83 @@ function SkillsViewer() {
         )}
       </div>
     </div>
+  );
+}
+
+function TreeNode({
+  item, depth, sourceKey, expanded, onToggle, selectedPath, onSelect,
+}: {
+  item: TreeItem;
+  depth: number;
+  sourceKey: string;
+  expanded: Set<string>;
+  onToggle: (key: string) => void;
+  selectedPath: string | null;
+  onSelect: (path: string) => void;
+}) {
+  const isDir = item.full_path === null;
+  const key = `${sourceKey}/${item.name}-${depth}`;
+  const isExpanded = expanded.has(key);
+
+  if (isDir) {
+    return (
+      <div>
+        <button
+          onClick={() => onToggle(key)}
+          className="w-full text-left flex items-center gap-1.5 py-1 hover:bg-muted/30 transition-colors"
+          style={{ paddingLeft: `${depth * 12 + 8}px`, paddingRight: "8px" }}
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+          )}
+          <Folder className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+          <span className="text-[11.5px] font-semibold truncate">{item.name}</span>
+        </button>
+        {isExpanded && (
+          <div>
+            {item.children.map((child, i) => (
+              <TreeNode
+                key={`${child.name}-${i}`}
+                item={child}
+                depth={depth + 1}
+                sourceKey={sourceKey}
+                expanded={expanded}
+                onToggle={onToggle}
+                selectedPath={selectedPath}
+                onSelect={onSelect}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const isSelected = selectedPath === item.full_path;
+  return (
+    <button
+      onClick={() => onSelect(item.full_path!)}
+      className={cn(
+        "w-full text-left flex items-center gap-1.5 py-1 border-b border-border/20 transition-colors",
+        isSelected ? "bg-primary/10" : "hover:bg-muted/30"
+      )}
+      style={{ paddingLeft: `${depth * 12 + 8}px`, paddingRight: "8px" }}
+    >
+      <span className="w-3 flex-shrink-0" />
+      <FileText className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+      <span className="text-[11.5px] truncate flex-1 min-w-0">{item.name}</span>
+      <span
+        className={cn(
+          "text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full",
+          item.is_skill
+            ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/40"
+            : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+        )}
+      >
+        {item.is_skill ? "SKILL" : "AGENTS"}
+      </span>
+    </button>
   );
 }

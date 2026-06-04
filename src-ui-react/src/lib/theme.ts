@@ -4,53 +4,69 @@ import type { ServerConfig } from "./ipc";
 /**
  * Apply ServerConfig theme values as CSS custom properties on :root.
  * Called on initial load and whenever config changes.
+ *
+ * Light vs dark is selected by `cfg.dark_mode`. Each mode has a complete
+ * palette (background, text, accent, card, sidebar, border, button bg/text,
+ * card text) — no fallbacks to other-mode values.
  */
 export function applyTheme(cfg: ServerConfig) {
   const root = document.documentElement;
   const dark = cfg.dark_mode;
 
   // ── Pick dark vs light palette ──────────────────────────────────────────
-  const bg = dark ? cfg.ui_background_color : cfg.ui_light_bg;
-  const fg = dark ? cfg.ui_text_color : cfg.ui_light_text;
-  const accent = dark ? cfg.ui_accent_color : cfg.ui_light_accent;
-  const cardBg = dark ? cfg.ui_background_color : cfg.ui_light_card_bg;
-  const border = dark ? cfg.ui_border_color : cfg.ui_light_border;
+  const bg = dark ? cfg.ui_background_color : cfg.ui_light_background_color;
+  const fg = dark ? cfg.ui_text_color : cfg.ui_light_text_color;
+  const accent = dark ? cfg.ui_accent_color : cfg.ui_light_accent_color;
+  const cardBg = dark ? cfg.ui_card_bg : cfg.ui_light_card_bg;
+  const sidebarBg = dark ? cfg.ui_sidebar_bg : cfg.ui_light_sidebar_bg;
+  const cardFg = dark ? cfg.ui_card_text : cfg.ui_light_card_text;
+  const border = dark ? cfg.ui_border_color : cfg.ui_light_border_color;
+  const buttonBg = dark ? cfg.ui_button_bg : cfg.ui_light_button_bg;
+  const buttonFg = dark ? cfg.ui_button_text : cfg.ui_light_button_text;
 
-  // ── Convert to HSL ──────────────────────────────────────────────────────
-  const bgHsl = hexToHsl(bg);
-  const fgHsl = hexToHsl(fg);
-  const accentHsl = hexToHsl(accent);
-  const cardHsl = hexToHsl(cardBg);
-  const borderHsl = hexToHsl(border);
+  // ── Convert to HSL (shadcn format: "H S% L%") ─────────────────────────
+  const bgHsl = hexToHsl(bg || "#0f172a");
+  const fgHsl = hexToHsl(fg || "#f8fafc");
+  const accentHsl = hexToHsl(accent || "#6366f1");
+  const cardHsl = hexToHsl(cardBg || bg);
+  const sidebarHsl = hexToHsl(sidebarBg || cardBg || bg);
+  const borderHsl = hexToHsl(border || "#1e293b");
+  const cardFgHsl = hexToHsl(cardFg || fg);
+  const buttonBgHsl = hexToHsl(buttonBg || accent);
+  const buttonFgHsl = hexToHsl(buttonFg || "#ffffff");
 
-  const cardSlightly = dark ? darkenHsl(bgHsl, 3) : lightenHsl(bgHsl, 3);
-  const sidebarHsl = dark ? darkenHsl(bgHsl, 5) : darkenHsl(bgHsl, 2);
-  const mutedHsl = dark ? darkenHsl(bgHsl, 8) : darkenHsl(bgHsl, 4);
-  const mutedFgHsl = dark ? lightenHsl(bgHsl, 40) : darkenHsl(bgHsl, 30);
-  const popoverHsl = dark ? darkenHsl(bgHsl, 6) : lightenHsl(bgHsl, 1);
+  // ── Derived tokens (muted backgrounds for subtle surfaces) ───
+  // --muted is an HSL triple (no alpha) — alpha is applied at usage sites.
+  const mutedHsl = dark
+    ? lightenHsl(bgHsl, 4)
+    : darkenHsl(bgHsl, 4);
+  const mutedFgHsl = dark
+    ? lightenHsl(fgHsl, -25)
+    : darkenHsl(fgHsl, 30);
+  const popoverHsl = dark ? darkenHsl(bgHsl, 3) : lightenHsl(bgHsl, 2);
 
   // ── Set shadcn CSS vars ──────────────────────────────────────────────────
   root.style.setProperty("--background", bgHsl);
   root.style.setProperty("--foreground", fgHsl);
-  root.style.setProperty("--card", cardHsl.length ? cardHsl : cardSlightly);
-  root.style.setProperty("--card-foreground", fgHsl);
+  root.style.setProperty("--card", cardHsl);
+  root.style.setProperty("--card-foreground", cardFgHsl);
   root.style.setProperty("--popover", popoverHsl);
-  root.style.setProperty("--popover-foreground", fgHsl);
-  root.style.setProperty("--primary", accentHsl);
-  root.style.setProperty("--primary-foreground", dark ? "0 0% 100%" : "0 0% 100%");
+  root.style.setProperty("--popover-foreground", cardFgHsl);
+  root.style.setProperty("--primary", buttonBgHsl);
+  root.style.setProperty("--primary-foreground", buttonFgHsl);
   root.style.setProperty("--secondary", mutedHsl);
   root.style.setProperty("--secondary-foreground", fgHsl);
   root.style.setProperty("--muted", mutedHsl);
   root.style.setProperty("--muted-foreground", mutedFgHsl);
-  root.style.setProperty("--accent", mutedHsl);
-  root.style.setProperty("--accent-foreground", fgHsl);
+  root.style.setProperty("--accent", accentHsl);
+  root.style.setProperty("--accent-foreground", cardFgHsl);
   root.style.setProperty("--destructive", "0 63% 55%");
   root.style.setProperty("--destructive-foreground", "0 0% 100%");
   root.style.setProperty("--border", borderHsl);
   root.style.setProperty("--input", borderHsl);
-  root.style.setProperty("--ring", accentHsl);
+  root.style.setProperty("--ring", buttonBgHsl);
   root.style.setProperty("--sidebar", sidebarHsl);
-  root.style.setProperty("--sidebar-foreground", fgHsl);
+  root.style.setProperty("--sidebar-foreground", cardFgHsl);
 
   // ── Border radius ────────────────────────────────────────────────────────
   root.style.setProperty("--radius-sm", cfg.ui_radius_sm || "4px");
@@ -67,11 +83,9 @@ export function applyTheme(cfg: ServerConfig) {
   const blur = cfg.ui_blur ? `${cfg.ui_blur_intensity ?? 28}px` : "0px";
   root.style.setProperty("--blur-radius", blur);
 
-  // ── Font family ──────────────────────────────────────────────────────────
-  if (cfg.ui_font_family) {
-    root.style.setProperty("--font-family", cfg.ui_font_family);
-    document.body.style.fontFamily = `"${cfg.ui_font_family}", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-  }
+  // ── Font family (applied to <body> so the whole UI inherits it) ──────────
+  const font = (cfg.ui_font_family || "Inter").replace(/^['"]+|['"]+$/g, "");
+  document.body.style.fontFamily = `"${font}", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
 
   // ── Dark mode class ──────────────────────────────────────────────────────
   if (dark) {
