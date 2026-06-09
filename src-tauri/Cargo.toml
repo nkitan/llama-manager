@@ -1,0 +1,40 @@
+[package]
+name = "llama-manager-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Native Tauri v2 backend for llama-manager"
+
+# Desktop build: a normal lib (`run()`) plus a thin binary that calls it.
+[lib]
+name = "llama_manager_app"
+crate-type = ["lib"]
+
+[[bin]]
+name = "llama-manager"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+shared = { path = "../crates/shared" }
+serde.workspace = true
+serde_json.workspace = true
+
+# Async runtime + networking. `process`/`sync`/`time` power server spawning,
+# approval channels, and tool timeouts; reqwest `stream` powers SSE token streaming.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "io-util"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+futures-util = "0.3"
+chrono = "0.4"
+async-trait = "0.1"
+urlencoding = "2"
+# Native file/folder picker for config tabs (model path, dirs, files).
+rfd = "0.15"
+
+# Structured logging at every command/process/tool/IPC boundary.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

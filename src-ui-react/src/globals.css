@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── shadcn color vars (overridden by theme.ts from ServerConfig) ── */
+    --background: 222 84% 5%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 7%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 60%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 15%;
+    --input: 217 33% 15%;
+    --ring: 239 84% 67%;
+    --sidebar: 222 47% 7%;
+    --sidebar-foreground: 210 40% 98%;
+
+    /* ── Border radius ── */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+
+    /* ── Transparency / blur ── */
+    --window-bg-opacity: 0.88;
+    --card-bg-opacity: 0.6;
+    --blur-radius: 28px;
+    --sidebar-bg-opacity: 0.5;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    background: transparent !important;
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  #root {
+    height: 100vh;
+    width: 100vw;
+    background: hsl(var(--background) / var(--window-bg-opacity));
+    backdrop-filter: blur(var(--blur-radius)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--blur-radius)) saturate(180%);
+    color: hsl(var(--foreground));
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid hsl(var(--border) / 0.3);
+    border-radius: var(--radius-lg);
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+}
+
+@layer utilities {
+  .glass-card {
+    background: hsl(var(--card) / var(--card-bg-opacity));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--border) / 0.5);
+  }
+
+  .glass-sidebar {
+    background: hsl(var(--sidebar) / var(--sidebar-bg-opacity));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-right: 1px solid hsl(var(--border) / 0.3);
+  }
+
+  .no-drag {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  .drag-region {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  .text-balance { text-wrap: balance; }
+
+  .animate-fade-in { animation: fade-in 0.15s ease-out; }
+
+  /* ── Chat message bubbles ── */
+  .msg-user {
+    @apply ml-auto max-w-[80%] rounded-2xl rounded-br-sm px-4 py-2.5 text-sm;
+    background: hsl(var(--primary) / 0.15);
+    border: 1px solid hsl(var(--primary) / 0.25);
+  }
+  .msg-assistant {
+    @apply mr-auto max-w-[85%] rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm;
+    background: hsl(var(--card) / 0.7);
+    border: 1px solid hsl(var(--border) / 0.4);
+  }
+}

@@ -5,7 +5,7 @@
       "title": "Optimize Llama Server Parameters",
       "summary": "Tune micro-batch size and GPU layers for hardware acceleration",
       "assigned_agent": "ConfigOptimizer",
-      "status": "Todo",
+      "status": "todo",
       "priority": "High",
       "created_at": "2026-06-03"
     },
@@ -14,7 +14,7 @@
       "title": "Internet Research on Hermes-Agent",
       "summary": "Search repositories and documentation for core implementation examples",
       "assigned_agent": "WebResearcher",
-      "status": "InProgress",
+      "status": "in_progress",
       "priority": "Medium",
       "created_at": "2026-06-03"
     }

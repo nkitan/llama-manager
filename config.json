@@ -1,6 +1,6 @@
 {
   "exe_path": "llama-server",
-  "model_path": "/mnt/shared/models/text/bonsai-8b.gguf",
+  "model_path": "/mnt/shared/models/multimodal/gemma-4-e4b-it-ud-Q8_K_XL.gguf",
   "model_dir": "/mnt/shared/models",
   "model_alias": "",
   "model_url": "",
@@ -69,18 +69,31 @@
     "/mnt/shared/models"
   ],
   "searxng_url": "http://localhost:8888",
-  "ui_transparency": 0.1,
-  "ui_background_color": "#0f172a",
+  "ui_transparency": 0.0,
+  "ui_background_color": "#111827",
   "ui_blur": true,
-  "ui_blur_intensity": 30,
+  "ui_blur_intensity": 60,
   "app_log_level": "INFO",
-  "theme_name": "default",
+  "theme_name": "Midnight Glass",
   "ui_text_color": "#f8fafc",
-  "ui_accent_color": "#6366f1",
-  "ui_card_bg": "rgba(255, 255, 255, 0.06)",
-  "ui_sidebar_bg": "linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%)",
-  "ui_border_color": "rgba(255, 255, 255, 0.12)",
+  "ui_accent_color": "#818cf8",
+  "ui_card_bg": "#1e1b4b",
+  "ui_sidebar_bg": "#111827",
+  "ui_border_color": "#312e81",
   "ui_font_family": "Inter",
+  "ui_radius_sm": "2px",
+  "ui_radius_md": "4px",
+  "ui_radius_lg": "6px",
+  "ui_radius_xl": "8px",
+  "ui_border_width": "1px",
+  "ui_size_xs": "8px",
+  "ui_size_sm": "12px",
+  "ui_size_md": "16px",
+  "ui_size_lg": "24px",
+  "ui_size_xl": "32px",
+  "ui_button_bg": "#6366f1",
+  "ui_button_text": "#ffffff",
+  "ui_card_text": "#f8fafc",
   "sidebar_favorites": [],
   "custom_themes": [
     {
@@ -94,7 +107,61 @@
       "font_family": "Inter",
       "transparency": 0.0,
       "blur": true,
-      "blur_intensity": 64
+      "blur_intensity": 64,
+      "radius_sm": "2px",
+      "radius_md": "4px",
+      "radius_lg": "6px",
+      "radius_xl": "8px",
+      "border_width": "1px",
+      "size_xs": "8px",
+      "size_sm": "12px",
+      "size_md": "16px",
+      "size_lg": "24px",
+      "size_xl": "32px",
+      "button_bg": "#6366f1",
+      "button_text": "#ffffff",
+      "card_text": "#cbd5e1"
     }
-  ]
+  ],
+  "override_planner": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_calendar": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_memory": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_research": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "override_compare": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "model": ""
+  },
+  "dark_mode": true,
+  "icon_pack": "colored",
+  "ui_light_background_color": "#ffffff",
+  "ui_light_text_color": "#111111",
+  "ui_light_accent_color": "#3b82f6",
+  "ui_light_card_bg": "#f5f5f5",
+  "ui_light_sidebar_bg": "#ffffff",
+  "ui_light_border_color": "#e5e7eb",
+  "ui_light_button_bg": "#111111",
+  "ui_light_button_text": "#ffffff",
+  "ui_light_card_text": "#111111"
 }

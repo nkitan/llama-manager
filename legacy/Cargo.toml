@@ -1,0 +1,23 @@
+# Standalone (own lockfile); decoupled from the migration workspace so its Dioxus
+# dependency graph doesn't constrain the Tauri stack.
+[workspace]
+
+[package]
+name = "llama-manager-legacy"
+version = "0.1.0"
+edition = "2024"
+
+# Preserved original Dioxus app. Kept compilable for side-by-side reference during
+# the Tauri+Leptos migration; excluded from workspace default-members so it is only
+# built on demand (`cargo build -p llama-manager-legacy`).
+
+[dependencies]
+dioxus = { version = "0.7.3", features = ["desktop"] }
+dioxus-desktop = "0.7.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rfd = "0.17"
+tokio = { version = "1", features = ["time", "process"] }
+reqwest = { version = "0.12", features = ["json"] }
+chrono = "0.4"
+urlencoding = "2"

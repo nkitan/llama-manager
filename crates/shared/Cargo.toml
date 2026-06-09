@@ -1,0 +1,13 @@
+[package]
+name = "shared"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "wasm-safe types shared between the Tauri backend and the Leptos frontend"
+
+# IMPORTANT: this crate compiles for BOTH native and wasm32-unknown-unknown.
+# It must stay free of std::fs, std::process, native reqwest, or any non-wasm dep.
+# All such logic lives in src-tauri. See [[migration-conventions]].
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

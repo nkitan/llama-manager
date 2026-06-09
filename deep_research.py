@@ -13,6 +13,8 @@ import argparse
 import datetime
 import re
 import hashlib
+import shutil
+import subprocess
 import requests
 from bs4 import BeautifulSoup
 
@@ -88,7 +90,51 @@ def search_duckduckgo(query, limit=4):
         print(f"Search error for query '{query}': {e}", file=sys.stderr)
     return results
 
+def search_searxng(searxng_url, query, limit=4):
+    url = f"{searxng_url.rstrip('/')}/search?q={urllib.parse.quote(query)}&format=json"
+    results = []
+    try:
+        res = requests.get(url, timeout=15)
+        res.raise_for_status()
+        res_json = res.json()
+        if "results" in res_json:
+            for r in res_json["results"][:limit]:
+                results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "snippet": r.get("content", r.get("snippet", ""))
+                })
+    except Exception as e:
+        print(f"SearXNG search error: {e}", file=sys.stderr)
+    return results
+
 def scrape_url(url):
+    harness_path = shutil.which("browser-harness")
+    camofox_path = shutil.which("camofox")
+    cloak_path = shutil.which("cloakbrowser")
+
+    if harness_path:
+        try:
+            res = subprocess.run([harness_path, "--url", url], capture_output=True, text=True, timeout=30)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout
+        except Exception:
+            pass
+    if camofox_path:
+        try:
+            res = subprocess.run([camofox_path, "--url", url, "--text-only"], capture_output=True, text=True, timeout=30)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout
+        except Exception:
+            pass
+    if cloak_path:
+        try:
+            res = subprocess.run([cloak_path, "--url", url, "--text-only"], capture_output=True, text=True, timeout=30)
+            if res.returncode == 0 and res.stdout.strip():
+                return res.stdout
+        except Exception:
+            pass
+
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
@@ -103,7 +149,6 @@ def scrape_url(url):
         text = soup.get_text(separator=" ")
         text = re.sub(r'\s+', ' ', text).strip()
         
-        # Limit scraped text length to prevent context bloat but capture enough details
         if len(text) > 12000:
             text = text[:12000] + "... [truncated]"
         return text
@@ -142,6 +187,7 @@ def main():
     parser.add_argument("--model", default="", help="Model name")
     parser.add_argument("--output", required=True, help="Path to write the report")
     parser.add_argument("--log-file", help="Path to write progress logs")
+    parser.add_argument("--searxng-url", help="SearXNG URL")
     
     args = parser.parse_args()
     
@@ -221,7 +267,10 @@ def main():
             log_progress(args.log_file, f"🔍 Executing Task [{task.id}]: '{task.query}'")
             
             # Execute search
-            search_results = search_duckduckgo(task.query, limit=3)
+            if hasattr(args, "searxng_url") and args.searxng_url:
+                search_results = search_searxng(args.searxng_url, task.query, limit=3)
+            else:
+                search_results = search_duckduckgo(task.query, limit=3)
             if not search_results:
                 log_progress(args.log_file, f"⚠️ No search results for Task [{task.id}]. Rewiring graph...")
                 task.status = "failed"

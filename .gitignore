@@ -2,4 +2,5 @@ target
 Cargo.lock
 llm-docs/
 pending-prompts
+node_modules/
 dist/
